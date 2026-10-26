@@ -57,7 +57,7 @@ windows/
 3. **Core logic** [independent]. Port gestures, cleanup and dictionary correction into
    `shepit-core` until every shared fixture passes. Done: fixtures green on macOS and Windows CI.
 4. **Audio and hotkey**. Capture, level meter, hold and double tap through the core gesture machine,
-   Esc cancels. Device check: hold the dictation key, see the level move, release.
+   Esc cancels. Device check: hold Right Ctrl, see the level move, release.
 5. **Recognition**. Model download with progress and checksum, Parakeet v3 through `transcribe-rs`,
    Whisper turbo optional. Done: a fixture WAV transcribes in CI. Device check: speed on real
    hardware, with and without DirectML.
@@ -73,23 +73,22 @@ windows/
 10. **History and dictionary learning**.
 11. **Release and install** [complex]. Tag builds the NSIS installer on Windows CI, signs the update
     payload, publishes it to the same GitHub release next to `Shepit.dmg`, `install.ps1`, updater.
-    The macOS release flow must keep working unchanged. Device check: install, update to a test
-    version.
+    The macOS release flow must keep working unchanged. README gets the Windows install section
+    described under Decisions. Device check: install, update to a test version.
 12. **Live preview**.
 
 Tasks 1 and 2 come first and in that order; 3 can run beside 4. Everything that touches
 `shared/`, `docs/spec/`, release workflows or insertion gets the full review council.
 
-## Open decisions
+## Decisions (2026-10-26, with the user)
 
-- Default dictation key. Right Option has no clean twin: Right Alt is AltGr on many layouts,
-  including Ukrainian Enhanced (AltGr+г types ґ). Candidates: Right Ctrl, a Caps Lock remap, a
-  configurable chord. Decide in task 4 with the user.
-- GPU builds. DirectML and Vulkan builds are larger; ship CPU only first and add GPU once task 5
-  has numbers.
-- Code signing on Windows. Unsigned installers trigger SmartScreen; `install.ps1` avoids it for the
-  first install. A real certificate (Azure Trusted Signing or similar) costs money and is the user's
-  call.
+- Default dictation key: Right Ctrl, changeable in Settings. Right Alt is AltGr on many layouts,
+  including Ukrainian Enhanced (AltGr+г types ґ), so it is not offered as the default.
+- CPU builds first. DirectML and Vulkan builds come after task 5 has speed numbers.
+- No paid Windows code signing for now. The unsigned installer triggers SmartScreen; `install.ps1`
+  avoids it for the first install because PowerShell downloads carry no Mark of the Web. The README
+  says this plainly: that the installer is unsigned, what SmartScreen shows, that the PowerShell
+  command skips it and why, and the "More info, Run anyway" route for the manual download.
 
 ## What this machine cannot verify
 
