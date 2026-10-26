@@ -1,0 +1,51 @@
+name: Shepit
+options:
+  bundleIdPrefix: com.themarchenko
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptySchemes: false
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "5"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    ENABLE_HARDENED_RUNTIME: "NO"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+packages:
+  ShepitCore:
+    path: Packages/ShepitCore
+targets:
+  Shepit:
+    type: application
+    platform: macOS
+    sources:
+      - path: Shepit
+        excludes:
+          - "Info.plist"
+    dependencies:
+      - package: ShepitCore
+    info:
+      path: Shepit/Info.plist
+      properties:
+        CFBundleName: Shepit
+        CFBundleDisplayName: Shepit
+        CFBundleIdentifier: com.themarchenko.shepit
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
+        LSUIElement: true
+        LSMinimumSystemVersion: "26.0"
+        NSMicrophoneUsageDescription: "Shepit records your voice while the dictation key is held."
+        NSPrincipalClass: NSApplication
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.themarchenko.shepit
+        PRODUCT_NAME: Shepit
+        INFOPLIST_FILE: Shepit/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: "NO"
+        ENABLE_PREVIEWS: "YES"
+    scheme:
+      testTargets: []

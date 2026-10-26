@@ -1,0 +1,22 @@
+# Xcode / SwiftPM
+.build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+.swiftpm/
+*.xcresult
+
+# Spike data: recordings stay local, results are regenerated
+spike/recordings/*.wav
+spike/results/
+
+# macOS
+.DS_Store
+
+# Personal signing identity, see Config/Signing.xcconfig
+Config/Local.xcconfig
+
+# Claude Code personal settings
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

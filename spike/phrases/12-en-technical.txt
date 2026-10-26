@@ -1,0 +1,1 @@
+The worker keeps one Claude Code process alive, sends a JSON message per dictation, and recycles the process after twenty five turns or fifteen idle minutes.

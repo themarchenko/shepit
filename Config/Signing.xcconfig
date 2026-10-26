@@ -1,0 +1,15 @@
+// Ad-hoc signing, so anyone can build without an Apple account. macOS ties the Accessibility
+// permission to the signature, and an ad-hoc signature changes on every build, so the permission has
+// to be granted again after each rebuild.
+//
+// To keep it across rebuilds, sign with your own Apple Development identity: create
+// Config/Local.xcconfig (git-ignored) with
+//
+//   DEVELOPMENT_TEAM = YOURTEAMID
+//   CODE_SIGN_IDENTITY = Apple Development
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+PROVISIONING_PROFILE_SPECIFIER =
+
+#include? "Local.xcconfig"

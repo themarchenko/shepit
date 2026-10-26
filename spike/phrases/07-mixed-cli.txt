@@ -1,0 +1,1 @@
+Запусти git rebase на main, потім npm run build і подивись, чи не падає тест на CI.

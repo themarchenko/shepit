@@ -1,0 +1,306 @@
+# Decisions
+
+Short log of choices that are not obvious from the code. Newest first.
+
+## 2026-10-24: scope and defaults (from the plan review)
+
+- Hotkey is configurable; default Right Option hold, double tap for hands-free. Reason: the
+  Fn key on this Mac switches input sources.
+- Formatting runs through the local Claude Code CLI on the subscription. No API key.
+- Speech recognition is local only. Cloud recognizers are out, including as a fallback.
+- App name Shepit, bundle id `com.themarchenko.shepit`.
+
+## 2026-10-24: measurements behind the plan
+
+- Apple `SpeechTranscriber` on macOS 26.5: 30 locales, no Ukrainian. `DictationTranscriber`
+  lists `uk-UA`. `SFSpeechRecognizer(uk-UA)` has no on-device recognition.
+- Headless Claude Code (Haiku), persistent stream-json worker with `--setting-sources ""
+  --strict-mcp-config --tools ""`: 1.1-1.3 s per trivial turn, 624 system-prompt tokens.
+  One-shot `claude -p`: 2.3-6.0 s. `--bare` skips the subscription login and is not usable.
+- Queued stdin messages are merged into one turn, so the app sends one message and waits
+  for its `result` before the next.
+
+## 2026-10-24: first launches of the built app (headless checks, no user present)
+
+- Release build signed with the Apple Development identity, installed to `/Applications`,
+  launched through Finder (`open -a`) and from a terminal. Launch to ready: recognizer
+  (Parakeet v3) 0.2-0.5 s after the first run (30 s the very first time, CoreML compilation),
+  Claude worker warm in 1.6-1.9 s.
+- Bug found and fixed: in a Finder-launched process, reading the worker's stdout through
+  `FileHandle.bytes.lines` delivered nothing, although Claude Code's own debug log showed the
+  turn finishing in 2 s. The same code worked from a terminal and in the smoke CLI. The reader
+  is now a dedicated thread doing blocking reads on the pipe. Lesson: do not rely on
+  `AsyncBytes` for subprocess pipes in a GUI app.
+- Second bug fixed on the way: after a timeout the code read `Process.terminationStatus` on a
+  running process, which raises an Objective-C exception and crashes the app. The worker now
+  distinguishes cancellation from exit and never reads the status of a live process.
+- Repeated worker failures pause Claude formatting for 5 minutes; dictation falls back to the
+  recognizer text so the app stays usable.
+- `--effort low` on the worker: prompt-mode formatting dropped from ~6 s to 1.7-2.5 s on Haiku
+  with no visible quality change on the test transcripts.
+- Diagnostics: worker stderr in `~/Library/Application Support/Shepit/claude-work/worker-stderr.log`,
+  Claude Code's own debug log in `worker-debug.log` next to it (rotated per spawn), app logs via
+  `make logs`. In an interactive zsh, `log` is a shell builtin: call `/usr/bin/log`.
+- Headless pipeline check: `swift run shepit-smoke --text "…"` or `--audio file.wav` in
+  `Packages/ShepitCore` runs recognizer, worker and formatting without the UI.
+
+## 2026-10-24: first interactive launch (user present)
+
+- Microphone and Accessibility granted; the app reports both at launch
+  ("microphone granted: true, accessibility trusted: true").
+- Bug found and fixed: the first click on the widget did nothing. `AVAudioEngine` raised
+  "required condition is false: format.sampleRate == inputHWFormat.sampleRate" inside
+  `installTap`, an Objective-C exception that AppKit swallows at the event loop, so the state
+  never changed and no error reached the widget. The input node had cached a 24 kHz format (the
+  microphone of a pair of AirPods) while the current device, the built-in microphone, runs at
+  48 kHz. The recorder now rebuilds the engine after `AVAudioEngineConfigurationChange` and
+  whenever the cached format differs from `inputFormat(forBus: 0)`, and throws an `AudioError`
+  instead of installing a tap with a mismatched rate. Lesson: never cache audio device formats
+  on a Mac that pairs with Bluetooth headsets.
+- Verification without the user: a synthetic Right Option tap (CGEvent with keyCode 61, posted
+  from a Swift script) made the hotkey fire, capture started at 48 kHz and the 0.19 s recording
+  was discarded as too short, so nothing was inserted anywhere. Scripted taps are a usable
+  end-to-end check as long as the recording stays under `minimumSeconds`.
+- Hotkey gesture outputs and capture start/stop are logged at notice level so acceptance runs
+  can be checked afterwards with `/usr/bin/log show`.
+
+## 2026-10-24: accuracy work after the first real dictations
+
+- First two real dictations (Ukrainian, built-in mic, Parakeet v3): "Привіт, привіт, перевірка, як
+  працює нова штука" came out as "Привека, привека, перевека, як працює нова штука"; Claude
+  repaired two of the three words by guessing. Recognition, not formatting, is the weak link.
+- The speaker described their speech: anglicisms inside Ukrainian sentences and two sounds the
+  recognizer keeps confusing. That became a "Speaker" section of the formatter's system prompt, editable in
+  Settings (`AppSettings.speakerNotes`, default in `SpeakerNotes.defaultText`). Editing it
+  respawns the worker (debounced 1.5 s) because the system prompt is cached per process. With the
+  notes, Haiku turned "перевев логи" into "перевір логи" and "перевека" into "перевірка".
+- Anglicism policy in the prompt: technical terms the recognizer wrote in Cyrillic become Latin
+  with standard English spelling (pull request, commit, deploy); Ukrainian-inflected forms used as
+  ordinary words stay as spoken (задеплоїти, фіча). Checked on "зроби пул реквест і задеплой на
+  стейджинг після комміта": pull request and commit were converted, задеплой kept.
+- Every dictation's audio is kept as 16 kHz WAV in `~/Library/Application Support/Shepit/recordings/`
+  (last 200, `audioFile` column in the history table, schema v2). This replaces the "record 20
+  phrases" step: the recognizer comparison runs on real dictations with
+  `shepit-smoke --audio <dir> --engine ... --engine ...`.
+- Recognizers now receive hints: a language lock ("uk"/"en") and the dictionary. Whisper gets the
+  dictionary plus the last three accepted dictations as its text prompt (style and spelling bias);
+  Parakeet applies the language only as a script filter, so it is set only under a hard lock,
+  never for mixed speech.
+
+## 2026-10-24: recognizer comparison on the English samples, Whisper made the default
+
+- `shepit-smoke --engine parakeet-v3 --engine parakeet-ultra --engine whisper-turbo` over the two
+  English TTS clips (8.6 s and 9.5 s), M1: Parakeet v3 and Ultra 0.12-0.20 s per clip, both wrote
+  "cloed code" for "Claude Code"; Whisper turbo 1.25-1.49 s per clip, got "Claude Code" (the term
+  was in the vocabulary prompt) and everything else right. Ultra differed from v3 only in
+  punctuation and digits.
+- Whisper turbo's first load in a new process took 609 s with the model already on disk: CoreML
+  compiles the encoder for the Neural Engine and caches the result per process identity in
+  `~/Library/Caches/<bundle id or process name>/com.apple.e5rt.e5bundlecache` (200 MB each for
+  `shepit-smoke` and `shepit-bench`; the app had only Parakeet's 36 MB). Copying the CLI's
+  compiled cache into the app's directory did not help: the app still compiled for 524 s on its
+  first Whisper load. The second launch loaded Whisper in 5.9 s, so the cost is one-time per
+  process identity. At launch Parakeet loads first (0.5 s) and serves until Whisper is ready.
+- `EngineManager` now keeps the previous recognizer serving while a newly selected one loads, so a
+  switch never stalls a dictation; the history row records which engine actually ran.
+- Default recognizer switched to Whisper turbo before the user's own recordings existed, on three
+  signals: Parakeet's Ukrainian on the user's voice (3 of 7 words wrong on a plain phrase), the
+  "cloed code" miss above, and the vocabulary prompt that only Whisper supports. The comparison
+  on real recordings still runs once they exist; Parakeet stays one menu click away.
+- Whisper guards: recognition is skipped when energy-based detection finds under 0.3 s of speech,
+  and known Whisper fillers on silence ("Дякую за перегляд", "Субтитри створив DimaTorzok",
+  "Thank you.") are treated as nothing recognized (`HallucinationFilter`).
+
+## 2026-10-24: implementation choices (Phase 1 code)
+
+- Swift 5 language mode (`swiftLanguageMode(.v5)`, `SWIFT_VERSION 5`) under the Swift 6.3 compiler.
+  Strict concurrency would cost days of AppKit, CoreML and Accessibility API plumbing with no
+  payoff for a single-user app. Isolation is still explicit: `@MainActor` UI, actors for engines,
+  the Claude worker and the formatting service.
+- XcodeGen (`project.yml`) generates `Shepit.xcodeproj`; the project file is not committed. Core
+  logic lives in the SwiftPM package `Packages/ShepitCore` so it has `swift test` and no Xcode
+  dependency.
+- Signing: an Apple Development identity, manual style (moved to a git-ignored
+  `Config/Local.xcconfig` on 2026-10-26; the default is ad hoc), no hardened runtime, no sandbox (Accessibility, CGEvent posting and spawning `claude` rule the
+  sandbox out). Same identity on every build so TCC grants persist.
+- One Claude worker for all profiles: the system prompt lists every profile's rules and the
+  per-dictation message names the profile. One process, one prompt cache.
+- Claude's reply is JSON inside text, parsed tolerantly (`JSONExtraction`); `--json-schema` was
+  measured slower (see the worker probe below).
+- Fast path: dictations up to 8 words outside AI targets skip Claude entirely.
+- Prompt mode switches on automatically in AI targets from 40 words; both thresholds are settings.
+
+## 2026-10-24: worker probe with a realistic prompt (`spike/worker/probe.py`)
+
+System prompt of ~1.5K tokens (rules, terminal profile, 80-term dictionary, 3 examples),
+Haiku, four dictations sent one at a time:
+
+- JSON asked for in the prompt: first turn 3.7 s (prompt cache being created), then
+  1.5-1.7 s per turn. Output was valid JSON every time.
+- `--json-schema` with stream-json works (`structured_output` is present) but costs a tool
+  round trip: 2.5-4.2 s per turn and 2-5x more output tokens. Decision: no `--json-schema`;
+  ask for JSON in the prompt and parse tolerantly.
+- Quality on the four cases: transliterated identifiers restored (`хендл сабміт` to
+  `handleSubmit`, `юзер сервіс свіфт` to `UserService.swift`), self-correction applied,
+  prompt mode produced a goal line plus a short list without inventing content.
+- `duration_api_ms` in the result event is cumulative across the session; use wall time.
+- `new_terms` is noisy (it listed `main` and `git rebase`); the dictionary logic must filter
+  candidates against the existing dictionary and keep proper-noun-like tokens only.
+
+## 2026-10-24: recognizer smoke test (English TTS only, M1 16 GB)
+
+Two synthetic English clips (macOS "Samantha" voice, 8.6 s and 9.5 s) through `spike/bench.sh`,
+to prove the tool and prime the model downloads. Not a quality verdict: the Ukrainian and mixed
+clips need the user's voice.
+
+| Engine | First load (with download) | Latency per ~9 s clip | WER on the two clips |
+| --- | ---: | ---: | ---: |
+| parakeet-v3 | 56 s | 0.12-0.13 s | 0% / 3.8% |
+| parakeet-ultra | 50 s | 0.12-0.13 s | 0% / 15.4% (digits where the reference has words) |
+| whisper-turbo | 620 s (~1.5 GB) | 1.0-2.1 s | 0% / 15.4% ("Claude Code" came out "code code") |
+
+Parakeet is 10-15x faster than Whisper on this machine; both heard the TTS "Claude" badly.
+Models are cached under `~/Library/Application Support/Shepit/models` (WhisperKit) and
+FluidAudio's default cache. WER counts "25" vs "twenty five" as an error; read the per-clip text
+in the report before trusting a number.
+
+## 2026-10-26: Whisper language id, prompt cost, rebuild cost
+
+- First Whisper dictations in the app (Sublime Text, 5.5 s and 6.1 s): one was detected as Russian
+  and came out "Достаю введення в файла" (said: "Тестую введення в файл"); the 4 words went
+  through the fast path, so Claude never saw it. The other was detected as Ukrainian and was right.
+- Whisper's language filter in WhisperKit is private, so `WhisperKitEngine` retries instead: a
+  detected language other than uk/en is decoded again with the language forced, Ukrainian when the
+  first pass is Cyrillic, English otherwise. Free when detection is right; the retry cost 0.8 s on
+  the 5.5 s clip. Forcing Ukrainian gave "Достаємо введення в файла": Ukrainian words, but
+  "тестую" is still misheard, which is an acoustic error and not a language one.
+- The text prompt roughly doubles Whisper's decode time: 0.92 s without and 1.71 s with three
+  short sentences of prompt on the 6.1 s clip (the app measured 1.81 s). It also helped there
+  ("в файл", the comma). The style sample feeds earlier output back into the recognizer, mistakes
+  included. Prompt length is to be tuned on the user's batch of recordings.
+- The CoreML compile cache does not survive a rebuild of the app: after `make install` Parakeet
+  took 30.9 s and Whisper 526.6 s to load again. Every rebuild costs ~9 minutes on Parakeet before
+  Whisper takes over.
+
+## 2026-10-26: ideas taken from Handy, widget placement
+
+Compared with Handy (handy.computer, MIT, Tauri + transcribe-cpp, Whisper and Parakeet, live
+overlay text, LLM post-processing through API keys with one global prompt). Taken over:
+
+- Dictionary correction without a language model (`DictionaryCorrector`), on the paths that skip
+  Claude (fast path, no worker, worker failure). Terms are matched by a coarse sound key after
+  transliterating Cyrillic, so "клод код", "Cloud Code" and "Claude Code" agree. Tuned on false
+  hits found by the tests ("колода карт" first matched "Claude Code"): keys of at least 5 sounds,
+  exact below 7, one sound of slack above; inflected forms ("після коміту") are left for Claude;
+  Latin text only toward multi-word terms, so "Whisper" stays "Whisper" with "Shepit" in the
+  dictionary. It does not help misheard ordinary words such as "тестую" heard as "достаємо".
+- The dictionary was empty, so it now learns from Claude's `new_terms`, filtered to
+  proper-noun-like Latin tokens (capital, dot, underscore or digit; "main" and "git rebase" are
+  dropped), up to 300 terms. Whisper gets only the 30 newest terms because its prompt costs time.
+- Live preview while recording (`LivePreview`): Parakeet v3 recognizes the recording so far every
+  0.5 s; past 12 s the head is frozen at a quiet point so a pass stays short. Measured with
+  `shepit-smoke --live` on the two real recordings: 7-8 updates per 5-6 s clip, 0.07-0.30 s per
+  pass. Parakeet's language hint is a script filter: without it the first seconds flip between
+  Polish, English and Cyrillic, so the preview uses the language lock or the last dictation's
+  language. FluidAudio's `SlidingWindowAsrManager` was not used: it emits nothing before 13 s of
+  audio. Parakeet now stays loaded next to Whisper.
+- Not taken: unloading the model after idle time (Whisper reloads in ~7 s, memory is not short).
+
+Long dictations with Whisper (`ProgressiveTranscriber`): a 46 s prompt dictated into Claude Code
+waited 10.8 s for Whisper and 2.9 s for Claude after release. Whisper now transcribes long
+recordings in 7-12 s pieces while they are still being recorded (cut at the quietest 100 ms once
+14 s are waiting); later pieces get the text so far as prompt and the first piece's language. After
+release only the rest is left. Measured on that recording with `shepit-smoke --progressive`
+(played in real time): 3.8 s after release instead of 9.8 s, text of the same quality (both runs
+garbled the same two places). Parakeet is fast enough to skip this, and a failed piece falls back
+to one transcription of the whole recording. The history row now records the engine that actually
+ran, not the selected one.
+
+The same dictation's inserted text began with a sentence that is not in the audio (both engines
+agree it starts later); most likely it was already in the input line and Claude repeated
+`text_before_caret`. Not reproduced in three runs with that context, but the system prompt now says
+the context is never copied into the output.
+
+Widget placement: the per-display position was saved under the widget's current display number
+but looked up under the main display's, so a position on a second monitor was never restored, and
+the widget always snapped to a side edge. It now keeps one anchor (middle of the bottom edge, global
+coordinates) that survives relaunches, grows around it, and falls back to the bottom middle of the
+menu-bar display when the anchor is on no connected display.
+
+## 2026-10-26: widget styles, settings, welcome tour, polishing choice (0.2.0)
+
+- Six widget concepts were mocked in `docs/design/widget-concepts.html`; the user picked 1 (Flow
+  pill), 2 (Caption bar) and 4 (Island) and wants all three selectable in Settings → Appearance.
+  The look is black translucent glass (opacity adjustable 0.5-0.9), white text, red only for the
+  recording dot, amber for errors, green for success. Primary buttons are off-white: the user
+  rejected a blue one in the mock (`docs/design/settings-onboarding.html`).
+- The widget panel grows at once around its anchor and shrinks 0.7 s after the shape settles, so
+  SwiftUI's springs are never clipped by the window and the panel does not cover more of the screen
+  than it needs between dictations. The window shadow is off; the glass draws its own, which
+  follows the animated shape.
+- Settings moved to a toolbar-tab window: General, Appearance, Polishing, Dictionary, About.
+- Polishing is a choice of Claude Code, Codex or Off. The app looks for both CLIs in the usual
+  install folders; a missing agent cannot be picked, and when the selected one is gone the choice
+  falls back to the other agent or to Off. Off inserts the text as heard, with spacing, capitals and
+  dictionary terms fixed locally.
+- First launch shows a five-step welcome tour (dictation demo, the two permissions, style, polishing,
+  a box to try it in). Until the tour is done the app does not show the system permission prompts
+  at launch; the tour's buttons do. After an update with an entry in `WhatsNew.releases`, a card
+  rises from the widget once; bug-fix releases have no entry and stay quiet. Someone who dictated
+  before the tour existed gets the card right after the tour.
+
+## 2026-10-26: no recent-dictation prompt for Whisper
+
+English dictations came out in Ukrainian: "Okay, let's try to test this application" was inserted
+as "Окей, давайте тестимемо цю апп." Whisper detected English correctly, but its prompt held the
+last three dictations, all Ukrainian, and it followed the prompt's language. Without that prompt
+the same two recordings came out right in English, in 0.7 s instead of 2.5-6.5 s. Whisper now gets
+only the dictionary terms. Inside one long dictation, later pieces still get the text so far,
+which is in the same language.
+
+The widget's shadow ended in a visible rectangle: the panel margin (16 x 12 pt) was smaller than
+the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shadow.
+
+## 2026-10-26: live-preview language, brand
+
+- The live preview wrote Ukrainian as Polish-looking Latin after two English dictations: its
+  Parakeet script filter came from the last dictation's language. Asking Whisper for the language
+  during recording was right but slow (first words after 4-5 s). Now each early pass decodes twice,
+  with the Ukrainian and the English filter, and Parakeet's own confidence picks the script. On five
+  of the user's recordings the more confident script was wrong for 2 of 3 Ukrainian clips at 1.5 s
+  and right for every clip from 2.5 s, so an early pass is shown only when the winner has at least
+  0.6 and leads by 0.2, and after 3.5 s of audio the language sticks. First words now appear at
+  1.2-2.7 s, never in the wrong script on those recordings.
+- Brand: of four directions (`docs/design/branding.html`) the user picked "voice to cursor", three
+  rising bars flowing into a text caret, white on the widget's black glass with the teal and amber
+  glows. `scripts/make-icons.swift` renders the app icon and an 18 pt template menu bar glyph into
+  `Shepit/Assets.xcassets`; the in-app mark is `ShepitMark` with the same geometry. The icon is drawn
+  edge to edge: rendering the built app with `NSWorkspace.icon(forFile:)` showed macOS 26 applying its
+  own rounded mask and rim, so a drawn squircle with margins would have been shrunk inside it.
+
+## 2026-10-26: name, open source, Settings look
+
+- Renamed from Whispr to Shepit (Ukrainian "шепіт", a whisper) before the first public commit.
+  "Whispr" was too close to Wispr Flow, the app the widget took cues from. Earlier entries use the
+  new name throughout. Bundle id `com.themarchenko.shepit`; the one local install was moved by hand
+  (preferences exported and imported, Application Support folder and database renamed).
+- Published as open source under MIT. Signing moved out of `project.yml`: ad hoc by default so
+  anyone can build, a personal team in the git-ignored `Config/Local.xcconfig`. Release builds from
+  CI are ad hoc too, so macOS asks for Accessibility again after each update; notarization needs a
+  Developer ID account.
+- Releases: a `vX.Y.Z` tag on `main` runs `.github/workflows/release.yml`, which checks the tag
+  against `project.yml`, runs the tests, zips the app and publishes a GitHub release.
+- Settings moved off the system window look onto the widget's black glass: a borderless-looking
+  titled window over a behind-window blur, its own tab bar, grouped forms with the system
+  background hidden. The status item menu stays a system `NSMenu`.
+- Widget style previews: three side-by-side cards at a fixed 0.46 scale overflowed once the caption
+  bar (560 pt) or the island card appeared. Replaced by a segmented choice over one preview scaled
+  from the style's largest shape (`WidgetLayout.largest`), checked offscreen in every phase.
+
+## Pending (Phase 0)
+
+- Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run
+  `spike/bench.sh`, read `spike/results/bench-*.md`. Default stays Parakeet v3 until then.
+- First interactive launch: grant Microphone and Accessibility, then the Phase 1 acceptance
+  checks from the plan (dictate into Claude Code in Terminal, Claude.app, claude.ai in Chrome;
+  release-to-insert under 3 s; grants survive a rebuild).

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shepit logo directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one card per logo direction, each showing the app icon, menu bar glyph, wordmark and small sizes. Single dark look. */
+:root {
+  color-scheme: dark;
+  --page: #0d0e10;
+  --card: #141518;
+  --ink: #ebe8e2;
+  --muted: #9b988f;
+  --line: rgba(255, 255, 255, .08);
+  --teal: #5a6f70;
+  --amber: #7a6249;
+  --menu-light: #ececec;
+  --menu-dark: #2b2b2e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--page);
+  color: var(--ink);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1160px; margin: 0 auto; padding-block: 40px 56px; display: flex; flex-direction: column; gap: 24px; }
+h1 { font-size: 22px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+.intro p { margin: 0; color: var(--muted); max-width: 700px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(520px, 100%), 1fr)); gap: 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.head { display: flex; gap: 12px; align-items: flex-start; }
+.num { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: rgba(255, 255, 255, .07); font-weight: 600; }
+.head h2 { margin: 2px 0; font-size: 16px; font-weight: 600; }
+.head p { margin: 0; color: var(--muted); font-size: 13px; }
+.hero { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
+@media (max-width: 520px) { .hero { grid-template-columns: 1fr; justify-items: start; } }
+.icon { width: 168px; height: 168px; display: block; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .55)); }
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.lockup { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 12px; }
+.lockup.dark { background: #0a0a0b; color: #f4f2ee; }
+.lockup.light { background: #f6f4ef; color: #17171a; }
+.lockup svg { width: 30px; height: 30px; flex: none; }
+.lockup span { font: 600 24px/1 -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif; letter-spacing: -.02em; }
+.menubar { height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 0 12px; font-size: 12.5px; }
+.menubar.light { background: var(--menu-light); color: #1b1b1d; }
+.menubar.dark { background: var(--menu-dark); color: #f2f2f2; }
+.menubar i { width: 14px; height: 14px; border-radius: 50%; border: 1.6px solid currentColor; opacity: .55; }
+.menubar svg { width: 18px; height: 18px; }
+.menubar .sel { background: rgba(127, 127, 127, .28); border-radius: 5px; padding: 2px 4px; display: grid; }
+.sizes { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sizes figcaption { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: 12.5px; color: var(--muted); }
+.note b { color: var(--ink); font-weight: 500; }
+footer { color: var(--muted); font-size: 13px; }
+footer b { color: var(--ink); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="intro">
+    <h1>Shepit logo directions</h1>
+    <p>Four marks for Shepit, a macOS dictation app built around a black glass widget. Each card shows the app icon,
+      the logo with the name on dark and light, the menu bar glyph in both menu bar appearances, and small sizes for
+      legibility. The icon background borrows the widget's glass and the teal and amber of its preview wallpaper.</p>
+  </header>
+  <div class="grid" id="grid"></div>
+  <footer>
+    <p><b>Picking:</b> reply with a number, or a mix such as "3 with the glow of 1". The chosen mark becomes the app
+      icon in every size, the menu bar icon (a template image, so macOS tints it), and the logo in the welcome tour,
+      What's new and About.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+// Each mark is drawn in a 100 x 100 box. `c` is the ink color, `f` the faint ink for echoes.
+const MARKS = [
+  {
+    name: 'Pill wave',
+    why: 'The widget itself: a glass pill with a mirrored waveform. The icon and the thing on screen are the same object.',
+    note: '<b>Strength:</b> instantly ties the icon to the widget. <b>Risk:</b> at 16 px the bars merge into a solid pill.',
+    mark: (c, f) => {
+      const hs = [7, 12, 18, 24, 18, 12, 7];
+      return `<rect x="13" y="35" width="74" height="30" rx="15" fill="${f}" stroke="${c}" stroke-opacity=".45" stroke-width="1.6"/>` +
+        hs.map((h, i) => `<rect x="${30.2 + i * 6.6}" y="${50 - h / 2}" width="3.6" height="${h}" rx="1.8" fill="${c}"/>`).join('');
+    },
+    glyph: c => `<rect x="10" y="33" width="80" height="34" rx="17" fill="none" stroke="${c}" stroke-width="7"/>` +
+      [12, 22, 12].map((h, i) => `<rect x="${37 + i * 11}" y="${50 - h / 2}" width="6" height="${h}" rx="3" fill="${c}"/>`).join(''),
+  },
+  {
+    name: 'Breath',
+    why: 'A point of sound with arcs that fade as they travel. Quiet on purpose, like the name.',
+    note: '<b>Strength:</b> calm and simple, reads at every size. <b>Risk:</b> close to generic "audio" or Wi-Fi marks.',
+    mark: (c) => {
+      const arc = (r, o) => {
+        const a = 52 * Math.PI / 180, cx = 30, cy = 50;
+        const x1 = cx + r * Math.cos(-a), y1 = cy + r * Math.sin(-a), x2 = cx + r * Math.cos(a), y2 = cy + r * Math.sin(a);
+        return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)}A${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${c}" stroke-opacity="${o}" stroke-width="6.5" stroke-linecap="round"/>`;
+      };
+      return `<circle cx="30" cy="50" r="7" fill="${c}"/>` + arc(19, 1) + arc(32, .62) + arc(45, .3);
+    },
+    glyph: c => `<circle cx="26" cy="50" r="10" fill="${c}"/>` +
+      [[28, 1], [46, .55]].map(([r, o]) => {
+        const a = 52 * Math.PI / 180;
+        return `<path d="M${(26 + r * Math.cos(-a)).toFixed(1)} ${(50 + r * Math.sin(-a)).toFixed(1)}A${r} ${r} 0 0 1 ${(26 + r * Math.cos(a)).toFixed(1)} ${(50 + r * Math.sin(a)).toFixed(1)}" fill="none" stroke="${c}" stroke-opacity="${o}" stroke-width="9" stroke-linecap="round"/>`;
+      }).join(''),
+  },
+  {
+    name: 'Spoken W',
+    why: 'The W of Shepit drawn as one waveform stroke, with the middle peak taller like a stressed syllable.',
+    note: '<b>Strength:</b> a real monogram, carries the name. <b>Risk:</b> the taller middle peak needs care to stay a W.',
+    mark: (c, f) => {
+      const d = 'M14 34 C 19 50, 23 64, 29 67 C 35 70, 40 46, 50 27 C 60 46, 65 70, 71 67 C 77 64, 81 50, 86 34';
+      return `<path d="${d}" fill="none" stroke="${f}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 5)"/>` +
+        `<path d="${d}" fill="none" stroke="${c}" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    },
+    glyph: c => `<path d="M10 30 C 16 50, 21 68, 28 71 C 36 74, 41 48, 50 24 C 59 48, 64 74, 72 71 C 79 68, 84 50, 90 30" fill="none" stroke="${c}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`,
+  },
+  {
+    name: 'Voice to cursor',
+    why: 'Sound flowing into a text caret: what the app does, said in one picture.',
+    note: '<b>Strength:</b> explains the product, distinct from audio apps. <b>Risk:</b> more detail to keep crisp in the menu bar.',
+    mark: (c) => {
+      const bars = [[18, 10], [27, 20], [36, 31]];
+      return bars.map(([x, h], i) => `<rect x="${x}" y="${50 - h / 2}" width="5" height="${h}" rx="2.5" fill="${c}" fill-opacity="${0.35 + i * 0.3}"/>`).join('') +
+        `<rect x="57" y="24" width="6" height="52" rx="3" fill="${c}"/>` +
+        `<rect x="47" y="21" width="26" height="6" rx="3" fill="${c}"/><rect x="47" y="73" width="26" height="6" rx="3" fill="${c}"/>`;
+    },
+    glyph: c => [[14, 16, .5], [28, 32, 1]].map(([x, h, o]) => `<rect x="${x}" y="${50 - h / 2}" width="9" height="${h}" rx="4.5" fill="${c}" fill-opacity="${o}"/>`).join('') +
+      `<rect x="57" y="18" width="10" height="64" rx="5" fill="${c}"/><rect x="44" y="14" width="36" height="10" rx="5" fill="${c}"/><rect x="44" y="76" width="36" height="10" rx="5" fill="${c}"/>`,
+  },
+];
+
+let uid = 0;
+/** The app icon: black glass squircle with a teal and amber glow and the white mark. */
+function iconSVG(m, size) {
+  const id = 'i' + (uid++);
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" role="img" aria-label="${m.name} app icon">
+    <defs>
+      <linearGradient id="${id}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b1c1f"/><stop offset="1" stop-color="#08080a"/></linearGradient>
+      <radialGradient id="${id}t" cx=".18" cy=".1" r=".75"><stop offset="0" stop-color="#5a6f70" stop-opacity=".75"/><stop offset="1" stop-color="#5a6f70" stop-opacity="0"/></radialGradient>
+      <radialGradient id="${id}a" cx=".9" cy=".98" r=".7"><stop offset="0" stop-color="#7a6249" stop-opacity=".7"/><stop offset="1" stop-color="#7a6249" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${id}h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <clipPath id="${id}c"><rect x="0" y="0" width="100" height="100" rx="22.4"/></clipPath>
+    </defs>
+    <g clip-path="url(#${id}c)">
+      <rect width="100" height="100" fill="url(#${id}b)"/>
+      <rect width="100" height="100" fill="url(#${id}t)"/>
+      <rect width="100" height="100" fill="url(#${id}a)"/>
+      <g transform="translate(14 14) scale(.72)">${m.mark('#f4f2ee', 'rgba(244,242,238,.10)')}</g>
+    </g>
+    <rect x=".6" y=".6" width="98.8" height="98.8" rx="21.9" fill="none" stroke="url(#${id}h)" stroke-width="1.2"/>
+  </svg>`;
+}
+const markSVG = (m, c, f) => `<svg viewBox="0 0 100 100" aria-hidden="true">${m.mark(c, f)}</svg>`;
+const glyphSVG = (m, c) => `<svg viewBox="0 0 100 100" aria-hidden="true">${m.glyph(c)}</svg>`;
+
+document.getElementById('grid').innerHTML = MARKS.map((m, i) => `
+  <section class="card">
+    <div class="head"><span class="num">${i + 1}</span><div><h2>${m.name}</h2><p>${m.why}</p></div></div>
+    <div class="hero">
+      <svg class="icon" viewBox="0 0 100 100" aria-hidden="true">${iconSVG(m, 100).replace(/^<svg[^>]*>|<\/svg>\s*$/g, '')}</svg>
+      <div class="side">
+        <div class="lockup dark">${markSVG(m, '#f4f2ee', 'rgba(244,242,238,.14)')}<span>Shepit</span></div>
+        <div class="lockup light">${markSVG(m, '#17171a', 'rgba(23,23,26,.12)')}<span>Shepit</span></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="menubar light"><i></i><i></i><span class="sel">${glyphSVG(m, '#1b1b1d')}</span><i></i><span>Mon 13:30</span></div>
+      <div class="menubar dark"><i></i><i></i><span class="sel">${glyphSVG(m, '#f2f2f2')}</span><i></i><span>Mon 13:30</span></div>
+    </div>
+    <div class="sizes">${[16, 32, 64, 128].map(s => `<figure>${iconSVG(m, s)}<figcaption>${s} px</figcaption></figure>`).join('')}</div>
+    <p class="note">${m.note}</p>
+  </section>`).join('');
+})();
+</script>
+</body>
+</html>

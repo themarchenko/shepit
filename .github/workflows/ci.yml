@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            Packages/ShepitCore/.build
+            .build/DerivedData/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Packages/ShepitCore/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Test
+        run: make test
+
+      - name: Build the app
+        run: make build

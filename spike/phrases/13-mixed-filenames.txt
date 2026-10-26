@@ -1,0 +1,1 @@
+Відкрий docs/PLAN.md, знайди секцію Architecture і додай пункт про SQLite через GRDB.

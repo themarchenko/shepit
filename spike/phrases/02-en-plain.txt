@@ -1,0 +1,1 @@
+The release went out on Tuesday, but two customers reported that the export button does nothing on Safari. I want to reproduce it before we touch the code.
