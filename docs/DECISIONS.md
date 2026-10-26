@@ -393,6 +393,21 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
 - A behaviour change updates the spec and the fixtures in the same pull request; a platform that lags is
   named under Gaps or Platform-specific until it catches up.
 
+## 2026-10-26: Windows scaffold
+
+- Tauri is pinned to 2.12: `@tauri-apps/api` and `@tauri-apps/cli` at 2.12.4, the `tauri` crate at 2.12.5 (same minor, which `tauri build` requires). The 3.0 alpha is out,
+  but an alpha under a shipping app is a cost with no feature we need yet.
+- The Rust toolchain is pinned in `windows/rust-toolchain.toml` (1.97.1 with rustfmt and clippy), so
+  local builds and the CI job use the same compiler.
+- The identifier is `com.themarchenko.shepit`, the same as the macOS bundle id. One app identity across
+  platforms; nothing shares an install location, so there is no clash.
+- The widget window is 96x60 and shows the idle pill. The default position is bottom centre of the
+  primary display.
+- TypeScript is pinned to 6.0.3: typescript-eslint refuses 7. Raise it when the lint stack allows.
+- The agent gate runs per platform. Finding node through nvm landed separately (#8).
+- The Windows job (`windows.yml`) is not a required check yet. Make it required once it has passed on a
+  few pull requests, and the installer artifact has been installed on a real machine.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

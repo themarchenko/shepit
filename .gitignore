@@ -26,3 +26,9 @@ docs/_working/
 
 # Agent worktrees
 .claude/worktrees/
+
+# Windows port
+windows/target/
+windows/app/node_modules/
+windows/app/dist/
+windows/app/src-tauri/gen/
