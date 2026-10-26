@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Record the Phase 0 test set: one WAV per phrase file in spike/phrases.
-# Usage: spike/record.sh [--redo] [--mic "Device Name"]
+# Usage: apple/spike/record.sh [--redo] [--mic "Device Name"]
 # Press Enter to start each recording, press q to stop it (ffmpeg reads the key).
 set -euo pipefail
 
@@ -49,4 +49,4 @@ for f in phrases/*.txt; do
   echo "saved $out (${dur%.*} s)"
   echo
 done
-echo "Done. Run the benchmark: spike/bench.sh"
+echo "Done. Run the benchmark: apple/spike/bench.sh"
