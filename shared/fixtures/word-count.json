@@ -8,6 +8,27 @@
         "text": "one two\nthree   four"
       },
       "expected": 4
+    },
+    {
+      "name": "Graphemes/SpaceWithMark",
+      "input": {
+        "text": "a ́b"
+      },
+      "expected": 2
+    },
+    {
+      "name": "Graphemes/CrLf",
+      "input": {
+        "text": "a\r\nb"
+      },
+      "expected": 2
+    },
+    {
+      "name": "Graphemes/MarkAfterWord",
+      "input": {
+        "text": "á b"
+      },
+      "expected": 2
     }
   ]
 }

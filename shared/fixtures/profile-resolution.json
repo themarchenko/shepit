@@ -6,7 +6,7 @@
       "name": "TerminalWithClaudeTitle/1",
       "input": {
         "bundle_id": "com.apple.Terminal",
-        "window_title": "✳ Claude Code \u2014 shepit"
+        "window_title": "✳ Claude Code — shepit"
       },
       "expected": "claude-code-terminal"
     },
@@ -371,6 +371,78 @@
         "url": "https://notion.so/"
       },
       "expected": "notes"
+    },
+    {
+      "name": "Crafted/1",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://evil.com\\@claude.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Crafted/2",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://evil.com\\.claude.ai/"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "Crafted/3",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://claude.ai@evil.com/"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "Crafted/4",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://evil.com:443@claude.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Crafted/5",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://claude.ai:8443/chat"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Crafted/6",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://user:pw@claude.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Crafted/7",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "1http://claude.ai/"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "Crafted/8",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://claude.ai\\/x"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "Crafted/9",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://evil.com#@claude.ai/"
+      },
+      "expected": "generic"
     }
   ]
 }

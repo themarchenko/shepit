@@ -6,7 +6,7 @@ import XCTest
 final class SharedFixtureTests: XCTestCase {
     // DictionaryCorrector.correct(_ text: String, dictionary: [String]) -> String
     func testDictionaryCorrection() throws {
-        let f: FixtureFile<DictionaryCorrectionInput, String> = try SharedFixtures.load("dictionary-correction.json", minimumCases: 11)
+        let f: FixtureFile<DictionaryCorrectionInput, String> = try SharedFixtures.load("dictionary-correction.json", minimumCases: 21)
         for c in f.cases {
             XCTAssertEqual(DictionaryCorrector.correct(c.input.text, dictionary: c.input.dictionary), c.expected, c.name)
         }
@@ -59,7 +59,7 @@ final class SharedFixtureTests: XCTestCase {
 
     // PassthroughFormatter.clean(_ text: String) -> String
     func testPassthroughClean() throws {
-        let f: FixtureFile<TextInput, String> = try SharedFixtures.load("passthrough-clean.json", minimumCases: 2)
+        let f: FixtureFile<TextInput, String> = try SharedFixtures.load("passthrough-clean.json", minimumCases: 5)
         for c in f.cases {
             XCTAssertEqual(PassthroughFormatter.clean(c.input.text), c.expected, c.name)
         }
@@ -67,7 +67,7 @@ final class SharedFixtureTests: XCTestCase {
 
     // ModeResolver.wordCount(_ text: String) -> Int
     func testWordCount() throws {
-        let f: FixtureFile<TextInput, Int> = try SharedFixtures.load("word-count.json", minimumCases: 1)
+        let f: FixtureFile<TextInput, Int> = try SharedFixtures.load("word-count.json", minimumCases: 4)
         for c in f.cases {
             XCTAssertEqual(ModeResolver.wordCount(c.input.text), c.expected, c.name)
         }
@@ -75,7 +75,7 @@ final class SharedFixtureTests: XCTestCase {
 
     // ProfileResolver.resolve(_ ctx: TargetContext) -> Profile
     func testProfileResolution() throws {
-        let f: FixtureFile<ProfileInput, String> = try SharedFixtures.load("profile-resolution.json", minimumCases: 51)
+        let f: FixtureFile<ProfileInput, String> = try SharedFixtures.load("profile-resolution.json", minimumCases: 60)
         for c in f.cases {
             let ctx = TargetContext(bundleID: c.input.bundleID, windowTitle: c.input.windowTitle, url: c.input.url)
             XCTAssertEqual(ProfileResolver.resolve(ctx).id, c.expected, c.name)
@@ -96,7 +96,7 @@ final class SharedFixtureTests: XCTestCase {
 
     // HallucinationFilter.isJunk(_ text: String) -> Bool
     func testHallucinationFilter() throws {
-        let f: FixtureFile<TextInput, Bool> = try SharedFixtures.load("hallucination-filter.json", minimumCases: 20)
+        let f: FixtureFile<TextInput, Bool> = try SharedFixtures.load("hallucination-filter.json", minimumCases: 25)
         for c in f.cases {
             XCTAssertEqual(HallucinationFilter.isJunk(c.input.text), c.expected, c.name)
         }
