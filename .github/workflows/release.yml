@@ -44,15 +44,17 @@ jobs:
       - name: Test
         run: make test
 
-      - name: Build and zip
+      - name: Build the disk image
         run: make package
 
+      # The asset has the same name in every release, so releases/latest/download/Shepit.dmg (used by
+      # install.sh and the README) always points at the newest one.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create "$GITHUB_REF_NAME" ".build/dist/Shepit-$VERSION.zip" \
+          gh release create "$GITHUB_REF_NAME" .build/dist/Shepit.dmg \
             --title "Shepit $VERSION" \
             --notes-file .github/release-notes.md \
             --generate-notes \

@@ -41,8 +41,9 @@ jobs:
       - name: Test
         run: make test
 
-      - name: Build the app
-        run: make build
+      # Builds the disk image too, so a broken package fails here and not after the release tag is pushed.
+      - name: Build the app and disk image
+        run: make package
 
       - name: Save builds
         if: github.ref == 'refs/heads/main' && steps.restore.outputs.cache-hit != 'true'

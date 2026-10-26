@@ -297,6 +297,27 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   bar (560 pt) or the island card appeared. Replaced by a segmented choice over one preview scaled
   from the style's largest shape (`WidgetLayout.largest`), checked offscreen in every phase.
 
+## 2026-10-26: install without the quarantine hunt
+
+- A colleague installing 0.2.0 from the zip could not find how to get past Gatekeeper: macOS 15 and
+  later dropped the right-click Open route, and "Open Anyway" sits at the bottom of Privacy & Security
+  for about an hour only. Two changes:
+- `install.sh` at the repository root, run as `curl ... | bash`. curl does not set
+  `com.apple.quarantine`, so the app it installs opens with no prompt. It downloads
+  `releases/latest/download/Shepit.dmg`, verifies the signature, quits only the copy it replaces and
+  opens the new one. Tested into a scratch folder from a disk image carrying a Safari quarantine flag:
+  the installed app had none, a Finder-style copy of the same image kept it.
+- The release asset is now `Shepit.dmg` (same name every release, so the latest link is stable). Its
+  window shows the drag into Applications and the Open Anyway steps. Built by `dmgbuild` in a venv
+  under `.build/venv`, which writes the Finder layout without scripting Finder, so it runs on CI. CI
+  builds the image on every pull request, because a release tag cannot be moved once pushed.
+- The same colleague found the welcome tour stuck above System Settings: the tour window was
+  `.floating` and could not be dragged (`isMovableByWindowBackground` does nothing over SwiftUI
+  content). It is now a normal window with `WindowDragGesture`, its Accessibility button asks for
+  access (which adds Shepit to the list) and opens the list, and it comes back to the front when
+  access is granted. The Settings permission button now asks first too; before, it opened a list
+  without Shepit in it.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

@@ -3,6 +3,7 @@ DERIVED := .build/DerivedData
 APP := $(DERIVED)/Build/Products/Release/Shepit.app
 VERSION := $(shell sed -n 's/.*CFBundleShortVersionString: "\(.*\)"/\1/p' project.yml)
 DIST := .build/dist
+VENV := .build/venv
 
 .PHONY: generate build install package run test bench clean logs
 
@@ -20,11 +21,17 @@ install: build
 	ditto "$(APP)" /Applications/Shepit.app
 	@echo "installed /Applications/Shepit.app"
 
-# The zip attached to a GitHub release.
-package: build
+# The disk image attached to a GitHub release. dmgbuild writes the Finder window layout itself, so this
+# runs on a CI runner where scripting Finder would not. The background comes from
+# scripts/make-dmg-background.swift.
+package: build $(VENV)/bin/dmgbuild
 	rm -rf $(DIST) && mkdir -p $(DIST)
-	ditto -c -k --keepParent "$(APP)" "$(DIST)/Shepit-$(VERSION).zip"
-	@echo "packaged $(DIST)/Shepit-$(VERSION).zip"
+	$(VENV)/bin/dmgbuild -s dmg/settings.py -D app="$(APP)" Shepit "$(DIST)/Shepit.dmg"
+	@echo "packaged $(DIST)/Shepit.dmg ($(VERSION))"
+
+$(VENV)/bin/dmgbuild:
+	python3 -m venv $(VENV)
+	$(VENV)/bin/pip install --quiet --disable-pip-version-check dmgbuild==1.6.5
 
 run:
 	open /Applications/Shepit.app

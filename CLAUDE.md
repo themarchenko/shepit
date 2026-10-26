@@ -21,7 +21,7 @@ Claude Code CLI or Codex.
 make build      # XcodeGen + Release build into .build/DerivedData
 make install    # build and copy to /Applications
 make test       # ShepitCore unit tests
-make package    # zip for a GitHub release, in .build/dist
+make package    # disk image for a GitHub release, in .build/dist
 make logs       # live logs of the running app
 ```
 
@@ -46,5 +46,5 @@ Signing is ad hoc unless `Config/Local.xcconfig` names a team (see `Config/Signi
 - Commit messages: imperative subject under 72 characters, body when the reason is not obvious.
   No assistant attribution lines.
 - Releases: bump `CFBundleShortVersionString` and `CFBundleVersion` in `project.yml` in a PR, merge,
-  then tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml` builds, zips and
+  then tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml` builds, packs a disk image and
   publishes the GitHub release. The `release` agent does all of this.

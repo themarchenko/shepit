@@ -6,6 +6,7 @@ import ShepitCore
 struct TourView: View {
     @ObservedObject var settings: AppSettings
     var requestMicrophone: () async -> Bool
+    var bringToFront: () -> Void
     var finish: () -> Void
 
     @State private var step = 0
@@ -13,6 +14,7 @@ struct TourView: View {
     @State private var demoText = ""
     @State private var microphone = AudioRecorder.permissionGranted
     @State private var accessibility = ContextProbe.isAccessibilityTrusted
+    @State private var openedAccessibility = false
     @State private var tryText = ""
     @FocusState private var tryFocused: Bool
     private let poll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -41,6 +43,9 @@ struct TourView: View {
         .frame(width: 620)
         .foregroundStyle(WidgetPalette.text)
         .glass(RoundedRectangle(cornerRadius: 18, style: .continuous), opacity: 0.76)
+        // The window is borderless, so this is the only way to move it. Buttons and the text box keep
+        // their clicks; the drag starts anywhere else.
+        .gesture(WindowDragGesture())
         .overlay(alignment: .topTrailing) {
             Button("Skip", action: finish).buttonStyle(QuietButtonStyle()).padding(10)
         }
@@ -56,7 +61,10 @@ struct TourView: View {
         .onChange(of: settings.widgetStyle) { _, style in demo.model.style = style }
         .onReceive(poll) { _ in
             microphone = AudioRecorder.permissionGranted
-            accessibility = ContextProbe.isAccessibilityTrusted
+            let trusted = ContextProbe.isAccessibilityTrusted
+            // The user is in System Settings at this point; bring them back to the next step.
+            if trusted && !accessibility && openedAccessibility { bringToFront() }
+            accessibility = trusted
         }
         .onExitCommand(perform: finish)
     }
@@ -91,9 +99,18 @@ struct TourView: View {
             permissionRow(symbol: "accessibility", name: "Accessibility",
                           detail: "To notice the key in any app and paste the text where your cursor is.",
                           granted: accessibility, button: "Open System Settings") {
-                ContextProbe.requestAccessibility()
+                openedAccessibility = true
+                openAccessibilitySettings()
+            }
+            if openedAccessibility && !accessibility {
+                Text("In System Settings, turn on Shepit in the Accessibility list. If it is already on, select it, remove it with the minus button and click Open System Settings here again.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(WidgetPalette.text.opacity(0.55))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
             }
         }
+        .animation(.easeOut(duration: 0.2), value: openedAccessibility && !accessibility)
     }
 
     private var look: some View {
@@ -223,11 +240,14 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
-        window.level = .floating
+        // A normal level, not floating: the permissions step sends the user to System Settings, and a
+        // floating tour would cover it.
+        window.level = .normal
         super.init(window: window)
-        let view = TourView(settings: settings, requestMicrophone: requestMicrophone) { [weak self] in self?.finish() }
+        let view = TourView(settings: settings, requestMicrophone: requestMicrophone,
+                            bringToFront: { [weak self] in self?.bringToFront() },
+                            finish: { [weak self] in self?.finish() })
             .padding(30)
         let hosting = NSHostingView(rootView: view)
         hosting.sizingOptions = [.intrinsicContentSize]
@@ -248,6 +268,11 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
                                               y: visible.midY - size.height / 2 + visible.height * 0.06))
             }
         }
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    private func bringToFront() {
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }

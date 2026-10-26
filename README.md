@@ -36,18 +36,39 @@ recognized text to it to fix punctuation, names and code terms before inserting 
 
 ## Install
 
-1. Download `Shepit-<version>.zip` from [Releases](https://github.com/themarchenko/shepit/releases),
-   unzip it and move `Shepit.app` to `/Applications`.
-2. The app is not notarized, so macOS blocks the first launch. Open it once, then go to System
-   Settings → Privacy & Security and click **Open Anyway**. Or run this in Terminal:
+Paste this into Terminal:
 
-   ```
-   xattr -dr com.apple.quarantine /Applications/Shepit.app
-   ```
+```
+curl -fsSL https://raw.githubusercontent.com/themarchenko/shepit/main/install.sh | bash
+```
 
-3. Grant Microphone and Accessibility. Accessibility lets Shepit notice the key in any app and
-   paste the text at your cursor. Release builds are signed ad hoc, so after an update macOS may ask
-   for Accessibility again.
+The script downloads the latest release, puts `Shepit.app` in `/Applications` and opens it. Run it
+again to update. Files downloaded with curl are not quarantined, so macOS opens the app without the
+"could not verify" warning. [install.sh](install.sh) is about 80 lines if you want to read it first.
+
+### Without Terminal
+
+1. Download [Shepit.dmg](https://github.com/themarchenko/shepit/releases/latest/download/Shepit.dmg),
+   open it and drag Shepit into Applications.
+2. Open Shepit. It is not notarized, so macOS says it could not verify it. Click **Done**, not Move
+   to Trash.
+3. Open System Settings → Privacy & Security, scroll down to Security and click **Open Anyway** next
+   to the line about Shepit. Confirm with your password or Touch ID. The button is there for about an
+   hour after step 2.
+
+If Shepit is already in Applications, this does the same as steps 2 and 3:
+
+```
+xattr -dr com.apple.quarantine /Applications/Shepit.app
+```
+
+### Permissions
+
+On first launch Shepit asks for the microphone and for Accessibility. Accessibility lets it notice the
+key in any app and paste the text at your cursor; the welcome tour opens that list in System
+Settings, where you turn Shepit on. Release builds are signed ad hoc, so after an update macOS may ask
+for Accessibility again. If Shepit is on in the list but nothing gets pasted, remove it with the minus
+button, click Open Privacy settings in Shepit's Settings and turn it on again.
 
 ## Use
 
@@ -99,6 +120,7 @@ swift run -c release shepit-smoke --audio "$HOME/Library/Application Support/She
 - `Packages/ShepitCore`: audio, hotkey gestures, recognizers, live preview, polishing agents,
   insertion, history and settings. Everything that can be tested with `swift test`.
 - `Shepit/`: the app itself. Widget, Settings, welcome tour, menu bar item.
+- `install.sh` and `dmg/`: the one-line installer and the layout of the release disk image.
 - `docs/PLAN.md` and `docs/DECISIONS.md`: the plan and a dated log of decisions and measurements.
 - `CLAUDE.md` and `.claude/agents/`: notes and subagents for working on the code with Claude Code.
 

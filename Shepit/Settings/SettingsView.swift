@@ -56,8 +56,8 @@ struct GeneralPane: View {
                 Toggle("Show floating widget", isOn: $settings.widgetVisible)
             }
             Section("Permissions") {
-                permission("Microphone", granted: microphoneGranted, pane: "Privacy_Microphone")
-                permission("Accessibility (needed to paste)", granted: accessibilityTrusted, pane: "Privacy_Accessibility")
+                permission("Microphone", granted: microphoneGranted) { openPrivacy("Privacy_Microphone") }
+                permission("Accessibility (needed to paste)", granted: accessibilityTrusted, open: openAccessibilitySettings)
                 Button("Check again") {
                     accessibilityTrusted = ContextProbe.isAccessibilityTrusted
                     microphoneGranted = AudioRecorder.permissionGranted
@@ -67,12 +67,12 @@ struct GeneralPane: View {
         .settingsForm()
     }
 
-    private func permission(_ name: String, granted: Bool, pane: String) -> some View {
+    private func permission(_ name: String, granted: Bool, open: @escaping () -> Void) -> some View {
         HStack {
             Label(name, systemImage: granted ? "checkmark.circle.fill" : "xmark.circle")
                 .foregroundStyle(granted ? WidgetPalette.ok : WidgetPalette.amber)
             Spacer()
-            if !granted { Button("Open Privacy settings") { openPrivacy(pane) } }
+            if !granted { Button("Open Privacy settings", action: open) }
         }
     }
 }
@@ -241,10 +241,18 @@ struct AboutPane: View {
     }
 }
 
-private func openPrivacy(_ pane: String) {
+func openPrivacy(_ pane: String) {
     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
         NSWorkspace.shared.open(url)
     }
+}
+
+/// Asks for Accessibility first so Shepit is already in the list, then opens the list. Opening it
+/// without asking leaves Shepit out, and the user has to add it with the + button.
+@MainActor
+func openAccessibilitySettings() {
+    ContextProbe.requestAccessibility()
+    openPrivacy("Privacy_Accessibility")
 }
 
 extension View {

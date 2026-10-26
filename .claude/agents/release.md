@@ -22,7 +22,7 @@ Steps:
 5. Commit, push, open a PR titled `Release X.Y.Z` with the list of changes. Wait for CI.
 6. After the user merges it: `git switch main && git pull --ff-only`, then
    `git tag -a vX.Y.Z -m "Shepit X.Y.Z"` and `git push origin vX.Y.Z`.
-7. Watch the run (`gh run watch`), then check `gh release view vX.Y.Z` lists the zip. Report the
+7. Watch the run (`gh run watch`), then check `gh release view vX.Y.Z` lists `Shepit.dmg`. Report the
    release URL.
 
 Never move or delete an existing tag. Never force-push. No assistant attribution in commits or PRs.
