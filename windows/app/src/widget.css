@@ -8,7 +8,7 @@ body,
   overflow: hidden;
 }
 
-/* 96x60 window; the pill sits 26px above the bottom edge, as on macOS. */
+/* The window resizes per phase on the Rust side; the pill stays centred, 26px above the bottom. */
 .pill {
   position: absolute;
   left: 50%;
@@ -21,4 +21,57 @@ body,
   background: rgba(0, 0, 0, 0.7);
   border: 0.75px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  transition:
+    width 120ms ease-out,
+    height 120ms ease-out;
+}
+
+.pill.listening {
+  width: 132px;
+  height: 32px;
+}
+
+.pill.listening.hands-free {
+  width: 166px;
+}
+
+.pill.failed {
+  width: 44px;
+  height: 32px;
+}
+
+.bar {
+  width: 2px;
+  border-radius: 1px;
+  background: rgb(244, 242, 238);
+}
+
+/* Sits 8px above the failed pill: 26 + 32 + 8 from the window bottom. */
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: 66px;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  max-width: 440px;
+  width: max-content;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 0.75px solid rgba(255, 255, 255, 0.15);
+  color: rgb(244, 242, 238);
+  font: 13px/1.3 "Segoe UI", system-ui, sans-serif;
+  text-align: center;
+  overflow-wrap: anywhere;
+  /* Two lines at most, so a long message never clips in the 126px window. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

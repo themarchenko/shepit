@@ -1,11 +1,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod controller;
+mod hook;
+mod recorder;
 mod tray;
 mod widget;
 
+use controller::{Msg, Runner};
+use recorder::CpalRecorder;
+use shepit_core::dictation::{Phase, View};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
+use std::time::{Duration, Instant};
+
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Manager, PhysicalPosition};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
 
 fn main() {
     tauri::Builder::default()
@@ -53,8 +63,107 @@ fn main() {
                 }
                 window.show()?;
             }
+
+            // Bounded so a stalled controller cannot grow memory; senders drop on full.
+            let (tx, rx) = mpsc::sync_channel::<Msg>(256);
+            hook::start(tx.clone(), shepit_core::keys::VK_RCONTROL);
+            let handle = app.handle().clone();
+            // The recorder is built inside the thread: a cpal Stream may not be Send.
+            std::thread::Builder::new()
+                .name("controller".into())
+                .spawn(move || run_controller(handle, tx, rx))?;
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running Shepit");
+}
+
+/// Runs the controller loop and restarts it with a fresh controller if it panics, so the hotkey
+/// keeps working. The receiver outlives the loop; only the controller state is lost.
+fn run_controller(app: AppHandle, tx: SyncSender<Msg>, rx: Receiver<Msg>) {
+    loop {
+        let result = catch_unwind(AssertUnwindSafe(|| controller_loop(&app, &tx, &rx)));
+        if result.is_ok() {
+            return;
+        }
+        // No payload in the log: it could carry key data.
+        eprintln!("controller thread panicked, restarting");
+        apply_view(&app, &widget::idle_view(), true);
+    }
+}
+
+/// Owns the dictation controller: feeds it hook and level messages, polls it every 100 ms and
+/// pushes each view change to the widget.
+fn controller_loop(app: &AppHandle, tx: &SyncSender<Msg>, rx: &Receiver<Msg>) {
+    let epoch = Instant::now();
+    let mut runner = Runner::new(CpalRecorder::new(tx.clone()));
+    let mut last_view: Option<View> = None;
+    let mut listening_since: Option<Instant> = None;
+    loop {
+        let msg = match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(msg) => msg,
+            Err(RecvTimeoutError::Timeout) => Msg::Tick,
+            Err(RecvTimeoutError::Disconnected) => return,
+        };
+        // A tick after every message keeps the failed reset on time while keys keep arriving.
+        let now = Instant::now();
+        let changed = [
+            runner.step_at(msg, epoch, now),
+            runner.step_at(Msg::Tick, epoch, now),
+        ]
+        .into_iter()
+        .flatten()
+        .last();
+        let Some(view) = changed else { continue };
+        match (view.phase, listening_since) {
+            (Phase::Listening, None) => listening_since = Some(now),
+            (Phase::Listening, Some(_)) => {}
+            (_, Some(start)) => {
+                println!("capture stopped, {:.1} s", start.elapsed().as_secs_f64());
+                listening_since = None;
+            }
+            (_, None) => {}
+        }
+        let resize = last_view
+            .as_ref()
+            .is_none_or(|old| widget::needs_resize(old, &view));
+        apply_view(app, &view, resize);
+        last_view = Some(view);
+    }
+}
+
+/// Re-seats the widget when `resize` is set, then sends it the state.
+fn apply_view(app: &AppHandle, view: &View, resize: bool) {
+    if resize {
+        if let Some(window) = app.get_webview_window("widget") {
+            if let Err(err) = place(&window, view) {
+                eprintln!("could not place the widget: {err}");
+            }
+        }
+    }
+    let state = widget::WidgetState::from_view(view);
+    if let Err(err) = app.emit_to("widget", "widget-state", state) {
+        eprintln!("could not send the widget state: {err}");
+    }
+}
+
+fn place(window: &WebviewWindow, view: &View) -> tauri::Result<()> {
+    let (w, h) = widget::window_size(view);
+    window.set_size(LogicalSize::new(w, h))?;
+    if let Some(monitor) = window.primary_monitor()? {
+        let scale = monitor.scale_factor();
+        let area = monitor.work_area();
+        let (x, y) = widget::default_position(
+            (
+                area.position.x,
+                area.position.y,
+                area.size.width as i32,
+                area.size.height as i32,
+            ),
+            ((w * scale).round() as i32, (h * scale).round() as i32),
+            scale,
+        );
+        window.set_position(PhysicalPosition::new(x, y))?;
+    }
+    Ok(())
 }
