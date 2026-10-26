@@ -2,18 +2,20 @@
 //! (apple/ShepitCore/Sources/ShepitCore/Learning/DictionaryCorrector.swift).
 //!
 //! Unicode parity with Swift, in one place. Swift iterates `Character` (extended grapheme clusters) and
-//! asks the first scalar for its properties; this port iterates `char` (scalars).
+//! asks the first scalar for its properties; this port iterates clusters from `unicode-segmentation` and
+//! does the same.
 //! - `Character.isLetter` is the first scalar's Alphabetic property, which is `char::is_alphabetic`.
 //! - `Character.isNumber` is "has a Numeric_Type". `char::is_numeric` (Nd, Nl, No) matches except for a few
 //!   CJK ideographs that are letters with a numeric value.
-//! - `isUppercase` / `isLowercase` are the Uppercase / Lowercase properties, as `char::is_uppercase` /
-//!   `char::is_lowercase`.
+//! - `isUppercase` / `isLowercase` hold when the cluster is unchanged by `uppercased()` / `lowercased()`
+//!   and its first scalar is cased (probed on Swift: "A" yes, "1" no, U+02B0 both, U+01C5 neither).
 //! - `lowercased()` is `to_lowercase()`. Both apply full Unicode mappings; the final-sigma rule may differ.
 //! - `trimmingCharacters(in: .whitespacesAndNewlines)` is `trim()` (White_Space). Same set in practice.
-//!
-//! Parity is exact on ASCII, precomposed Cyrillic and Latin text, which is all the fixtures use. It is not
-//! guaranteed for decomposed text (a base letter plus a combining mark is one Swift `Character` but two
-//! `char`s here), emoji sequences, or the exotic cases above.
+//! - Swift compares `Character` and `String` by canonical equivalence; this port compares bytes. The one
+//!   place it matters here is the transliteration table, which lists the decomposed forms of its three
+//!   precomposed letters (й, ё, ї). Other decomposed text only differs for exotic input.
+
+use unicode_segmentation::UnicodeSegmentation;
 
 use std::collections::HashSet;
 
@@ -33,7 +35,7 @@ impl Term {
         let text = raw.trim().to_string();
         let spoken = spoken_parts(&text);
         let key: String = spoken.iter().map(|p| sound_key(p)).collect();
-        if spoken.is_empty() || key.chars().count() < 5 {
+        if spoken.is_empty() || key.graphemes(true).count() < 5 {
             return None;
         }
         Some(Term {
@@ -151,8 +153,8 @@ pub fn correct(text: &str, dictionary: &[String]) -> String {
 
 /// None when the keys are too far apart to be the same term.
 fn similarity(a: &str, b: &str) -> Option<f64> {
-    let a: Vec<char> = a.chars().collect();
-    let b: Vec<char> = b.chars().collect();
+    let a: Vec<&str> = a.graphemes(true).collect();
+    let b: Vec<&str> = b.graphemes(true).collect();
     if a.len() < 5 || b.len() < 5 {
         return None;
     }
@@ -169,12 +171,12 @@ fn similarity(a: &str, b: &str) -> Option<f64> {
 /// Lowercased letters and digits only.
 fn letters(s: &str) -> String {
     s.to_lowercase()
-        .chars()
-        .filter(|c| c.is_alphabetic() || c.is_numeric())
+        .graphemes(true)
+        .filter(|g| is_letter(g) || is_number(g))
         .collect()
 }
 
-fn levenshtein(a: &[char], b: &[char]) -> usize {
+fn levenshtein(a: &[&str], b: &[&str]) -> usize {
     let mut previous: Vec<usize> = (0..=b.len()).collect();
     let mut current = previous.clone();
     for i in 1..=a.len() {
@@ -191,15 +193,15 @@ fn levenshtein(a: &[char], b: &[char]) -> usize {
 }
 
 fn tokenize(text: &str) -> Vec<Token> {
-    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let clusters: Vec<(usize, &str)> = text.grapheme_indices(true).collect();
     let mut tokens = Vec::new();
     let mut start: Option<usize> = None;
-    for (i, &(byte, c)) in chars.iter().enumerate() {
+    for (i, &(byte, g)) in clusters.iter().enumerate() {
         // An apostrophe inside a word belongs to it ("м'ята", "don't").
-        let inner = matches!(c, '\'' | '’' | 'ʼ')
+        let inner = matches!(g, "'" | "’" | "ʼ")
             && start.is_some()
-            && chars.get(i + 1).is_some_and(|&(_, n)| n.is_alphabetic());
-        if c.is_alphabetic() || c.is_numeric() || inner {
+            && clusters.get(i + 1).is_some_and(|&(_, n)| is_letter(n));
+        if is_letter(g) || is_number(g) || inner {
             if start.is_none() {
                 start = Some(byte);
             }
@@ -221,23 +223,46 @@ fn tokenize(text: &str) -> Vec<Token> {
     tokens
 }
 
+fn first_scalar(g: &str) -> Option<char> {
+    g.chars().next()
+}
+
+fn is_letter(g: &str) -> bool {
+    first_scalar(g).is_some_and(char::is_alphabetic)
+}
+
+fn is_number(g: &str) -> bool {
+    first_scalar(g).is_some_and(char::is_numeric)
+}
+
+fn is_cased(g: &str) -> bool {
+    first_scalar(g).is_some_and(|c| c.is_uppercase() || c.is_lowercase())
+}
+
+fn is_uppercase(g: &str) -> bool {
+    is_cased(g) && g.to_uppercase() == g
+}
+
+fn is_lowercase(g: &str) -> bool {
+    is_cased(g) && g.to_lowercase() == g
+}
+
 fn spoken_parts(term: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut current = String::new();
-    let mut previous: Option<char> = None;
-    for c in term.chars() {
-        if !(c.is_alphabetic() || c.is_numeric()) {
+    let mut previous: Option<&str> = None;
+    for g in term.graphemes(true) {
+        if !(is_letter(g) || is_number(g)) {
             if !current.is_empty() {
                 parts.push(std::mem::take(&mut current));
             }
         } else {
-            if previous.is_some_and(|p| p.is_lowercase()) && c.is_uppercase() && !current.is_empty()
-            {
+            if previous.is_some_and(is_lowercase) && is_uppercase(g) && !current.is_empty() {
                 parts.push(std::mem::take(&mut current));
             }
-            current.push(c);
+            current.push_str(g);
         }
-        previous = Some(c);
+        previous = Some(g);
     }
     if !current.is_empty() {
         parts.push(current);
@@ -276,27 +301,27 @@ fn sound_key(word: &str) -> String {
     for (from, to) in DIGRAPHS {
         s = s.replace(from, to);
     }
-    let mut key = String::new();
-    for c in s.chars() {
-        let mapped = match c {
-            'a' | 'e' | 'i' | 'o' | 'u' | 'y' => Some('A'),
-            'b' | 'p' => Some('P'),
-            'f' | 'v' | 'w' | 'F' => Some('F'),
-            'g' | 'h' | 'k' | 'c' | 'q' | 'K' => Some('K'),
-            'd' | 't' | 'T' => Some('T'),
-            's' | 'z' | 'S' => Some('S'),
-            'j' | 'J' => Some('J'),
-            'l' | 'm' | 'n' | 'r' => Some(c.to_ascii_uppercase()),
-            _ if c.is_numeric() => Some(c),
+    let mut key: Vec<String> = Vec::new();
+    for g in s.graphemes(true) {
+        let mapped = match g {
+            "a" | "e" | "i" | "o" | "u" | "y" => Some("A".to_string()),
+            "b" | "p" => Some("P".to_string()),
+            "f" | "v" | "w" | "F" => Some("F".to_string()),
+            "g" | "h" | "k" | "c" | "q" | "K" => Some("K".to_string()),
+            "d" | "t" | "T" => Some("T".to_string()),
+            "s" | "z" | "S" => Some("S".to_string()),
+            "j" | "J" => Some("J".to_string()),
+            "l" | "m" | "n" | "r" => Some(g.to_ascii_uppercase()),
+            _ if is_number(g) => Some(g.to_string()),
             _ => None,
         };
         let Some(mapped) = mapped else { continue };
-        if key.ends_with(mapped) {
+        if key.last() == Some(&mapped) {
             continue;
         }
         key.push(mapped);
     }
-    key
+    key.concat()
 }
 
 fn drop_silent_e(s: &str) -> String {
@@ -312,56 +337,56 @@ fn drop_silent_e(s: &str) -> String {
     }
 }
 
-fn cyrillic(c: char) -> Option<&'static str> {
-    Some(match c {
-        'а' => "a",
-        'б' => "b",
-        'в' => "v",
-        'г' => "h",
-        'ґ' => "g",
-        'д' => "d",
-        'е' => "e",
-        'є' => "ye",
-        'ж' => "zh",
-        'з' => "z",
-        'и' => "y",
-        'і' => "i",
-        'ї' => "yi",
-        'й' => "y",
-        'к' => "k",
-        'л' => "l",
-        'м' => "m",
-        'н' => "n",
-        'о' => "o",
-        'п' => "p",
-        'р' => "r",
-        'с' => "s",
-        'т' => "t",
-        'у' => "u",
-        'ф' => "f",
-        'х' => "kh",
-        'ц' => "ts",
-        'ч' => "ch",
-        'ш' => "sh",
-        'щ' => "shch",
-        'ь' => "",
-        'ю' => "yu",
-        'я' => "ya",
-        'ы' => "y",
-        'э' => "e",
-        'ё' => "yo",
-        'ъ' => "",
-        '\'' | '’' | 'ʼ' => "",
+fn cyrillic(g: &str) -> Option<&'static str> {
+    Some(match g {
+        "а" => "a",
+        "б" => "b",
+        "в" => "v",
+        "г" => "h",
+        "ґ" => "g",
+        "д" => "d",
+        "е" => "e",
+        "є" => "ye",
+        "ж" => "zh",
+        "з" => "z",
+        "и" => "y",
+        "і" => "i",
+        "ї" | "і\u{308}" => "yi",
+        "й" | "и\u{306}" => "y",
+        "к" => "k",
+        "л" => "l",
+        "м" => "m",
+        "н" => "n",
+        "о" => "o",
+        "п" => "p",
+        "р" => "r",
+        "с" => "s",
+        "т" => "t",
+        "у" => "u",
+        "ф" => "f",
+        "х" => "kh",
+        "ц" => "ts",
+        "ч" => "ch",
+        "ш" => "sh",
+        "щ" => "shch",
+        "ь" => "",
+        "ю" => "yu",
+        "я" => "ya",
+        "ы" => "y",
+        "э" => "e",
+        "ё" | "е\u{308}" => "yo",
+        "ъ" => "",
+        "'" | "’" | "ʼ" => "",
         _ => return None,
     })
 }
 
 fn transliterate(s: &str) -> String {
     let mut out = String::new();
-    for c in s.chars() {
-        match cyrillic(c) {
+    for g in s.graphemes(true) {
+        match cyrillic(g) {
             Some(mapped) => out.push_str(mapped),
-            None => out.push(c),
+            None => out.push_str(g),
         }
     }
     out
@@ -376,9 +401,7 @@ pub fn new_entries(reported: &[String], existing: &[String]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for raw in reported {
         let term = raw.trim();
-        // Swift `term.count` counts graphemes. Terms with any non-ASCII scalar are rejected below, so the
-        // only cluster that matters here is "\r\n", which Swift counts as one.
-        let count = term.chars().count() - term.matches("\r\n").count();
+        let count = term.graphemes(true).count();
         if !(2..=40).contains(&count) || known.contains(&term.to_lowercase()) {
             continue;
         }

@@ -1,24 +1,40 @@
 //! Text cleanup without a model. Mirrors `PassthroughFormatter` in the Swift core.
 
+use unicode_segmentation::UnicodeSegmentation;
+
+/// Non-empty runs of clusters that are not whitespace or newlines. Swift `isWhitespace` and `isNewline`
+/// look at the first scalar of a grapheme cluster, so a space fused with a combining mark separates
+/// words, and "\r\n" is one separator.
+pub(crate) fn words(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start: Option<usize> = None;
+    for (i, g) in text.grapheme_indices(true) {
+        let space = g.chars().next().is_some_and(char::is_whitespace);
+        match (space, start) {
+            (false, None) => start = Some(i),
+            (true, Some(s)) => {
+                out.push(&text[s..i]);
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if let Some(s) = start {
+        out.push(&text[s..]);
+    }
+    out
+}
+
 /// Formatter.swift `PassthroughFormatter.clean`: collapse whitespace runs to one space, trim, and
 /// uppercase the first character.
 ///
-/// Parity notes. Swift splits on `Character.isWhitespace || isNewline` per grapheme cluster; Rust
-/// splits per `char` with `char::is_whitespace` (Unicode White_Space, which covers the Swift newline
-/// set: LF, CR, NEL, LS, PS). They differ only for whitespace fused into a cluster with a combining
-/// mark (Swift keeps it as one non-space character). Swift uppercases the whole first cluster;
-/// Rust uppercases the first `char` only, so a first cluster whose combining marks have an uppercase
-/// mapping differs. `to_uppercase` expands like Swift (`ß` -> `SS`).
+/// Swift uppercases the whole first cluster, as here. `to_uppercase` expands like Swift (`ß` -> `SS`).
 pub fn passthrough_clean(text: &str) -> String {
-    let collapsed = text
-        .split(char::is_whitespace)
-        .filter(|w| !w.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let mut chars = collapsed.chars();
-    match chars.next() {
+    let collapsed = words(text).join(" ");
+    let mut clusters = collapsed.graphemes(true);
+    match clusters.next() {
         None => String::new(),
-        Some(first) => first.to_uppercase().chain(chars).collect(),
+        Some(first) => first.to_uppercase() + clusters.as_str(),
     }
 }
 

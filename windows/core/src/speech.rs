@@ -24,12 +24,13 @@ const FRAGMENTS: [&str; 6] = [
     "підпишіться на канал",
 ];
 
-/// Swift `CharacterSet.letters` is general categories L* and M*. Rust has no category API in std:
-/// `is_alphabetic` covers L* plus Nl and some marks, and the combining diacritics block is added
-/// so stress marks (U+0301) survive as in Swift. Not guaranteed equal for other Mn/Mc/Me marks
-/// outside U+0300..U+036F, and Rust also accepts Nl (Roman numerals) which Swift rejects.
+/// Swift `CharacterSet.letters`: general categories L* and M*. Nl (Roman numerals) and Nd are not letters.
 fn is_swift_letter(c: char) -> bool {
-    c.is_alphabetic() || ('\u{0300}'..='\u{036F}').contains(&c)
+    use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
+    matches!(
+        c.general_category_group(),
+        GeneralCategoryGroup::Letter | GeneralCategoryGroup::Mark
+    )
 }
 
 /// SpeechPresence.swift:43 `HallucinationFilter.isJunk`.

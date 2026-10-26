@@ -64,7 +64,7 @@ struct DictionaryCorrectionInput {
 
 #[test]
 fn dictionary_correction_matches_shared_fixture() {
-    let f = support::load::<DictionaryCorrectionInput, String>("dictionary-correction.json", 11)
+    let f = support::load::<DictionaryCorrectionInput, String>("dictionary-correction.json", 23)
         .unwrap();
     let failing: Vec<&str> = f
         .cases
@@ -157,7 +157,7 @@ struct TextInput {
 
 #[test]
 fn passthrough_clean_matches_shared_fixture() {
-    let f = support::load::<TextInput, String>("passthrough-clean.json", 2).unwrap();
+    let f = support::load::<TextInput, String>("passthrough-clean.json", 5).unwrap();
     let failing: Vec<&str> = f
         .cases
         .iter()
@@ -169,7 +169,7 @@ fn passthrough_clean_matches_shared_fixture() {
 
 #[test]
 fn word_count_matches_shared_fixture() {
-    let f = support::load::<TextInput, usize>("word-count.json", 1).unwrap();
+    let f = support::load::<TextInput, usize>("word-count.json", 4).unwrap();
     let failing: Vec<&str> = f
         .cases
         .iter()
@@ -188,7 +188,7 @@ struct ProfileInput {
 
 #[test]
 fn profile_resolution_matches_shared_fixture() {
-    let f = support::load::<ProfileInput, String>("profile-resolution.json", 51).unwrap();
+    let f = support::load::<ProfileInput, String>("profile-resolution.json", 60).unwrap();
     let failing: Vec<&str> = f
         .cases
         .iter()
@@ -238,7 +238,7 @@ fn mode_resolution_matches_shared_fixture() {
 
 #[test]
 fn hallucination_filter_matches_shared_fixture() {
-    let f = support::load::<TextInput, bool>("hallucination-filter.json", 20).unwrap();
+    let f = support::load::<TextInput, bool>("hallucination-filter.json", 25).unwrap();
     let failing: Vec<&str> = f
         .cases
         .iter()

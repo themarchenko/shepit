@@ -185,44 +185,46 @@ pub fn resolve_profile(
 
 /// Profile.swift:134 `hostOf`: lowercased host with a leading "www." removed.
 ///
-/// Swift uses `URL(string:)?.host`. This is a small RFC 3986 authority parse, not a full
-/// URL parser. Parity holds for absolute http(s) URLs and scheme-relative `//host/...`. Not
-/// guaranteed: percent-encoded or IDN hosts (Swift may decode or reject), URLs Foundation rejects
-/// for other malformed characters (only whitespace and control characters are rejected here), and
-/// userinfo/port edge cases. Scheme-less input such as "claude.ai/new" has no host in both.
+/// Swift uses `URL(string:)?.host`. This is a small RFC 3986 authority parse, not a full URL parser,
+/// pinned to what Foundation returns on the `Crafted/*` fixture cases. The authority ends at the first
+/// `/ ? #` (not at a backslash: Foundation keeps a backslash in the userinfo, so
+/// `https://evil.com\@claude.ai/` has host `claude.ai`) and userinfo is dropped up to the last `@`.
+/// A host with a backslash or any character outside `[a-z0-9.-]` is rejected, which also rejects
+/// IPv6 literals (never in a host table). Not guaranteed: percent-encoded or IDN hosts, bad ports,
+/// and other URLs Foundation rejects (only whitespace and control characters are rejected here).
+/// Scheme-less input such as "claude.ai/new" has no host in both.
 fn host_of(url: Option<&str>) -> Option<String> {
     let url = url?;
     if url.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return None;
     }
     let after_scheme = match url.find(':') {
-        Some(i)
-            if url[..i]
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
-                && i > 0 =>
-        {
-            &url[i + 1..]
-        }
+        Some(i) if is_scheme(&url[..i]) => &url[i + 1..],
         _ => url,
     };
     let rest = after_scheme.strip_prefix("//")?;
     let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
     let hostport = authority.rsplit('@').next().unwrap_or("");
-    let host = if let Some(inner) = hostport.strip_prefix('[') {
-        inner.split(']').next().unwrap_or("")
-    } else {
-        hostport.split(':').next().unwrap_or("")
-    };
-    if host.is_empty() {
+    let host = hostport.split(':').next().unwrap_or("").to_lowercase();
+    if host.is_empty()
+        || !host
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-')
+    {
         return None;
     }
-    let host = host.to_lowercase();
     Some(
         host.strip_prefix("www.")
             .map(str::to_string)
             .unwrap_or(host),
     )
+}
+
+/// RFC 3986 scheme: a letter, then letters, digits, `+`, `-` or `.`.
+fn is_scheme(s: &str) -> bool {
+    let mut chars = s.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+        && chars.all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
 }
 
 /// Profile.swift:145 `ModeResolver.resolve`: clean becomes prompt for AI targets once the dictation
@@ -239,13 +241,10 @@ pub fn resolve_mode(
     requested
 }
 
-/// Profile.swift:150 `ModeResolver.wordCount`. Swift tests `Character.isWhitespace || isNewline`
-/// per grapheme; Rust uses `char::is_whitespace`, which also covers LF, CR, NEL, LS and PS. They
-/// differ only for whitespace fused with a combining mark.
+/// Profile.swift:150 `ModeResolver.wordCount`. Swift tests `Character.isWhitespace || isNewline`, which
+/// look at the first scalar of each grapheme cluster (see `cleanup::words`).
 pub fn word_count(text: &str) -> usize {
-    text.split(char::is_whitespace)
-        .filter(|w| !w.is_empty())
-        .count()
+    crate::cleanup::words(text).len()
 }
 
 #[cfg(test)]
@@ -264,6 +263,12 @@ mod tests {
         );
         assert_eq!(host_of(Some("claude.ai/new")), None);
         assert_eq!(host_of(Some("https://bad host/")), None);
+        assert_eq!(host_of(Some("https://evil.com\\.claude.ai/")), None);
+        assert_eq!(
+            host_of(Some("https://evil.com\\@claude.ai/")).as_deref(),
+            Some("claude.ai")
+        );
+        assert_eq!(host_of(Some("1http://claude.ai/")), None);
         assert_eq!(host_of(None), None);
     }
 
