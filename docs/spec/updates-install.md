@@ -36,9 +36,9 @@ Source: ReleaseFeed.swift:40-86. Swift-only, no fixture.
 Source: UpdateInstaller.swift:44-106. Swift-only.
 
 - Refuse to run from App Translocation (:44).
-- Download the disk image with the expected size, mount read-only, copy the app, detach, remove the quarantine flag (:55-63).
+- Download the disk image (the size from the release only drives the progress bar, nothing checks it), mount read-only, copy the app, detach, remove the quarantine flag (:55-63).
 - Accept only if the bundle id matches, the version equals the release's and is newer than the installed one, and the new app satisfies the installed app's designated code requirement (:85-100).
-- Swap in place, or ask for an administrator password when the folder is not writable; then relaunch (:66-80, 107-137).
+- Swap in place, or ask for an administrator password when the folder is not writable; then relaunch (:66-80, 107-137). The password prompt is the operating system's (`osascript` with administrator privileges); the app never sees, reads or stores the password.
 
 ## Trust boundary
 
