@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "description": "ModeResolver.wordCount: words split on any whitespace.",
+  "cases": [
+    {
+      "name": "WordCount/1",
+      "input": {
+        "text": "one two\nthree   four"
+      },
+      "expected": 4
+    }
+  ]
+}

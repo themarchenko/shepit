@@ -13,28 +13,6 @@ final class SpeechPresenceTests: XCTestCase {
         let seconds = SpeechPresence.speechSeconds(in: samples)
         XCTAssertEqual(seconds, 0.5, accuracy: 0.05)
     }
-
-    func testHallucinationFilter() {
-        XCTAssertTrue(HallucinationFilter.isJunk("Дякую за перегляд!"))
-        XCTAssertTrue(HallucinationFilter.isJunk("Субтитри створив DimaTorzok"))
-        XCTAssertTrue(HallucinationFilter.isJunk("Thank you."))
-        XCTAssertFalse(HallucinationFilter.isJunk("Дякую за звіт, подивлюся завтра."))
-        XCTAssertFalse(HallucinationFilter.isJunk("Зроби pull request після commit."))
-    }
-}
-
-final class WhisperLanguageTests: XCTestCase {
-    func testSupportedLanguagesAreKept() {
-        XCTAssertNil(WhisperKitEngine.retryLanguage(detected: "uk", text: "Тестую введення"))
-        XCTAssertNil(WhisperKitEngine.retryLanguage(detected: "en", text: "Testing input"))
-        XCTAssertNil(WhisperKitEngine.retryLanguage(detected: nil, text: ""))
-    }
-
-    func testOtherLanguagesRetryByScript() {
-        XCTAssertEqual(WhisperKitEngine.retryLanguage(detected: "ru", text: "Достаю введення в файла"), "uk")
-        XCTAssertEqual(WhisperKitEngine.retryLanguage(detected: "be", text: "Зрабі pull request"), "uk")
-        XCTAssertEqual(WhisperKitEngine.retryLanguage(detected: "de", text: "Make a pull request"), "en")
-    }
 }
 
 final class LivePreviewTests: XCTestCase {
@@ -43,11 +21,5 @@ final class LivePreviewTests: XCTestCase {
         for i in (9 * 16_000)..<(9 * 16_000 + 3_200) { samples[i] = 0 }
         let cut = LivePreview.quietestCut(in: samples, from: 8 * 16_000, to: 11 * 16_000)
         XCTAssertTrue((9 * 16_000)...(9 * 16_000 + 3_200) ~= cut, "cut at \(cut)")
-    }
-
-    func testJoinSkipsEmptyParts() {
-        XCTAssertEqual(LivePreview.join("", "a b"), "a b")
-        XCTAssertEqual(LivePreview.join("a", ""), "a")
-        XCTAssertEqual(LivePreview.join("a", "b"), "a b")
     }
 }

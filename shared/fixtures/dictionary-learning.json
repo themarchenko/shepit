@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "description": "DictionaryLearning.newEntries: terms reported by the polisher that are worth keeping.",
+  "cases": [
+    {
+      "name": "LearningKeepsProperNounLikeTerms/1",
+      "input": {
+        "reported": [
+          "main",
+          "git rebase",
+          "handleSubmit",
+          "Vercel",
+          "UserService.swift",
+          "vercel",
+          "Привіт",
+          "a very long phrase with many words"
+        ],
+        "existing": [
+          "Vercel"
+        ]
+      },
+      "expected": [
+        "handleSubmit",
+        "UserService.swift"
+      ]
+    }
+  ]
+}

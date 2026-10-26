@@ -377,6 +377,22 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   Runtime, Whisper on whisper.cpp). Full reasoning, layout and the task list in
   `docs/PLAN-windows.md`.
 
+## 2026-10-26: shared spec and fixtures
+
+- `docs/spec/` describes what the macOS code does today, with a source line for every rule. The Windows
+  app must match it. What `docs/PLAN.md` intended but the code lacks is listed under Gaps in
+  `docs/spec/README.md`, not promised in the contract.
+- Deterministic behaviour (gestures, dictionary correction and learning, profile and mode resolution,
+  the hallucination filter, the Whisper retry, version order) is data in `shared/fixtures/*.json`. The
+  Swift tests read it; the Rust port reads the same files. 55 assertions moved out of the Swift tests.
+- The sound key and the spoken-parts splitter stay Swift-only: they are not public, and they are pinned
+  through the `correct` cases. The spec documents them as the reference algorithm.
+- The system prompt is not moved into a shared resource. The package declares no `resources:`, and
+  bundling the file would change the app. A golden copy in `shared/prompts/system-prompt.md`, checked
+  byte for byte against `PromptBuilder` output with the default speaker notes, catches drift.
+- A behaviour change updates the spec and the fixtures in the same pull request; a platform that lags is
+  named under Gaps or Platform-specific until it catches up.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

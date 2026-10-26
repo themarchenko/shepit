@@ -1,0 +1,376 @@
+{
+  "version": 1,
+  "description": "ProfileResolver.resolve: target context in, profile id out. Bundle IDs are macOS ones.",
+  "cases": [
+    {
+      "name": "TerminalWithClaudeTitle/1",
+      "input": {
+        "bundle_id": "com.apple.Terminal",
+        "window_title": "✳ Claude Code \u2014 shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalWithoutClaude/1",
+      "input": {
+        "bundle_id": "com.googlecode.iterm2",
+        "window_title": "zsh"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "AIApps/1",
+      "input": {
+        "bundle_id": "com.anthropic.claudefordesktop"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "AIApps/2",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://claude.ai/new"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "AIApps/3",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://www.chatgpt.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "MessengerMailNotesGeneric/1",
+      "input": {
+        "bundle_id": "ru.keepcoder.Telegram"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "MessengerMailNotesGeneric/2",
+      "input": {
+        "bundle_id": "com.apple.mail"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "MessengerMailNotesGeneric/3",
+      "input": {
+        "bundle_id": "com.apple.Notes"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "MessengerMailNotesGeneric/4",
+      "input": {
+        "bundle_id": "com.unknown.app"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "MessengerMailNotesGeneric/5",
+      "input": {},
+      "expected": "generic"
+    },
+    {
+      "name": "ListTerminals/1",
+      "input": {
+        "bundle_id": "com.apple.Terminal"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "ListTerminals/2",
+      "input": {
+        "bundle_id": "com.googlecode.iterm2"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "ListTerminals/3",
+      "input": {
+        "bundle_id": "com.mitchellh.ghostty"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "ListTerminals/4",
+      "input": {
+        "bundle_id": "dev.warp.Warp-Stable"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "ListTerminals/5",
+      "input": {
+        "bundle_id": "net.kovidgoyal.kitty"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "ListTerminals/6",
+      "input": {
+        "bundle_id": "com.github.wez.wezterm"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "ListTerminals/7",
+      "input": {
+        "bundle_id": "org.alacritty"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "ListAIApps/1",
+      "input": {
+        "bundle_id": "com.anthropic.claudefordesktop"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIApps/2",
+      "input": {
+        "bundle_id": "com.openai.chat"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIApps/3",
+      "input": {
+        "bundle_id": "com.openai.codex"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIHosts/1",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://claude.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIHosts/2",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://chatgpt.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIHosts/3",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://chat.openai.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIHosts/4",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://gemini.google.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIHosts/5",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://perplexity.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListAIHosts/6",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://copilot.microsoft.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "ListCodeEditors/1",
+      "input": {
+        "bundle_id": "com.microsoft.VSCode"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "ListCodeEditors/2",
+      "input": {
+        "bundle_id": "com.todesktop.230313mzl4w4u92"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "ListCodeEditors/3",
+      "input": {
+        "bundle_id": "com.apple.dt.Xcode"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "ListCodeEditors/4",
+      "input": {
+        "bundle_id": "dev.zed.Zed"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "ListMessengers/1",
+      "input": {
+        "bundle_id": "ru.keepcoder.Telegram"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "ListMessengers/2",
+      "input": {
+        "bundle_id": "com.tdesktop.Telegram"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "ListMessengers/3",
+      "input": {
+        "bundle_id": "com.tinyspeck.slackmacgap"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "ListMessengers/4",
+      "input": {
+        "bundle_id": "com.apple.MobileSMS"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "ListMessengers/5",
+      "input": {
+        "bundle_id": "com.hnc.Discord"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "ListMessengers/6",
+      "input": {
+        "bundle_id": "net.whatsapp.WhatsApp"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "ListMessengers/7",
+      "input": {
+        "bundle_id": "com.facebook.archon"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "ListMailApps/1",
+      "input": {
+        "bundle_id": "com.apple.mail"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "ListMailApps/2",
+      "input": {
+        "bundle_id": "com.readdle.smartemail-Mac"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "ListMailApps/3",
+      "input": {
+        "bundle_id": "com.superhuman.electron"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "ListNoteApps/1",
+      "input": {
+        "bundle_id": "com.apple.Notes"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "ListNoteApps/2",
+      "input": {
+        "bundle_id": "md.obsidian"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "ListNoteApps/3",
+      "input": {
+        "bundle_id": "notion.id"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "ListNoteApps/4",
+      "input": {
+        "bundle_id": "com.apple.TextEdit"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "ListNoteApps/5",
+      "input": {
+        "bundle_id": "com.apple.iWork.Pages"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "ListNoteApps/6",
+      "input": {
+        "bundle_id": "com.bear-writer.bear"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "ListMailHosts/1",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://mail.google.com/"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "ListMailHosts/2",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://outlook.live.com/"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "ListMailHosts/3",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://outlook.office.com/"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "ListDocHosts/1",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://docs.google.com/"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "ListDocHosts/2",
+      "input": {
+        "bundle_id": "com.google.Chrome",
+        "url": "https://notion.so/"
+      },
+      "expected": "notes"
+    }
+  ]
+}

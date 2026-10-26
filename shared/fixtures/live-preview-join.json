@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "LivePreview.join: join two parts with one space, skipping empty parts.",
+  "cases": [
+    {
+      "name": "JoinSkipsEmptyParts/1",
+      "input": {
+        "a": "",
+        "b": "a b"
+      },
+      "expected": "a b"
+    },
+    {
+      "name": "JoinSkipsEmptyParts/2",
+      "input": {
+        "a": "a",
+        "b": ""
+      },
+      "expected": "a"
+    },
+    {
+      "name": "JoinSkipsEmptyParts/3",
+      "input": {
+        "a": "a",
+        "b": "b"
+      },
+      "expected": "a b"
+    }
+  ]
+}
