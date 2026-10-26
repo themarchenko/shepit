@@ -1,6 +1,6 @@
 // Renders the background of the release disk image into dmg/background.png and dmg/background@2x.png.
 //
-//   swift scripts/make-dmg-background.swift
+//   swift apple/macOS/scripts/make-dmg-background.swift
 //
 // Finder draws the two icons and their names on top; their positions are in dmg/settings.py, and the
 // arrow and text here are laid out around them. Change both together.

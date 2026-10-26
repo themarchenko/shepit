@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and run the recognizer benchmark on spike/recordings. Extra args go to shepit-bench
+# Build and run the recognizer benchmark on apple/spike/recordings. Extra args go to shepit-bench
 # (for example: --engines parakeet-v3,whisper-turbo). First run downloads the models (~3 GB).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -346,6 +346,17 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   flag and came out without it; an ad hoc 9.0.0 and a same-version build were refused and left the
   old app untouched. The CI signing steps were replayed locally in a throwaway keychain.
 
+## 2026-10-26: one repository, one folder per platform
+
+- A Windows version is next, and Linux and phones may follow. Each platform gets its own
+  implementation on the stack that suits it; what they share is behaviour, decided once here and in
+  the spec. Rewriting the working Swift core into a shared cross-platform core would trade CoreML and
+  the Neural Engine on the Mac for portability, and risk a stable app for code nobody has yet.
+- The Swift code moved under `apple/`: `apple/ShepitCore` (package, ready for an iOS target later),
+  `apple/macOS` (XcodeGen spec, app sources, signing config, disk image, generators) and
+  `apple/spike`. `install.sh`, `docs/`, `.github/` and `.claude/` stay at the root. Paths in entries
+  above this one are the old ones.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

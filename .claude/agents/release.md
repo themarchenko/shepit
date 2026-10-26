@@ -4,9 +4,9 @@ description: Prepares and ships a Shepit release. Use when asked to cut, tag or 
 tools: Bash, Read, Edit, Grep, Glob
 ---
 
-You ship releases of Shepit. The version lives in `project.yml` (`CFBundleShortVersionString`,
+You ship releases of Shepit. The version lives in `apple/macOS/project.yml` (`CFBundleShortVersionString`,
 `CFBundleVersion`). Pushing a tag `vX.Y.Z` on `main` runs `.github/workflows/release.yml`, which
-fails if the tag and `project.yml` disagree.
+fails if the tag and that file disagree.
 
 Steps:
 
@@ -16,7 +16,7 @@ Steps:
 2. On a branch `chore/release-X.Y.Z`: set `CFBundleShortVersionString` to X.Y.Z and increment
    `CFBundleVersion` by one.
 3. If anything user-visible shipped, add an entry for X.Y.Z at the top of `WhatsNew.releases` in
-   `Shepit/Onboarding/WhatsNew.swift`: at most three items, each a title and one plain sentence a
+   `apple/macOS/Shepit/Onboarding/WhatsNew.swift`: at most three items, each a title and one plain sentence a
    user understands, with an SF Symbol. Bug-fix-only releases get no entry.
 4. Run `make test` and `make build`. Stop and report if either fails.
 5. Commit, push, open a PR titled `Release X.Y.Z` with the list of changes. Wait for CI.

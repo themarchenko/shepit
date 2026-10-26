@@ -30,9 +30,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            Packages/ShepitCore/.build
+            apple/ShepitCore/.build
             .build/DerivedData
-          key: build-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('Packages/ShepitCore/Package.resolved') }}
+          key: build-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('apple/ShepitCore/Package.resolved') }}
           restore-keys: build-${{ runner.os }}-${{ steps.xcode.outputs.version }}-
 
       - name: Install XcodeGen
@@ -50,6 +50,6 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: |
-            Packages/ShepitCore/.build
+            apple/ShepitCore/.build
             .build/DerivedData
           key: ${{ steps.restore.outputs.cache-primary-key }}

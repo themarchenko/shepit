@@ -1,7 +1,9 @@
-# Shepit build helpers. Requires Xcode 26 and XcodeGen (brew install xcodegen).
+# Shepit build helpers. The macOS app needs Xcode 26 and XcodeGen (brew install xcodegen).
+MACOS := apple/macOS
+CORE := apple/ShepitCore
 DERIVED := .build/DerivedData
 APP := $(DERIVED)/Build/Products/Release/Shepit.app
-VERSION := $(shell sed -n 's/.*CFBundleShortVersionString: "\(.*\)"/\1/p' project.yml)
+VERSION := $(shell sed -n 's/.*CFBundleShortVersionString: "\(.*\)"/\1/p' $(MACOS)/project.yml)
 DIST := .build/dist
 VENV := .build/venv
 # Release builds are re-signed with this identity before packing (CI passes it; see release.yml).
@@ -10,10 +12,10 @@ SIGN_IDENTITY ?=
 .PHONY: generate build install package run test bench clean logs
 
 generate:
-	xcodegen generate --spec project.yml
+	xcodegen generate --spec $(MACOS)/project.yml
 
 build: generate
-	@set -o pipefail; xcodebuild -project Shepit.xcodeproj -scheme Shepit -configuration Release \
+	@set -o pipefail; xcodebuild -project $(MACOS)/Shepit.xcodeproj -scheme Shepit -configuration Release \
 	  -derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation build 2>&1 \
 	  | { grep -E 'error:|warning: .*Shepit/|BUILD (SUCCEEDED|FAILED)' || true; }
 	@echo "built $(APP)"
@@ -25,14 +27,14 @@ install: build
 
 # The disk image attached to a GitHub release. dmgbuild writes the Finder window layout itself, so this
 # runs on a CI runner where scripting Finder would not. The background comes from
-# scripts/make-dmg-background.swift.
+# apple/macOS/scripts/make-dmg-background.swift.
 package: build $(VENV)/bin/dmgbuild
 	rm -rf $(DIST) && mkdir -p $(DIST)
 ifneq ($(SIGN_IDENTITY),)
 	codesign --force --sign "$(SIGN_IDENTITY)" "$(APP)"
 	codesign --verify --strict "$(APP)"
 endif
-	$(VENV)/bin/dmgbuild -s dmg/settings.py -D app="$(APP)" Shepit "$(DIST)/Shepit.dmg"
+	$(VENV)/bin/dmgbuild -s $(MACOS)/dmg/settings.py -D app="$(APP)" Shepit "$(DIST)/Shepit.dmg"
 	@echo "packaged $(DIST)/Shepit.dmg ($(VERSION))"
 
 $(VENV)/bin/dmgbuild:
@@ -43,13 +45,13 @@ run:
 	open /Applications/Shepit.app
 
 test:
-	swift test --package-path Packages/ShepitCore
+	swift test --package-path $(CORE)
 
 bench:
-	spike/bench.sh
+	apple/spike/bench.sh
 
 logs:
 	log stream --predicate 'subsystem == "com.themarchenko.shepit"' --style compact --level debug
 
 clean:
-	rm -rf .build Shepit.xcodeproj Packages/ShepitCore/.build
+	rm -rf .build $(MACOS)/Shepit.xcodeproj $(CORE)/.build

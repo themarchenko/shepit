@@ -2,7 +2,7 @@
 """Drive a persistent headless Claude Code worker and measure per-turn latency.
 
 Sends one dictation at a time (waits for the result before the next), the way the
-app will. Usage: python3 spike/worker/probe.py [--model haiku] [--schema]
+app will. Usage: python3 apple/spike/worker/probe.py [--model haiku] [--schema]
 """
 import argparse
 import json

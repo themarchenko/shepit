@@ -1,6 +1,6 @@
 // Renders Shepit's app icon and menu bar glyph into Shepit/Assets.xcassets.
 //
-//   swift scripts/make-icons.swift [full|inset]
+//   swift apple/macOS/scripts/make-icons.swift [full|inset]
 //
 // The mark is "voice to cursor": three rising bars flowing into a text caret. Its geometry lives in a
 // 100 x 100 box and matches `ShepitMark` in Shepit/Settings/Brand.swift; change both together.

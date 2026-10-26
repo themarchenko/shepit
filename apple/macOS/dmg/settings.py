@@ -1,6 +1,6 @@
 # dmgbuild settings for the release disk image. `make package` runs it from the repository root:
 #
-#   dmgbuild -s dmg/settings.py -D app=path/to/Shepit.app Shepit out.dmg
+#   dmgbuild -s apple/macOS/dmg/settings.py -D app=path/to/Shepit.app Shepit out.dmg
 #
 # Icon positions are icon centers in points from the window's top-left corner. The arrow and text in
 # dmg/background.png are drawn around them by scripts/make-dmg-background.swift; change both together.
@@ -12,7 +12,7 @@ files = [app]
 symlinks = {"Applications": "/Applications"}
 icon = app + "/Contents/Resources/AppIcon.icns"
 
-background = "dmg/background.png"
+background = "apple/macOS/dmg/background.png"
 window_rect = ((200, 140), (660, 420))
 default_view = "icon-view"
 show_status_bar = False

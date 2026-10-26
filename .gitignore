@@ -8,14 +8,14 @@ xcuserdata/
 *.xcresult
 
 # Spike data: recordings stay local, results are regenerated
-spike/recordings/*.wav
-spike/results/
+apple/spike/recordings/*.wav
+apple/spike/results/
 
 # macOS
 .DS_Store
 
-# Personal signing identity, see Config/Signing.xcconfig
-Config/Local.xcconfig
+# Personal signing identity, see apple/macOS/Config/Signing.xcconfig
+apple/macOS/Config/Local.xcconfig
 
 # Claude Code personal settings
 .claude/settings.local.json

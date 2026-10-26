@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Shepit/Assets.xcassets/AppIcon.appiconset/icon_256.png" width="128" height="128" alt="">
+  <img src="apple/macOS/Shepit/Assets.xcassets/AppIcon.appiconset/icon_256.png" width="128" height="128" alt="">
 </p>
 
 # Shepit
@@ -110,23 +110,24 @@ make logs        # live logs from the running app
 ```
 
 Builds are signed ad hoc, which means macOS forgets the Accessibility permission on every rebuild.
-To keep it, sign with your own Apple Development identity: see `Config/Signing.xcconfig`.
+To keep it, sign with your own Apple Development identity: see `apple/macOS/Config/Signing.xcconfig`.
 
 `shepit-smoke` runs the recognizers and the polishing step without the app, for example to
 compare engines on your own recordings:
 
 ```
-cd Packages/ShepitCore
+cd apple/ShepitCore
 swift run -c release shepit-smoke --audio "$HOME/Library/Application Support/Shepit/recordings" \
     --engine parakeet-v3 --engine whisper-turbo --no-claude
 ```
 
 ## Project layout
 
-- `Packages/ShepitCore`: audio, hotkey gestures, recognizers, live preview, polishing agents,
-  insertion, history and settings. Everything that can be tested with `swift test`.
-- `Shepit/`: the app itself. Widget, Settings, welcome tour, menu bar item.
-- `install.sh` and `dmg/`: the one-line installer and the layout of the release disk image.
+- `apple/ShepitCore`: audio, hotkey gestures, recognizers, live preview, polishing agents,
+  insertion, history, settings and updates. Everything that can be tested with `swift test`.
+- `apple/macOS`: the app itself (widget, Settings, welcome tour, menu bar item), its XcodeGen spec
+  and the layout of the release disk image.
+- `install.sh`: the one-line installer.
 - `docs/PLAN.md` and `docs/DECISIONS.md`: the plan and a dated log of decisions and measurements.
 - `CLAUDE.md` and `.claude/agents/`: notes and subagents for working on the code with Claude Code.
 
