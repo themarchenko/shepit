@@ -56,6 +56,7 @@ Shape sizes in points, from macOS/Shepit/Widget/WidgetModel.swift:78-129 (width 
 
 - flowPill shows a caption above the pill while listening with text, and in processing, done and failed (WidgetModel.swift:96-102). Caption maximum width 440 (:85). With a caption the flowPill panel grows by 42 pt in height (8 pt gap plus 34 pt caption) and its width is at least 464 (440 + 24) (:137-140).
 - The panel is sized to the shape plus a shadow margin of 28 x 26 on each side (:84, 132-147).
+- Default position: centred horizontally on the primary display's work area, the idle pill's bottom edge 34 pt above the work area bottom (8 pt panel clamp margin plus the 26 pt shadow margin), and the panel clamped inside the work area with an 8 pt margin (WidgetController.swift:27, 196-213). Windows scales these points by the monitor scale factor.
 
 ## Appearance settings
 

@@ -21,11 +21,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
-      # rust-toolchain.toml is the single source for the Rust version, so CI and local builds agree.
+      # rustup (>= 1.28) reads windows/rust-toolchain.toml, so CI and local builds use the same Rust.
+      # `rustup show` only reports the toolchain, so install it explicitly.
       - name: Install Rust toolchain
         working-directory: windows
-        run: rustup show
+        run: rustup toolchain install
 
       # Keyed on Cargo.lock and the toolchain; target/ lives in windows/ because the workspace is there.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3

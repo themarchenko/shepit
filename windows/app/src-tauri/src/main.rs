@@ -38,7 +38,6 @@ fn main() {
             if let Some(window) = app.get_webview_window("widget") {
                 if let Some(monitor) = app.primary_monitor()? {
                     let area = monitor.work_area();
-                    let gap = (4.0 * monitor.scale_factor()).round() as i32;
                     let size = window.outer_size()?;
                     let (x, y) = widget::default_position(
                         (
@@ -48,7 +47,7 @@ fn main() {
                             area.size.height as i32,
                         ),
                         (size.width as i32, size.height as i32),
-                        gap,
+                        monitor.scale_factor(),
                     );
                     window.set_position(PhysicalPosition::new(x, y))?;
                 }
