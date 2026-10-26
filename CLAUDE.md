@@ -58,3 +58,22 @@ committed. Signing is ad hoc unless `apple/macOS/Config/Local.xcconfig` names a 
   image and publishes the GitHub release. The `release` agent does all of this.
 - The in-app updater installs only builds signed with that certificate. Never publish a release
   signed otherwise, and never replace the certificate: installed copies would stop updating.
+
+## Agent pipeline
+
+Autonomous multi-agent runs live in `.claude/` (agents, commands, hooks, the `project-discipline`
+skill) and `scripts/agent/`. Start one from a main session on Opus:
+
+- `/orchestrate <tasks>` triages a set of tasks (or reads `docs/_working/task-queue.md`) and runs
+  each through `/feature`. Shared-core and cross-platform tasks run alone, in sequence.
+- `/feature <task>` runs one task in its own worktree: audit, plan, tests first, implement,
+  inversion evidence, platform verification, review, validate, commit, draft PR.
+
+Model roles: the main session and `planner` run on Opus (architect and manager, they own the
+decisions). `test-author`, `implementer`, `reviewer-domain` and `reviewer-security` run on Sonnet.
+`auditor` and `validator` run on Haiku. `release` and `recognizer-bench` are separate and unchanged.
+
+`scripts/agent/gate.sh` picks its checks from the files that changed (see `pipeline.config.json`).
+Agent reports go to `docs/_working/` (gitignored). Anything only a person on a real device can check
+is listed as "needs device check", never claimed as done. The rules (skill, hooks, settings, agent
+definitions) change only when a human changes them; agents propose changes in the run report.
