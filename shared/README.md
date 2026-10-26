@@ -1,7 +1,8 @@
 # Shared fixtures
 
 Language-neutral test data for behaviour that must match on macOS and Windows. The Swift runner is
-`apple/ShepitCore/Tests/ShepitCoreTests/SharedFixtureTests.swift`; the Rust port reads the same files.
+`apple/ShepitCore/Tests/ShepitCoreTests/SharedFixtureTests.swift`; the Rust runner is
+`windows/core/tests/shared_fixtures.rs`; both read the same files.
 
 Every file in `fixtures/` has this envelope (keys are snake_case, `cases` is never empty):
 `{ "version": 1, "description": string, "cases": [ { "name": string, "input": {...}, "expected": ... } ] }`
