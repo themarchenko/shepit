@@ -2,16 +2,6 @@ import XCTest
 @testable import ShepitCore
 
 final class UpdateTests: XCTestCase {
-    func testVersionOrder() {
-        XCTAssertTrue(AppVersion.isNewer("0.3.0", than: "0.2.1"))
-        XCTAssertTrue(AppVersion.isNewer("0.10.0", than: "0.9.9"))
-        XCTAssertTrue(AppVersion.isNewer("1.0", than: "0.99.99"))
-        XCTAssertTrue(AppVersion.isNewer("v0.2.1", than: "0.2.0"))
-        XCTAssertFalse(AppVersion.isNewer("0.2.1", than: "0.2.1"))
-        XCTAssertFalse(AppVersion.isNewer("0.2", than: "0.2.0"))
-        XCTAssertFalse(AppVersion.isNewer("0.2.0", than: "0.2.1"))
-    }
-
     func testParsesLatestRelease() throws {
         let json = """
         {"tag_name": "v0.3.0", "html_url": "https://github.com/themarchenko/shepit/releases/tag/v0.3.0",

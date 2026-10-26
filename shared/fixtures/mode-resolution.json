@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "description": "ModeResolver.resolve: requested mode, profile id, word count and threshold in, effective mode out.",
+  "cases": [
+    {
+      "name": "PromptModeOnlyForLongAITargets/1",
+      "input": {
+        "requested": "clean",
+        "profile": "ai-chat",
+        "word_count": 39,
+        "prompt_mode_min_words": 40
+      },
+      "expected": "clean"
+    },
+    {
+      "name": "PromptModeOnlyForLongAITargets/2",
+      "input": {
+        "requested": "clean",
+        "profile": "ai-chat",
+        "word_count": 40,
+        "prompt_mode_min_words": 40
+      },
+      "expected": "prompt"
+    },
+    {
+      "name": "PromptModeOnlyForLongAITargets/3",
+      "input": {
+        "requested": "clean",
+        "profile": "messenger",
+        "word_count": 200,
+        "prompt_mode_min_words": 40
+      },
+      "expected": "clean"
+    },
+    {
+      "name": "PromptModeOnlyForLongAITargets/4",
+      "input": {
+        "requested": "raw",
+        "profile": "ai-chat",
+        "word_count": 200,
+        "prompt_mode_min_words": 40
+      },
+      "expected": "raw"
+    },
+    {
+      "name": "PromptModeOnlyForLongAITargets/5",
+      "input": {
+        "requested": "prompt",
+        "profile": "messenger",
+        "word_count": 3,
+        "prompt_mode_min_words": 40
+      },
+      "expected": "prompt"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "description": "WhisperKitEngine.retryLanguage: language to retry with, or null to keep the result.",
+  "cases": [
+    {
+      "name": "SupportedLanguagesAreKept/1",
+      "input": {
+        "detected": "uk",
+        "text": "Тестую введення"
+      },
+      "expected": null
+    },
+    {
+      "name": "SupportedLanguagesAreKept/2",
+      "input": {
+        "detected": "en",
+        "text": "Testing input"
+      },
+      "expected": null
+    },
+    {
+      "name": "SupportedLanguagesAreKept/3",
+      "input": {
+        "detected": null,
+        "text": ""
+      },
+      "expected": null
+    },
+    {
+      "name": "OtherLanguagesRetryByScript/1",
+      "input": {
+        "detected": "ru",
+        "text": "Достаю введення в файла"
+      },
+      "expected": "uk"
+    },
+    {
+      "name": "OtherLanguagesRetryByScript/2",
+      "input": {
+        "detected": "be",
+        "text": "Зрабі pull request"
+      },
+      "expected": "uk"
+    },
+    {
+      "name": "OtherLanguagesRetryByScript/3",
+      "input": {
+        "detected": "de",
+        "text": "Make a pull request"
+      },
+      "expected": "en"
+    }
+  ]
+}

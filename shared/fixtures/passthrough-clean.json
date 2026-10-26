@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "description": "PassthroughFormatter.clean: collapse whitespace and capitalize.",
+  "cases": [
+    {
+      "name": "CleanCollapsesWhitespaceAndCapitalizes/1",
+      "input": {
+        "text": "  добре,   зараз\nподивлюсь "
+      },
+      "expected": "Добре, зараз подивлюсь"
+    },
+    {
+      "name": "CleanCollapsesWhitespaceAndCapitalizes/2",
+      "input": {
+        "text": ""
+      },
+      "expected": ""
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "HallucinationFilter.isJunk: true when the text is a known silence hallucination.",
+  "cases": [
+    {
+      "name": "HallucinationFilter/1",
+      "input": {
+        "text": "Дякую за перегляд!"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFilter/2",
+      "input": {
+        "text": "Субтитри створив DimaTorzok"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFilter/3",
+      "input": {
+        "text": "Thank you."
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFilter/4",
+      "input": {
+        "text": "Дякую за звіт, подивлюся завтра."
+      },
+      "expected": false
+    },
+    {
+      "name": "HallucinationFilter/5",
+      "input": {
+        "text": "Зроби pull request після commit."
+      },
+      "expected": false
+    }
+  ]
+}

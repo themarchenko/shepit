@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "description": "AppVersion.isNewer: true when candidate is a newer version than installed. A leading v is ignored.",
+  "cases": [
+    {
+      "name": "VersionOrder/1",
+      "input": {
+        "candidate": "0.3.0",
+        "installed": "0.2.1"
+      },
+      "expected": true
+    },
+    {
+      "name": "VersionOrder/2",
+      "input": {
+        "candidate": "0.10.0",
+        "installed": "0.9.9"
+      },
+      "expected": true
+    },
+    {
+      "name": "VersionOrder/3",
+      "input": {
+        "candidate": "1.0",
+        "installed": "0.99.99"
+      },
+      "expected": true
+    },
+    {
+      "name": "VersionOrder/4",
+      "input": {
+        "candidate": "v0.2.1",
+        "installed": "0.2.0"
+      },
+      "expected": true
+    },
+    {
+      "name": "VersionOrder/5",
+      "input": {
+        "candidate": "0.2.1",
+        "installed": "0.2.1"
+      },
+      "expected": false
+    },
+    {
+      "name": "VersionOrder/6",
+      "input": {
+        "candidate": "0.2",
+        "installed": "0.2.0"
+      },
+      "expected": false
+    },
+    {
+      "name": "VersionOrder/7",
+      "input": {
+        "candidate": "0.2.0",
+        "installed": "0.2.1"
+      },
+      "expected": false
+    }
+  ]
+}

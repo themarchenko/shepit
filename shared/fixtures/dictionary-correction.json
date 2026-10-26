@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "description": "DictionaryCorrector.correct: text and dictionary in, corrected text out.",
+  "cases": [
+    {
+      "name": "CyrillicTransliterationsBecomeTerms/1",
+      "input": {
+        "text": "Відкрий клод код і перевір",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий Claude Code і перевір"
+    },
+    {
+      "name": "CyrillicTransliterationsBecomeTerms/2",
+      "input": {
+        "text": "Зроби рефакторинг хендл сабміт.",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Зроби рефакторинг handleSubmit."
+    },
+    {
+      "name": "CyrillicTransliterationsBecomeTerms/3",
+      "input": {
+        "text": "Задеплой на версел",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Задеплой на Vercel"
+    },
+    {
+      "name": "CyrillicTransliterationsBecomeTerms/4",
+      "input": {
+        "text": "Відкрий пул реквест і зроби коміт",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий pull request і зроби commit"
+    },
+    {
+      "name": "CyrillicTransliterationsBecomeTerms/5_InflectedFormsLeftForClaude",
+      "input": {
+        "text": "після коміту",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "після коміту"
+    },
+    {
+      "name": "LatinNearMissOfMultiWordTerm/1",
+      "input": {
+        "text": "Open Cloud Code please",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Open Claude Code please"
+    },
+    {
+      "name": "OrdinaryWordsStay/1",
+      "input": {
+        "text": "Тестую введення в файл. Дивимося, як воно буде працювати.",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Тестую введення в файл. Дивимося, як воно буде працювати."
+    },
+    {
+      "name": "OrdinaryWordsStay/2",
+      "input": {
+        "text": "Покажи код ще раз",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Покажи код ще раз"
+    },
+    {
+      "name": "OrdinaryWordsStay/3",
+      "input": {
+        "text": "колода карт",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "колода карт"
+    },
+    {
+      "name": "OrdinaryWordsStay/4_SingleEnglishWordIsTakenAsMeant",
+      "input": {
+        "text": "Use Whisper turbo",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Use Whisper turbo"
+    },
+    {
+      "name": "CorrectTermsAreUntouched/1",
+      "input": {
+        "text": "Run handleSubmit in UserService.swift",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Run handleSubmit in UserService.swift"
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "description": "HotkeyGesture with default thresholds. at is seconds since the first event; duration is seconds, compared within 0.001.",
+  "cases": [
+    {
+      "name": "LongPressIsPushToTalk/1",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "down",
+            "at": 0.1
+          },
+          {
+            "key": "up",
+            "at": 1.2
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "none"
+        },
+        {
+          "output": "press_ended",
+          "duration": 1.2
+        }
+      ]
+    },
+    {
+      "name": "ShortTapThenDoubleTap/1",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "up",
+            "at": 0.1
+          },
+          {
+            "key": "down",
+            "at": 0.3
+          },
+          {
+            "key": "up",
+            "at": 0.4
+          },
+          {
+            "key": "down",
+            "at": 0.6
+          },
+          {
+            "key": "up",
+            "at": 0.7
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        },
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "double_tap"
+        },
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        }
+      ]
+    },
+    {
+      "name": "TapsTooFarApartAreNotADoubleTap/1",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "up",
+            "at": 0.1
+          },
+          {
+            "key": "down",
+            "at": 1.0
+          },
+          {
+            "key": "up",
+            "at": 1.1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        },
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        }
+      ]
+    },
+    {
+      "name": "LongPressClearsPendingTap/1",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "up",
+            "at": 0.1
+          },
+          {
+            "key": "down",
+            "at": 0.2
+          },
+          {
+            "key": "up",
+            "at": 1.0
+          },
+          {
+            "key": "down",
+            "at": 1.1
+          },
+          {
+            "key": "up",
+            "at": 1.2
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        },
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "press_ended",
+          "duration": 0.8
+        },
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        }
+      ]
+    }
+  ]
+}
