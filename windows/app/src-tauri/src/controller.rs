@@ -1,11 +1,11 @@
 //! The controller loop body, free of Tauri and cpal so it runs in tests on any host.
 
-use shepit_core::dictation::{Controller, Recorder, View};
+use shepit_core::dictation::{CaptureError, Controller, Recorder, View};
 use shepit_core::keys::RawKey;
 use std::time::Instant;
 
 /// What the hook and the recorder callback send to the controller thread.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Msg {
     /// A raw keyboard hook event.
     Key(RawKey),
@@ -15,6 +15,8 @@ pub enum Msg {
     KeyAt(RawKey, Instant),
     /// A raw (unsmoothed) level from the capture callback.
     Level(f32),
+    /// The capture stream reported an error while recording.
+    StreamError(CaptureError),
     /// The 100 ms receive timeout: lets the failed state reset.
     Tick,
 }
@@ -38,6 +40,7 @@ impl<R: Recorder> Runner<R> {
         match msg {
             Msg::Key(raw) | Msg::KeyAt(raw, _) => self.controller.on_key(raw, now),
             Msg::Level(level) => self.controller.on_level(level),
+            Msg::StreamError(err) => self.controller.on_stream_error(err, now),
             Msg::Tick => self.controller.poll(now),
         }
         let view = self.controller.view();
@@ -107,6 +110,17 @@ mod tests {
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         runner.step(rctrl(WM_KEYUP), 11.0);
         assert_eq!(runner.take_capture().map(|s| s.len()), Some(16_000));
+    }
+
+    #[test]
+    fn a_stream_error_while_listening_fails_the_view() {
+        let mut runner = Runner::new(FakeRecorder);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        let view = runner
+            .step(Msg::StreamError(CaptureError::Other("lost".into())), 10.5)
+            .expect("view changes");
+        assert_eq!(view.phase, Phase::Failed);
+        assert_eq!(view.message, "Microphone: lost");
     }
 
     #[test]

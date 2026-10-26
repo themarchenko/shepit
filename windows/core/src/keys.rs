@@ -29,6 +29,15 @@ pub enum KeyEvent {
     EscPressed,
 }
 
+/// True only for the configured hotkey (and the generic VK_CONTROL the driver may report for it
+/// when the extended flag is set) and Esc. The hook calls this before it sends anything, so no
+/// other key ever leaves the hook proc.
+pub fn is_accepted(vk: u32, flags: u32, hotkey_vk: u32) -> bool {
+    vk == VK_ESCAPE
+        || vk == hotkey_vk
+        || (hotkey_vk == VK_RCONTROL && vk == VK_CONTROL && flags & LLKHF_EXTENDED != 0)
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct KeyFilter {
     hotkey_down: bool,
@@ -90,6 +99,23 @@ mod tests {
     }
     fn rctrl_up() -> RawKey {
         raw(WM_KEYUP, VK_RCONTROL, LLKHF_EXTENDED)
+    }
+
+    #[test]
+    fn only_the_hotkey_and_esc_are_accepted() {
+        // C, A, Left Ctrl, Space, Enter
+        for vk in [0x43, 0x41, 0xA2, 0x20, 0x0D] {
+            assert!(!is_accepted(vk, 0, VK_RCONTROL), "{vk:#x}");
+            assert!(!is_accepted(vk, LLKHF_EXTENDED, VK_RCONTROL), "{vk:#x}");
+        }
+        assert!(is_accepted(VK_RCONTROL, LLKHF_EXTENDED, VK_RCONTROL));
+        assert!(is_accepted(VK_CONTROL, LLKHF_EXTENDED, VK_RCONTROL));
+        assert!(is_accepted(VK_ESCAPE, 0, VK_RCONTROL));
+    }
+
+    #[test]
+    fn generic_ctrl_without_extended_flag_is_not_accepted() {
+        assert!(!is_accepted(VK_CONTROL, 0, VK_RCONTROL));
     }
 
     #[test]

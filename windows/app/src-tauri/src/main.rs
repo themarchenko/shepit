@@ -9,7 +9,8 @@ mod widget;
 use controller::{Msg, Runner};
 use recorder::CpalRecorder;
 use shepit_core::dictation::{Phase, View};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::time::{Duration, Instant};
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -63,8 +64,9 @@ fn main() {
                 window.show()?;
             }
 
-            let (tx, rx) = mpsc::channel::<Msg>();
-            hook::start(tx.clone());
+            // Bounded so a stalled controller cannot grow memory; senders drop on full.
+            let (tx, rx) = mpsc::sync_channel::<Msg>(256);
+            hook::start(tx.clone(), shepit_core::keys::VK_RCONTROL);
             let handle = app.handle().clone();
             // The recorder is built inside the thread: a cpal Stream may not be Send.
             std::thread::Builder::new()
@@ -76,11 +78,26 @@ fn main() {
         .expect("error while running Shepit");
 }
 
+/// Runs the controller loop and restarts it with a fresh controller if it panics, so the hotkey
+/// keeps working. The receiver outlives the loop; only the controller state is lost.
+fn run_controller(app: AppHandle, tx: SyncSender<Msg>, rx: Receiver<Msg>) {
+    loop {
+        let result = catch_unwind(AssertUnwindSafe(|| controller_loop(&app, &tx, &rx)));
+        if result.is_ok() {
+            return;
+        }
+        // No payload in the log: it could carry key data.
+        eprintln!("controller thread panicked, restarting");
+        apply_view(&app, &widget::idle_view(), true);
+    }
+}
+
 /// Owns the dictation controller: feeds it hook and level messages, polls it every 100 ms and
 /// pushes each view change to the widget.
-fn run_controller(app: AppHandle, tx: mpsc::Sender<Msg>, rx: Receiver<Msg>) {
+fn controller_loop(app: &AppHandle, tx: &SyncSender<Msg>, rx: &Receiver<Msg>) {
     let epoch = Instant::now();
-    let mut runner = Runner::new(CpalRecorder::new(tx));
+    let mut runner = Runner::new(CpalRecorder::new(tx.clone()));
+    let mut last_view: Option<View> = None;
     let mut listening_since: Option<Instant> = None;
     loop {
         let msg = match rx.recv_timeout(Duration::from_millis(100)) {
@@ -107,17 +124,22 @@ fn run_controller(app: AppHandle, tx: mpsc::Sender<Msg>, rx: Receiver<Msg>) {
             }
             (_, None) => {}
         }
-        apply_view(&app, &view);
+        let resize = last_view
+            .as_ref()
+            .is_none_or(|old| widget::needs_resize(old, &view));
+        apply_view(app, &view, resize);
+        last_view = Some(view);
     }
 }
 
-/// Resizes and re-seats the widget for the view, then sends it the state.
-fn apply_view(app: &AppHandle, view: &View) {
-    let Some(window) = app.get_webview_window("widget") else {
-        return;
-    };
-    if let Err(err) = place(&window, view) {
-        eprintln!("could not place the widget: {err}");
+/// Re-seats the widget when `resize` is set, then sends it the state.
+fn apply_view(app: &AppHandle, view: &View, resize: bool) {
+    if resize {
+        if let Some(window) = app.get_webview_window("widget") {
+            if let Err(err) = place(&window, view) {
+                eprintln!("could not place the widget: {err}");
+            }
+        }
     }
     let state = widget::WidgetState::from_view(view);
     if let Err(err) = app.emit_to("widget", "widget-state", state) {

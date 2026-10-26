@@ -1,13 +1,15 @@
 //! Global low-level keyboard hook. The callback only copies the event and hands it to the
-//! controller thread; filtering lives in shepit_core::keys. It never swallows a key.
+//! controller thread; filtering lives in shepit_core::keys. It never swallows a key, and only
+//! the configured hotkey and Esc are ever copied out of the proc.
 
 use crate::controller::Msg;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 
 #[cfg(windows)]
 mod imp {
     use super::*;
-    use shepit_core::keys::RawKey;
+    use shepit_core::keys::{is_accepted, RawKey};
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::OnceLock;
     use std::time::Instant;
     use windows::core::PCWSTR;
@@ -17,7 +19,9 @@ mod imp {
         CallNextHookEx, GetMessageW, SetWindowsHookExW, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL,
     };
 
-    static SENDER: OnceLock<Sender<Msg>> = OnceLock::new();
+    static SENDER: OnceLock<SyncSender<Msg>> = OnceLock::new();
+    /// The configured hotkey's virtual-key code, set once by the app before the hook installs.
+    static HOTKEY_VK: AtomicU32 = AtomicU32::new(0);
 
     /// The hook callback runs on the hook thread inside the system's input path, so it does no
     /// work beyond a copy and a channel send.
@@ -27,13 +31,16 @@ mod imp {
                 // SAFETY: for WH_KEYBOARD_LL with code >= 0, lparam points to a valid
                 // KBDLLHOOKSTRUCT that lives for the duration of this call.
                 let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
-                let raw = RawKey {
-                    message: wparam.0 as u32,
-                    vk: info.vkCode,
-                    flags: info.flags.0,
-                };
-                // A closed receiver means the app is quitting; nothing to do.
-                let _ = tx.send(Msg::KeyAt(raw, Instant::now()));
+                // Any other key stays inside the proc: nothing about it is stored or sent.
+                if is_accepted(info.vkCode, info.flags.0, HOTKEY_VK.load(Ordering::Relaxed)) {
+                    let raw = RawKey {
+                        message: wparam.0 as u32,
+                        vk: info.vkCode,
+                        flags: info.flags.0,
+                    };
+                    // The proc must never block: a full or closed channel drops the event.
+                    let _ = tx.try_send(Msg::KeyAt(raw, Instant::now()));
+                }
             }
         }
         // SAFETY: plain forward of the arguments we were given; a null hook handle is allowed
@@ -41,7 +48,8 @@ mod imp {
         unsafe { CallNextHookEx(None, code, wparam, lparam) }
     }
 
-    pub fn start(tx: Sender<Msg>) {
+    pub fn start(tx: SyncSender<Msg>, hotkey_vk: u32) {
+        HOTKEY_VK.store(hotkey_vk, Ordering::Relaxed);
         if SENDER.set(tx).is_err() {
             eprintln!("keyboard hook already started");
             return;
@@ -77,4 +85,4 @@ pub use imp::start;
 
 /// The hook exists only on Windows; elsewhere the app runs without a hotkey.
 #[cfg(not(windows))]
-pub fn start(_tx: Sender<Msg>) {}
+pub fn start(_tx: SyncSender<Msg>, _hotkey_vk: u32) {}

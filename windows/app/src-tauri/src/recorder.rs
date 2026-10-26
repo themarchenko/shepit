@@ -6,11 +6,11 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, Stream, StreamConfig};
 use shepit_core::audio::CaptureBuffer;
 use shepit_core::dictation::{classify_error, CaptureError, Recorder};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 
 pub struct CpalRecorder {
-    tx: Sender<Msg>,
+    tx: SyncSender<Msg>,
     active: Option<Active>,
 }
 
@@ -20,7 +20,7 @@ struct Active {
 }
 
 impl CpalRecorder {
-    pub fn new(tx: Sender<Msg>) -> Self {
+    pub fn new(tx: SyncSender<Msg>) -> Self {
         Self { tx, active: None }
     }
 }
@@ -36,12 +36,13 @@ fn build<T>(
     device: &cpal::Device,
     config: &StreamConfig,
     buffer: Arc<Mutex<CaptureBuffer>>,
-    tx: Sender<Msg>,
+    tx: SyncSender<Msg>,
 ) -> Result<Stream, cpal::Error>
 where
     T: SizedSample,
     f32: FromSample<T>,
 {
+    let error_tx = tx.clone();
     device.build_input_stream(
         *config,
         move |data: &[T], _| {
@@ -52,11 +53,15 @@ where
                 Err(poisoned) => poisoned.into_inner().push(&floats),
             };
             for level in levels {
-                let _ = tx.send(Msg::Level(level));
+                // Never block the audio thread: a dropped level is invisible.
+                let _ = tx.try_send(Msg::Level(level));
             }
         },
-        // The recording simply ends up short or silent; a log line is all there is to do.
-        |err| eprintln!("capture stream error: {err}"),
+        // The controller turns this into the Failed state with the microphone message.
+        move |err| {
+            eprintln!("capture stream error: {err}");
+            let _ = error_tx.try_send(Msg::StreamError(classify(&err)));
+        },
         None,
     )
 }

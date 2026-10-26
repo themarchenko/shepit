@@ -198,6 +198,19 @@ impl<R: Recorder> Controller<R> {
         }
     }
 
+    /// The capture stream reported an error. Only matters while recording: the microphone is
+    /// released and the widget shows the failure, same as a failed start.
+    pub fn on_stream_error(&mut self, error: CaptureError, at: f64) {
+        if !matches!(self.state, State::Recording { .. }) {
+            return;
+        }
+        self.stop_recorder();
+        self.state = State::Failed {
+            message: format!("Microphone: {error}"),
+        };
+        self.failed_at = at;
+    }
+
     /// Resets Failed to idle once `FAILED_RESET_SECS` have passed.
     pub fn poll(&mut self, now: f64) {
         if matches!(self.state, State::Failed { .. }) && now - self.failed_at >= FAILED_RESET_SECS {
@@ -483,6 +496,29 @@ mod tests {
         c.poll(3.9);
         assert_eq!(c.view().phase, Phase::Failed);
         c.poll(4.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn stream_error_while_recording_fails_then_resets() {
+        let (mut c, shared) = setup();
+        press(&mut c, 0.0);
+        c.on_stream_error(CaptureError::Other("device lost".into()), 2.0);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Failed);
+        assert_eq!(v.message, "Microphone: device lost");
+        assert_eq!(shared.stops.get(), 1);
+        assert!(c.take_capture().is_none());
+        c.poll(5.9);
+        assert_eq!(c.view().phase, Phase::Failed);
+        c.poll(6.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn stream_error_while_idle_is_ignored() {
+        let (mut c, _shared) = setup();
+        c.on_stream_error(CaptureError::NoDevice, 1.0);
         assert_eq!(c.view().phase, Phase::Idle);
     }
 

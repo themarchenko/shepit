@@ -12,6 +12,22 @@ pub fn window_size(view: &View) -> (f64, f64) {
     }
 }
 
+/// The view a fresh controller starts in; used to reset the widget after a controller restart.
+pub fn idle_view() -> View {
+    View {
+        phase: Phase::Idle,
+        hands_free: false,
+        message: String::new(),
+        levels: vec![0.0; 32],
+    }
+}
+
+/// Whether the window must be resized and re-seated. Level-only updates arrive about 30 times a
+/// second and must only emit the event.
+pub fn needs_resize(old: &View, new: &View) -> bool {
+    old.phase != new.phase || old.hands_free != new.hands_free
+}
+
 /// The `widget-state` event payload: {"phase","handsFree","message","levels"}.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +104,24 @@ mod tests {
             view(Phase::Listening, true, ""),
             view(Phase::Failed, false, "Microphone: no microphone found"),
         ]
+    }
+
+    #[test]
+    fn resize_only_when_phase_or_hands_free_changes() {
+        let idle = view(Phase::Idle, false, "");
+        let listening = view(Phase::Listening, false, "");
+        let hands_free = view(Phase::Listening, true, "");
+        let mut louder = listening.clone();
+        louder.levels[31] = 0.9;
+        let mut other_text = view(Phase::Failed, false, "a");
+        assert!(needs_resize(&idle, &listening));
+        assert!(needs_resize(&listening, &hands_free));
+        assert!(!needs_resize(&listening, &louder));
+        assert!(!needs_resize(&idle, &idle));
+        let failed_b = view(Phase::Failed, false, "b");
+        assert!(!needs_resize(&other_text, &failed_b));
+        other_text.phase = Phase::Idle;
+        assert!(needs_resize(&other_text, &failed_b));
     }
 
     #[test]
