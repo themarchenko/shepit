@@ -53,7 +53,7 @@ Source: DictationSession.swift:140-227.
 5. Drop the result if the transcript is empty or `HallucinationFilter.isJunk` (below). Fail "Nothing recognized" (:182-185).
 6. Resolve profile and mode (profiles-modes.md) and format (local-cleanup.md, polishing.md).
 7. Learn new dictionary terms from the formatter's report (dictionary.md) (:202-206).
-8. Insert the result at the cursor of the app that was focused when recording started (:208-209). Platform-specific: clipboard paste and the Accessibility fallback. When the insert method is "clipboard only" the status is `clipboard` and the done preview is prefixed with a hint to grant Accessibility (:215, 220).
+8. Insert the result at the cursor of the app that was focused when recording started (:208-209). Insertion is refused when secure input is active, either recorded in the captured context or reported now by `IsSecureEventInputEnabled()` (Insertion/PasteInserter.swift:58); the dictation then fails. The paste path puts the text on the clipboard, sends the paste shortcut, waits 350 ms, and restores the previous clipboard contents unless something else changed the clipboard meanwhile (PasteInserter.swift:60-74; restore delay :52). Platform-specific: clipboard paste and the Accessibility fallback. When the insert method is "clipboard only" the status is `clipboard` and the done preview is prefixed with a hint to grant Accessibility (:215, 220).
 9. Save a history record, set `done`, reset after 2.5 s (:210-221).
 
 - Cancellation at any await returns to idle without a message (:222-223). Any other error fails with the error text (:224-225).
@@ -70,4 +70,4 @@ Fixture: `shared/fixtures/hallucination-filter.json`. Source: Audio/SpeechPresen
 2. Return true if it contains any of the "fragments" (substring match). The list is at SpeechPresence.swift:33-35.
 3. Otherwise keep only Unicode letters and ASCII spaces, collapse runs of spaces and trim, and return true if the result equals one of the "whole text" phrases (exact match). The list is at SpeechPresence.swift:29-32.
 
-The two lists are the contract and are copied from those lines. A port must not shorten them.
+The fixture holds every entry of both lists, one case each (9 whole-text phrases and 6 fragments, each expected true), and is the canonical list. Add a phrase to the code and to the fixture together. A port must not shorten the lists; the fixture fails if it does.

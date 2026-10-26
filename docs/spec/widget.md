@@ -54,7 +54,7 @@ Shape sizes in points, from macOS/Shepit/Widget/WidgetModel.swift:78-129 (width 
 | done | 44 x 32 | 560 x 42 | 410 x 94 |
 | failed | 44 x 32 | 270 x 42 | 254 x 36 |
 
-- flowPill shows a caption above the pill while listening with text, and in processing, done and failed (WidgetModel.swift:96-102). Caption maximum width 440 (:85).
+- flowPill shows a caption above the pill while listening with text, and in processing, done and failed (WidgetModel.swift:96-102). Caption maximum width 440 (:85). With a caption the flowPill panel grows by 42 pt in height (8 pt gap plus 34 pt caption) and its width is at least 464 (440 + 24) (:137-140).
 - The panel is sized to the shape plus a shadow margin of 28 x 26 on each side (:84, 132-147).
 
 ## Appearance settings
@@ -83,7 +83,7 @@ Source: Speech/LivePreview.swift. Setting `livePreview`, default on (AppSettings
 
 - A pass decodes only the audio after the last freeze point. Frozen text is decoded once more and kept.
 - The preview text has a stable part and an unstable part; the unstable part may be rewritten by the next pass (:21-25).
-- Stopping recording keeps the last text on screen; it is cleared when the result is inserted or the dictation is cancelled or fails (DictationSession.swift:107, 112, 219, 230).
+- Stopping recording keeps the last text on screen; it is cleared when the result is inserted, when the recording is discarded for being shorter than the minimum (DictationSession.swift:110-114), or when the dictation is cancelled or fails (DictationSession.swift:107, 219, 230; the discard path clears it at :112).
 - With the setting off the preview is cleared and not started (DictationSession.swift:91-96).
 - The preview runs on the fast recognizer (Parakeet), whatever engine is selected (Speech/SpeechEngine.swift:140-146).
 

@@ -61,4 +61,4 @@ Missing bundle id is treated as empty, missing window title as empty (:115-116).
 | mail hosts | 3 | :111 |
 | document hosts | 2 | :112 |
 
-The entries are the data; copy them from those lines. Platform-specific: bundle ids are macOS identifiers. A port keeps the host rules and the order, and needs its own app identifiers (README, open points).
+The fixture `shared/fixtures/profile-resolution.json` holds every bundle id and every host above, one case each, and is the canonical list. Add an entry to the code and to the fixture together; a port with a truncated set fails. Platform-specific: bundle ids are macOS identifiers. A port keeps the host rules and the order, and needs its own app identifiers (README, open points).

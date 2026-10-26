@@ -31,8 +31,9 @@ Source: `apple/ShepitCore/Sources/ShepitCore/Settings/AppSettings.swift`. Keys a
 Notes:
 
 - The engine ids are `EngineID` raw values. Parakeet v3 is the default engine and also the live-preview engine (SpeechEngine.swift:140-146).
-- `fastPathMaxWords` below 0 is applied as 0 (FormattingService.swift:18).
-- Hotkey labels: Right Option, Right Command, Fn / Globe (AppSettings.swift:17-22). The Fn choice needs the system's own Fn action turned off (:12). Platform-specific.
+- `fastPathMaxWords` below 0 is applied as 0 by `max(0, maxWords)` (FormattingService.swift:18); the macOS Settings stepper limits it to 0...30 (macOS/Shepit/Settings/SettingsView.swift:157), and the stored value is not clamped on load (AppSettings.swift:171).
+- The 300-entry dictionary cap is `DictionaryLearning.maxTerms` (Learning/DictionaryCorrector.swift:227). It is enforced when learning: new entries are cut to `maxTerms - existing.count` (:242). Entries the user adds by hand are not capped in the code.
+- Hotkey display strings (AppSettings.swift:8-14): `Right Option (⌥)`, `Right Command (⌘)`, `Fn / Globe (needs "Press Fn key to: Do Nothing" in System Settings)`. Short key-cap labels (:16-23): `Right ⌥`, `Right ⌘`, `Fn`. The Fn choice needs the system's own Fn action turned off (:12). Platform-specific.
 - The legacy `widgetPositions` key is removed on launch (:150, 180). Platform-specific.
 - Settings changes take effect without a restart: hotkey, engine preload, agent replacement, live preview and fast-path limit (macOS/Shepit/App/AppDelegate.swift:159-215, see polishing.md).
 - Speaker notes go into the system prompt (polishing.md).

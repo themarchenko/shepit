@@ -66,8 +66,14 @@ The target context fields are bundle id, app name, window title, URL, text befor
 
 ## Reply handling
 
-- The reply is parsed by finding the first `{` and the last `}` in the text, after removing a leading code fence; the JSON must have a string `text`. `language` and `new_terms` are optional (PromptBuilder.swift:83-88; Formatting/Formatter.swift:73-80). No JSON object or no `text`: the dictation counts as a failure and falls back to local text (local-cleanup.md).
+- The reply is parsed by finding the first `{` and the last `}` in the text, after removing a leading code fence; the JSON must have a string `text`. `language` and `new_terms` are optional (PromptBuilder.swift:83-88; Formatting/Formatter.swift:73-80). If the first parse fails, the same object text is tried again with every raw newline and tab replaced by `\n` and `\t`, because replies sometimes hold raw line breaks inside strings (Formatting/Formatter.swift:75-93; the retry is at :86-92). No JSON object or no `text` after that: the dictation counts as a failure and falls back to local text (local-cleanup.md).
 - Cleanup of the agent text, the same for both agents: trim newlines at both ends; if the profile strips trailing newlines, remove trailing newlines again; if the first character is a lowercase letter, uppercase it (CodexFormatter.swift:117-127; the Claude copy is Formatting/ClaudeCodeWorker.swift:218-225).
+
+## Privacy rules
+
+- Audio never leaves the device. Recognition is local; only text goes to an agent.
+- An agent receives the transcript, the dictionary part, the optional examples and the context keys listed above, and nothing else.
+- Dictated text is never logged at public privacy level. The one log of transcript text is marked private and cut to 80 characters (Pipeline/DictationSession.swift:186). A port must keep transcripts, results and context text out of public logs.
 
 ## Process lifetime (both agents)
 

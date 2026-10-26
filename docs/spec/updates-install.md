@@ -40,6 +40,16 @@ Source: UpdateInstaller.swift:44-106. Swift-only.
 - Accept only if the bundle id matches, the version equals the release's and is newer than the installed one, and the new app satisfies the installed app's designated code requirement (:85-100).
 - Swap in place, or ask for an administrator password when the folder is not writable; then relaunch (:66-80, 107-137).
 
+## Trust boundary
+
+- No downloaded build is installed or launched unless it passes the signature check. There is no fallback and no override: any failure throws and the old app stays (UpdateInstaller.swift:65, 98, 102-115).
+- The requirement is the designated requirement of the running app (`target` defaults to `Bundle.main.bundleURL`, :43; :103-107). Every release therefore must be signed with the same release certificate as the one installed, or the update is refused.
+- The check is strict and covers nested code and all architectures: `kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode` (:110-112).
+- The download is HTTPS from GitHub (the asset URL from the release feed) into a fresh temp directory named with a UUID, removed afterwards (:47-52); the asset URL is the release's `browser_download_url` on GitHub, and the code does not itself check the scheme.
+- The quarantine flag is removed on the staged copy only (:63). The signature and identity check follows (:65) and nothing from the download is executed in between: it is only mounted read-only and copied.
+- There is no size or checksum check. `expectedSize` only drives progress (:52).
+- Platform-specific, Windows: the updater must verify the update's signature against a key pinned in the installed app before it installs anything, and refuse with no fallback when the check fails.
+
 ## install.sh (macOS)
 
 Source: install.sh:12-80.

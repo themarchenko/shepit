@@ -25,11 +25,11 @@ Rules:
 
 The user picks one key. Default Right Option (AppSettings.swift:157).
 
-| Choice id | macOS key code | Label | Source |
+| Choice id | macOS key code | Label (short key-cap label, AppSettings.swift:16-23) | Source |
 |---|---|---|---|
-| `rightOption` | 61 | Right Option | App/HotkeyMonitor.swift:60 |
-| `rightCommand` | 54 | Right Command | App/HotkeyMonitor.swift:61 |
-| `fn` | 63 | Fn / Globe | App/HotkeyMonitor.swift:62 |
+| `rightOption` | 61 | Right Option (`Right ⌥`) | App/HotkeyMonitor.swift:60 |
+| `rightCommand` | 54 | Right Command (`Right ⌘`) | App/HotkeyMonitor.swift:61 |
+| `fn` | 63 | Fn / Globe (`Fn`) | App/HotkeyMonitor.swift:62 |
 
 - Only the chosen modifier key counts. Other keys in the same event stream are ignored (HotkeyMonitor.swift:68).
 - Esc (key code 53) is a separate cancel key and is not part of the gesture (HotkeyMonitor.swift:83-85).
