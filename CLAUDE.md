@@ -46,5 +46,8 @@ Signing is ad hoc unless `Config/Local.xcconfig` names a team (see `Config/Signi
 - Commit messages: imperative subject under 72 characters, body when the reason is not obvious.
   No assistant attribution lines.
 - Releases: bump `CFBundleShortVersionString` and `CFBundleVersion` in `project.yml` in a PR, merge,
-  then tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml` builds, packs a disk image and
-  publishes the GitHub release. The `release` agent does all of this.
+  then tag `vX.Y.Z` on `main` and push the tag. `.github/workflows/release.yml` builds, signs with the
+  "Shepit Release" certificate (repo secrets `SIGNING_P12_BASE64`, `SIGNING_P12_PASSWORD`), packs a disk
+  image and publishes the GitHub release. The `release` agent does all of this.
+- The in-app updater installs only builds signed with that certificate. Never publish a release
+  signed otherwise, and never replace the certificate: installed copies would stop updating.

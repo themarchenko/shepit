@@ -4,6 +4,8 @@ APP := $(DERIVED)/Build/Products/Release/Shepit.app
 VERSION := $(shell sed -n 's/.*CFBundleShortVersionString: "\(.*\)"/\1/p' project.yml)
 DIST := .build/dist
 VENV := .build/venv
+# Release builds are re-signed with this identity before packing (CI passes it; see release.yml).
+SIGN_IDENTITY ?=
 
 .PHONY: generate build install package run test bench clean logs
 
@@ -26,6 +28,10 @@ install: build
 # scripts/make-dmg-background.swift.
 package: build $(VENV)/bin/dmgbuild
 	rm -rf $(DIST) && mkdir -p $(DIST)
+ifneq ($(SIGN_IDENTITY),)
+	codesign --force --sign "$(SIGN_IDENTITY)" "$(APP)"
+	codesign --verify --strict "$(APP)"
+endif
 	$(VENV)/bin/dmgbuild -s dmg/settings.py -D app="$(APP)" Shepit "$(DIST)/Shepit.dmg"
 	@echo "packaged $(DIST)/Shepit.dmg ($(VERSION))"
 

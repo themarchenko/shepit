@@ -9,6 +9,7 @@ struct SettingsActions {
     var resetWidgetPosition: () -> Void = {}
     var showWhatsNew: () -> Void = {}
     var showWelcomeTour: () -> Void = {}
+    var showUpdate: () -> Void = {}
 }
 
 struct GeneralPane: View {
@@ -207,6 +208,8 @@ struct DictionaryPane: View {
 }
 
 struct AboutPane: View {
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var updates: UpdateChecker
     var actions: SettingsActions
 
     private var version: String {
@@ -226,6 +229,19 @@ struct AboutPane: View {
                 }
                 .padding(.vertical, 4)
             }
+            Section("Updates") {
+                Toggle("Check for updates once a day", isOn: $settings.checkForUpdates)
+                LabeledContent {
+                    switch updates.state {
+                    case .available: Button("Install…", action: actions.showUpdate)
+                    case .checking, .downloading, .installing: ProgressView().controlSize(.small)
+                    default: Button("Check now") { Task { await updates.check(userInitiated: true) } }
+                    }
+                } label: {
+                    Text(updateStatus)
+                    Text(updateDetail)
+                }
+            }
             Section {
                 LabeledContent("What's new in \(version)") { Button("Show", action: actions.showWhatsNew) }
                 LabeledContent("Welcome tour") { Button("Show again", action: actions.showWelcomeTour) }
@@ -238,6 +254,23 @@ struct AboutPane: View {
             }
         }
         .settingsForm()
+    }
+
+    private var updateStatus: String {
+        switch updates.state {
+        case .checking: return "Checking GitHub…"
+        case .available(let release): return "Shepit \(release.version) is out"
+        case .downloading(let release, let fraction): return "Downloading \(release.version): \(Int(fraction * 100))%"
+        case .installing(let release): return "Installing \(release.version)…"
+        case .failed: return "Last check failed"
+        case .idle, .upToDate: return "Up to date"
+        }
+    }
+
+    private var updateDetail: String {
+        if case .failed(let message, _) = updates.state { return message }
+        guard settings.lastUpdateCheck > .distantPast else { return "Not checked yet" }
+        return "Checked " + settings.lastUpdateCheck.formatted(.relative(presentation: .named))
     }
 }
 
@@ -274,6 +307,7 @@ struct SettingsRoot: View {
 
     @ObservedObject var nav: SettingsNavigation
     @ObservedObject var settings: AppSettings
+    var updates: UpdateChecker
     var actions: SettingsActions
     @Namespace private var selection
 
@@ -302,7 +336,7 @@ struct SettingsRoot: View {
         case .appearance: AppearancePane(settings: settings, actions: actions)
         case .polishing: PolishingPane(settings: settings)
         case .dictionary: DictionaryPane(settings: settings)
-        case .about: AboutPane(actions: actions)
+        case .about: AboutPane(settings: settings, updates: updates, actions: actions)
         }
     }
 
@@ -363,7 +397,7 @@ final class SettingsWindowController: NSWindowController {
             case .appearance: return 540
             case .polishing: return 660
             case .dictionary: return 460
-            case .about: return 330
+            case .about: return 470
             }
         }
     }
@@ -372,7 +406,7 @@ final class SettingsWindowController: NSWindowController {
     private let nav = SettingsNavigation()
     private var tabChange: AnyCancellable?
 
-    init(settings: AppSettings, actions: SettingsActions) {
+    init(settings: AppSettings, updates: UpdateChecker, actions: SettingsActions) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 600),
                               styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "Settings"
@@ -388,7 +422,7 @@ final class SettingsWindowController: NSWindowController {
         glass.material = .hudWindow
         glass.blendingMode = .behindWindow
         glass.state = .active
-        let hosting = NSHostingView(rootView: SettingsRoot(nav: nav, settings: settings, actions: actions))
+        let hosting = NSHostingView(rootView: SettingsRoot(nav: nav, settings: settings, updates: updates, actions: actions))
         hosting.sizingOptions = []
         hosting.frame = glass.bounds
         hosting.autoresizingMask = [.width, .height]

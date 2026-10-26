@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var historyWindow: HistoryWindowController?
     private var tourWindow: TourWindowController?
     private let whatsNew = WhatsNewController()
+    private lazy var updates = UpdateChecker(settings: settings)
+    private let updatePanel = UpdatePanelController()
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -36,6 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.onOpenSettings = { [weak self] in self?.showSettings() }
         statusItem.onOpenHistory = { [weak self] in self?.showHistory() }
         statusItem.onQuit = { NSApp.terminate(nil) }
+        statusItem.onCheckForUpdates = { [weak self] in self?.checkForUpdates() }
+        statusItem.updates = updates
+        updates.onFound = { [weak self] _ in self?.showUpdate() }
+        updates.start()
 
         widget = WidgetController(session: session, settings: settings)
         widget.onOpenSettings = { [weak self] in self?.showSettings() }
@@ -235,8 +241,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let actions = SettingsActions(
                 resetWidgetPosition: { [weak self] in self?.widget.resetPosition() },
                 showWhatsNew: { [weak self] in self?.showWhatsNew(force: true) },
-                showWelcomeTour: { [weak self] in self?.showWelcomeTour() })
-            settingsWindow = SettingsWindowController(settings: settings, actions: actions)
+                showWelcomeTour: { [weak self] in self?.showWelcomeTour() },
+                showUpdate: { [weak self] in self?.showUpdate() })
+            settingsWindow = SettingsWindowController(settings: settings, updates: updates, actions: actions)
         }
         settingsWindow?.show(tab: tab)
     }
@@ -271,12 +278,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showWhatsNew(force: Bool) {
-        let release = force ? WhatsNew.releases.last : WhatsNew.unseen(after: settings.whatsNewSeen)
+        let release = force ? WhatsNew.releases.first : WhatsNew.unseen(after: settings.whatsNewSeen)
         guard let release else { return }
         if !settings.widgetVisible { settings.widgetVisible = true }
         whatsNew.show(version: release.version, items: release.items, above: widget.panelFrame) { [weak self] in
             self?.showSettings(tab: .appearance)
         }
+    }
+
+    func showUpdate() {
+        updatePanel.show(updates)
+    }
+
+    /// From the menu: the card shows the check, then the result.
+    func checkForUpdates() {
+        if case .available = updates.state {
+            showUpdate()
+            return
+        }
+        showUpdate()
+        Task { await updates.check(userInitiated: true) }
     }
 
     func showHistory() {

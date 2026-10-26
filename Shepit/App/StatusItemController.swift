@@ -7,6 +7,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var onOpenSettings: @MainActor () -> Void = {}
     var onOpenHistory: @MainActor () -> Void = {}
     var onQuit: @MainActor () -> Void = {}
+    var onCheckForUpdates: @MainActor () -> Void = {}
+    var updates: UpdateChecker?
 
     private let item: NSStatusItem
     private let session: DictationSession
@@ -99,6 +101,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
+        var updateTitle = "Check for Updates…"
+        if case .available(let release) = updates?.state { updateTitle = "Update to \(release.version)…" }
+        let updateItem = NSMenuItem(title: updateTitle, action: #selector(checkForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit Shepit", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -128,5 +135,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func toggleWidget() { settings.widgetVisible.toggle() }
     @objc private func openHistory() { onOpenHistory() }
     @objc private func openSettings() { onOpenSettings() }
+    @objc private func checkForUpdates() { onCheckForUpdates() }
     @objc private func quit() { onQuit() }
 }
