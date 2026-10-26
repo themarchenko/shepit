@@ -36,6 +36,111 @@
         "text": "Зроби pull request після commit."
       },
       "expected": false
+    },
+    {
+      "name": "HallucinationWholeText/1",
+      "input": {
+        "text": "дякую за перегляд"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/2",
+      "input": {
+        "text": "дякую за увагу"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/3",
+      "input": {
+        "text": "продовження слідує"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/4",
+      "input": {
+        "text": "до зустрічі"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/5",
+      "input": {
+        "text": "субтитри"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/6",
+      "input": {
+        "text": "thank you for watching"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/7",
+      "input": {
+        "text": "thanks for watching"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/8",
+      "input": {
+        "text": "thank you"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationWholeText/9",
+      "input": {
+        "text": "bye"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFragment/1",
+      "input": {
+        "text": "субтитри створив"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFragment/2",
+      "input": {
+        "text": "субтитри зробив"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFragment/3",
+      "input": {
+        "text": "dimatorzok"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFragment/4",
+      "input": {
+        "text": "amara.org"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFragment/5",
+      "input": {
+        "text": "subtitles by"
+      },
+      "expected": true
+    },
+    {
+      "name": "HallucinationFragment/6",
+      "input": {
+        "text": "підпишіться на канал"
+      },
+      "expected": true
     }
   ]
 }

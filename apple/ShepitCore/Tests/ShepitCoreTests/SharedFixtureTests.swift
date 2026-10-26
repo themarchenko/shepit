@@ -75,7 +75,7 @@ final class SharedFixtureTests: XCTestCase {
 
     // ProfileResolver.resolve(_ ctx: TargetContext) -> Profile
     func testProfileResolution() throws {
-        let f: FixtureFile<ProfileInput, String> = try SharedFixtures.load("profile-resolution.json", minimumCases: 10)
+        let f: FixtureFile<ProfileInput, String> = try SharedFixtures.load("profile-resolution.json", minimumCases: 51)
         for c in f.cases {
             let ctx = TargetContext(bundleID: c.input.bundleID, windowTitle: c.input.windowTitle, url: c.input.url)
             XCTAssertEqual(ProfileResolver.resolve(ctx).id, c.expected, c.name)
@@ -96,7 +96,7 @@ final class SharedFixtureTests: XCTestCase {
 
     // HallucinationFilter.isJunk(_ text: String) -> Bool
     func testHallucinationFilter() throws {
-        let f: FixtureFile<TextInput, Bool> = try SharedFixtures.load("hallucination-filter.json", minimumCases: 5)
+        let f: FixtureFile<TextInput, Bool> = try SharedFixtures.load("hallucination-filter.json", minimumCases: 20)
         for c in f.cases {
             XCTAssertEqual(HallucinationFilter.isJunk(c.input.text), c.expected, c.name)
         }

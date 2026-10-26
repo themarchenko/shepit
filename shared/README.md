@@ -5,7 +5,7 @@ Language-neutral test data for behaviour that must match on macOS and Windows. T
 
 Every file in `fixtures/` has this envelope (keys are snake_case, `cases` is never empty):
 `{ "version": 1, "description": string, "cases": [ { "name": string, "input": {...}, "expected": ... } ] }`
-`name` is the old Swift test name without `test`, plus a number. Optional inputs are omitted when absent.
+`name` is a group and a number, such as `Name/3` or `Name/5_Suffix`, usually the old Swift test name without `test`. Optional inputs are omitted when absent.
 
 | File | input | expected |
 |---|---|---|
@@ -21,4 +21,4 @@ Every file in `fixtures/` has this envelope (keys are snake_case, `cases` is nev
 | live-preview-join.json | `{a, b}` | string |
 | app-version.json | `{candidate, installed}` | bool |
 
-Non-ASCII text is stored as UTF-8; the em dash in a window title is the JSON escape `—`.
+Non-ASCII text is stored as UTF-8; the em dash in a window title is the JSON escape text `\u2014`.
