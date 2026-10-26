@@ -11,7 +11,7 @@
 #   - commit or push while on main/master; push to a main/master ref
 #   - force push
 #   - deleting or moving tags: `git tag -d/-f`, `git push --delete` of a v* tag or refs/tags
-#   - `rm -rf` style deletes, --dangerously-skip-permissions
+#   - `rm -rf` outside the project and temp dirs, --dangerously-skip-permissions
 #   - `security list-keychains -s`, `delete-keychain`, `add-trusted-cert`, unless the
 #     command runs a script under scripts/agent/ or .github/ (an earlier mistake
 #     rewrote the maintainer's keychain search list)
@@ -87,8 +87,39 @@ if has 'security[[:space:]]+(list-keychains.*[[:space:]]-s|delete-keychain|add-t
 fi
 
 # --- destructive filesystem -------------------------------------------------
+# Recursive-force deletes are routine here (stale SwiftPM .build folders, scratch dirs), so they are
+# allowed for paths inside the project or a temp dir and denied for anything that could reach
+# home, the root, the parent folder, .git, or an empty variable.
+rm_target_ok() {
+  local t="${1//\"/}"
+  t="${t//\'/}"
+  # Literal text from the command line, not expansions.
+  # shellcheck disable=SC2088,SC2016
+  case "$t" in
+    "" | "/" | "~" | "~/" | "." | "./" | ".." | "../" | "*" | ".git" | ".git/" | '$HOME' | '$HOME/') return 1 ;;
+    ../* | */.. | */../* | *.git | *.git/*) return 1 ;;
+  esac
+  # A variable with nothing after it may be empty, and then "$x/" means /.
+  if [[ "$t" == \$* ]]; then
+    [[ "$t" =~ ^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/[^*/] ]]
+    return
+  fi
+  case "$t" in
+    /tmp/?* | /private/tmp/?* | /private/var/folders/?* | /var/folders/?*) return 0 ;;
+    "${CLAUDE_PROJECT_DIR:-/nonexistent}"/?*) return 0 ;;
+    /* | ~*) return 1 ;;
+  esac
+  return 0
+}
 if has 'rm[[:space:]]+(-[A-Za-z]*[rR][A-Za-z]*[fF]|-[A-Za-z]*[fF][A-Za-z]*[rR]|-[rR][[:space:]]+-[fF]|-[fF][[:space:]]+-[rR])'; then
-  deny "'rm -rf' style recursive-force delete is forbidden."
+  while IFS= read -r segment; do
+    [[ "$segment" =~ (^|[[:space:]])rm[[:space:]] ]] || continue
+    read -r -a words <<< "${segment#*rm }"
+    for w in "${words[@]}"; do
+      [[ "$w" == -* ]] && continue
+      rm_target_ok "$w" || deny "'rm -rf $w' could delete outside the project or a temp dir."
+    done
+  done < <(printf '%s\n' "$command" | sed -E 's/(&&|\|\||;|\|)/\n/g')
 fi
 
 # --- permission bypass ------------------------------------------------------

@@ -23,3 +23,6 @@ docs/_working/
 # Claude Code personal settings
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Agent worktrees
+.claude/worktrees/

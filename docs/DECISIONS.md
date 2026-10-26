@@ -357,6 +357,26 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   `apple/spike`. `install.sh`, `docs/`, `.github/` and `.claude/` stay at the root. Paths in entries
   above this one are the old ones.
 
+## 2026-10-26: agent pipeline, Windows plan
+
+- Ported the pipeline from ShipKit and Whitebox: `/orchestrate` triages tasks, `/feature` runs one
+  in its own worktree (audit, plan, tests first, implement, inversion evidence, platform check,
+  review council, validate, draft PR). Opus runs the main session and the planner, because the
+  architecture calls are where a weaker model costs the most to undo. Sonnet writes tests and code
+  and reviews. Haiku audits and validates, which is read-only legwork. Reports go to
+  `docs/_working/` and only a summary returns to the main session, to keep Opus context small.
+- `scripts/agent/gate.sh` runs only the checks for the platform a diff touches (`swift test` for
+  `apple/`, cargo and the frontend checks for `windows/`, both for `shared/` and `docs/spec/`), so a
+  Windows change does not pay for a Swift build. The Stop hook skips docs-only diffs and trees it
+  already passed.
+- `bash-guard` blocks what has bitten this repo or would be hard to undo: staging everything,
+  commits on `main`, force pushes, touching release tags, changing the keychain search list (a test
+  command did that once and hid the login keychain from `gh` for 25 minutes), reading the signing
+  folder, and recursive deletes outside the project or a temp dir.
+- Windows: Rust core plus a Tauri 2 shell, recognition through `transcribe-rs` (Parakeet v3 on ONNX
+  Runtime, Whisper on whisper.cpp). Full reasoning, layout and the task list in
+  `docs/PLAN-windows.md`.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run
