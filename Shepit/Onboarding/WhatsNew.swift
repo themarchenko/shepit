@@ -10,7 +10,14 @@ enum WhatsNew {
         let detail: String
     }
 
+    /// Newest first.
     static let releases: [(version: String, items: [Item])] = [
+        ("0.3.0", [
+            Item(symbol: "arrow.down.circle", title: "Updates from GitHub",
+                 detail: "Shepit checks once a day and installs a new version in one click. Settings → About has the switch and a Check now button."),
+            Item(symbol: "lock.shield", title: "Permissions survive updates",
+                 detail: "Releases are now signed with one certificate, so macOS keeps Accessibility and Microphone across updates. Grant them once more after this one."),
+        ]),
         ("0.2.0", [
             Item(symbol: "waveform", title: "Words while you speak",
                  detail: "The widget shows what it hears as you talk. Dim words may still change."),
@@ -21,9 +28,7 @@ enum WhatsNew {
         ]),
     ]
 
-    static var current: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-    }
+    static var current: String { AppVersion.current }
 
     /// The newest release with an entry that is newer than `seen` and not newer than the running app.
     static func unseen(after seen: String) -> (version: String, items: [Item])? {
@@ -32,15 +37,7 @@ enum WhatsNew {
             .max { isNewer($1.version, than: $0.version) }
     }
 
-    static func isNewer(_ a: String, than b: String) -> Bool {
-        let x = a.split(separator: ".").map { Int($0) ?? 0 }
-        let y = b.split(separator: ".").map { Int($0) ?? 0 }
-        for i in 0..<max(x.count, y.count) {
-            let l = i < x.count ? x[i] : 0, r = i < y.count ? y[i] : 0
-            if l != r { return l > r }
-        }
-        return false
-    }
+    static func isNewer(_ a: String, than b: String) -> Bool { AppVersion.isNewer(a, than: b) }
 }
 
 struct WhatsNewCard: View {

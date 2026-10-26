@@ -318,6 +318,34 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   access is granted. The Settings permission button now asks first too; before, it opened a list
   without Shepit in it.
 
+## 2026-10-26: updates from GitHub, one signing certificate
+
+- Shepit asks `api.github.com/repos/themarchenko/shepit/releases/latest` 20 seconds after launch and
+  then whenever the last check is a day old (an hourly timer looks, so a Mac that sleeps through the
+  night still checks). A newer version shows a card in the top right corner: install and reopen,
+  later, or skip this version. Menu bar and Settings → About can check by hand. Sparkle was the
+  alternative; it needs an appcast and its own EdDSA keys, and its windows do not match the black
+  glass. The GitHub release is the feed, so there is nothing else to publish.
+- Install: download `Shepit.dmg` with URLSession, mount it, copy the app out, remove the quarantine
+  flag (URLSession sets none because Shepit does not opt in, but clearing it costs nothing), check
+  bundle id, version and signature, copy it next to the running app and swap with
+  `FileManager.replaceItemAt`, then quit and reopen through a shell that waits for the old process.
+  A folder the user cannot write to gets an administrator prompt through `osascript`. A translocated
+  copy refuses and asks to be moved to Applications.
+- The signature check is the security boundary: the new app must satisfy the running app's
+  designated requirement. Releases up to 0.2.1 were ad hoc, whose requirement is a single cdhash, so
+  no update could ever pass, and macOS dropped Accessibility on every update. From 0.3.0 CI re-signs
+  the app with a self-signed "Shepit Release" certificate (10 years, in the repo secrets, private copy
+  in `~/.shepit-signing` on the maintainer's Mac). The requirement becomes
+  `identifier "com.themarchenko.shepit" and certificate leaf = H"96a6c4..."`, stable across builds,
+  so TCC keeps the permissions and the updater accepts only builds from CI. The release workflow fails
+  if the signature does not carry that leaf. Hardened runtime stays off, so library validation does
+  not object to a certificate without a team.
+- Tested with `SHEPIT_UPDATE_E2E` (UpdateTests.swift) on disk images built locally with a test
+  certificate: a signed 9.0.0 installed over a scratch 0.2.1 from an image with a Safari quarantine
+  flag and came out without it; an ad hoc 9.0.0 and a same-version build were refused and left the
+  old app untouched. The CI signing steps were replayed locally in a throwaway keychain.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

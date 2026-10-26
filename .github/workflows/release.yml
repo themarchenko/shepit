@@ -44,8 +44,39 @@ jobs:
       - name: Test
         run: make test
 
+      # Every release is signed with the same self-signed certificate. macOS ties Accessibility and
+      # Microphone to the signature, so they survive updates, and the in-app updater installs only a
+      # build that carries this signature. Gatekeeper still treats the app as unnotarized.
+      - name: Import the signing certificate
+        id: signing
+        env:
+          P12_BASE64: ${{ secrets.SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(uuidgen)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          # The certificate is not trusted by the system, so look it up by hash rather than by name.
+          identity=$(security find-identity -p codesigning "$keychain" | awk '/"Shepit Release"/ {print $2; exit}')
+          test -n "$identity"
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+
       - name: Build the disk image
-        run: make package
+        run: make package SIGN_IDENTITY=${{ steps.signing.outputs.identity }}
+
+      # Pins the certificate installed copies trust. A release signed with anything else would be refused
+      # by every updater in the field, so stop here instead of publishing it.
+      - name: Check the signature
+        run: |
+          codesign -d -r- .build/DerivedData/Build/Products/Release/Shepit.app 2>&1 | tee /dev/stderr \
+            | grep -q 'certificate leaf = H"96a6c47e5a0095ba7fe7833cf16bcd0e0474210e"'
 
       # The asset has the same name in every release, so releases/latest/download/Shepit.dmg (used by
       # install.sh and the README) always points at the newest one.

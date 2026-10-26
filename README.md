@@ -42,9 +42,12 @@ Paste this into Terminal:
 curl -fsSL https://raw.githubusercontent.com/themarchenko/shepit/main/install.sh | bash
 ```
 
-The script downloads the latest release, puts `Shepit.app` in `/Applications` and opens it. Run it
-again to update. Files downloaded with curl are not quarantined, so macOS opens the app without the
-"could not verify" warning. [install.sh](install.sh) is about 80 lines if you want to read it first.
+The script downloads the latest release, puts `Shepit.app` in `/Applications` and opens it. Files
+downloaded with curl are not quarantined, so macOS opens the app without the "could not verify"
+warning. [install.sh](install.sh) is about 80 lines if you want to read it first.
+
+After that Shepit updates itself: it checks GitHub once a day and offers the new version, which it
+downloads, checks and installs in place. The switch and a Check now button are in Settings → About.
 
 ### Without Terminal
 
@@ -66,9 +69,10 @@ xattr -dr com.apple.quarantine /Applications/Shepit.app
 
 On first launch Shepit asks for the microphone and for Accessibility. Accessibility lets it notice the
 key in any app and paste the text at your cursor; the welcome tour opens that list in System
-Settings, where you turn Shepit on. Release builds are signed ad hoc, so after an update macOS may ask
-for Accessibility again. If Shepit is on in the list but nothing gets pasted, remove it with the minus
-button, click Open Privacy settings in Shepit's Settings and turn it on again.
+Settings, where you turn Shepit on. Releases from 0.3.0 on are all signed with the same certificate,
+so the permissions stay granted across updates. Coming from 0.2.x, grant Accessibility once more. If
+Shepit is on in the list but nothing gets pasted, remove it with the minus button, click Open Privacy
+settings in Shepit's Settings and turn it on again.
 
 ## Use
 
@@ -90,6 +94,8 @@ icon. A short tour runs on first launch.
   it goes: the app name, window title, page URL in browsers, up to 500 characters before the cursor
   and any selected text. The agent then sends that to Anthropic or OpenAI under your own account.
   Turn polishing off and nothing leaves the Mac.
+- Once a day Shepit asks the GitHub API for the latest release. The request carries the app version
+  and nothing else. Turn it off in Settings → About.
 - Password fields are detected and nothing is inserted into them.
 
 ## Build from source

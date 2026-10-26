@@ -9,4 +9,5 @@ public enum Log {
     public static let pipeline = Logger(subsystem: subsystem, category: "pipeline")
     public static let store = Logger(subsystem: subsystem, category: "store")
     public static let ui = Logger(subsystem: subsystem, category: "ui")
+    public static let update = Logger(subsystem: subsystem, category: "update")
 }

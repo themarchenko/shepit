@@ -116,6 +116,11 @@ public final class AppSettings: ObservableObject {
     @Published public var dictionary: [String] { didSet { defaults.set(dictionary, forKey: Keys.dictionary) } }
     /// Free text about the speaker that goes into the formatter's system prompt: accent, typical recognizer confusions, habits.
     @Published public var speakerNotes: String { didSet { defaults.set(speakerNotes, forKey: Keys.speakerNotes) } }
+    /// Ask GitHub about once a day whether a newer release is out.
+    @Published public var checkForUpdates: Bool { didSet { defaults.set(checkForUpdates, forKey: Keys.checkForUpdates) } }
+    /// A version the user chose to skip; scheduled checks stay quiet about it.
+    @Published public var skippedUpdate: String { didSet { defaults.set(skippedUpdate, forKey: Keys.skippedUpdate) } }
+    @Published public var lastUpdateCheck: Date { didSet { defaults.set(lastUpdateCheck, forKey: Keys.lastUpdateCheck) } }
 
     private enum Keys {
         static let engine = "engine"
@@ -139,6 +144,9 @@ public final class AppSettings: ObservableObject {
         static let dictionary = "dictionary"
         static let speakerNotes = "speakerNotes"
         static let widgetAnchor = "widgetAnchor"
+        static let checkForUpdates = "checkForUpdates"
+        static let skippedUpdate = "skippedUpdate"
+        static let lastUpdateCheck = "lastUpdateCheck"
         /// Per-display positions keyed by display number, before 2026-10-26; removed on launch.
         static let legacyWidgetPositions = "widgetPositions"
     }
@@ -166,6 +174,9 @@ public final class AppSettings: ObservableObject {
         livePreview = defaults.object(forKey: Keys.livePreview) as? Bool ?? true
         dictionary = defaults.stringArray(forKey: Keys.dictionary) ?? []
         speakerNotes = defaults.string(forKey: Keys.speakerNotes) ?? SpeakerNotes.defaultText
+        checkForUpdates = defaults.object(forKey: Keys.checkForUpdates) as? Bool ?? true
+        skippedUpdate = defaults.string(forKey: Keys.skippedUpdate) ?? ""
+        lastUpdateCheck = defaults.object(forKey: Keys.lastUpdateCheck) as? Date ?? .distantPast
         defaults.removeObject(forKey: Keys.legacyWidgetPositions)
     }
 
