@@ -165,6 +165,23 @@ steps_for() { # $1 area, $2 stage
 step_cwd=""
 step_cmd=""
 step_skip=""
+# Newest node under nvm, for shells (hooks, agents) that never load nvm. Empty when there is none.
+newest_nvm_node() {
+  local best="" best_key="" d v key major minor patch
+  for d in "$HOME"/.nvm/versions/node/v*/bin; do
+    [ -x "$d/node" ] || continue
+    v="${d%/bin}"
+    v="${v##*/v}"
+    IFS=. read -r major minor patch <<< "$v"
+    key="$(printf '%05d%05d%05d' "${major:-0}" "${minor:-0}" "${patch:-0}")"
+    if [[ "$key" > "$best_key" ]]; then
+      best="$d"
+      best_key="$key"
+    fi
+  done
+  printf '%s' "$best"
+}
+
 resolve_step() { # $1 run, $2 script, $3 cwd, $4 onlyIfTouched
   local pm
   step_cwd="$root"
@@ -193,7 +210,20 @@ resolve_step() { # $1 run, $2 script, $3 cwd, $4 onlyIfTouched
     fi
     pm=npm
     [ -f "$step_cwd/pnpm-lock.yaml" ] && pm=pnpm
-    step_cmd="CI=1 $pm run --silent $2"
+    # A missing node fails the step: skipping would let a frontend change through unchecked.
+    local node_bin="" prefix=""
+    if ! command -v node >/dev/null 2>&1; then
+      node_bin="$(newest_nvm_node)"
+      if [ -z "$node_bin" ]; then
+        step_cmd="echo 'node not found on PATH or under ~/.nvm/versions/node' >&2; false"
+        return
+      fi
+      prefix="export PATH=$(printf %q "$node_bin"):\"\$PATH\"; "
+    fi
+    if [ "$pm" = pnpm ] && ! PATH="${node_bin:+$node_bin:}$PATH" command -v pnpm >/dev/null 2>&1; then
+      pm="COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm"
+    fi
+    step_cmd="${prefix}CI=1 $pm run --silent $2"
     if [ ! -d "$step_cwd/node_modules" ]; then
       step_cmd="echo 'node_modules missing in $step_cwd: run $pm install first' >&2; false"
     fi
