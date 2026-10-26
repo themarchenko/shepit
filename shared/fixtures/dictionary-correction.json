@@ -188,6 +188,74 @@
         ]
       },
       "expected": "Run handleSubmit in UserService.swift"
+    },
+    {
+      "name": "Boundary/OneEditMissIsCorrected",
+      "input": {
+        "text": "Відкрий клод пот і перевір",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий Claude Code і перевір"
+    },
+    {
+      "name": "Boundary/TwoEditMissIsUnchanged",
+      "input": {
+        "text": "Відкрий клод порт і перевір",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий клод порт і перевір"
+    },
+    {
+      "name": "Boundary/OneEditMissLatinIsCorrected",
+      "input": {
+        "text": "Open Clod Pode now",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Open Claude Code now"
+    },
+    {
+      "name": "Boundary/TwoEditMissLatinIsUnchanged",
+      "input": {
+        "text": "Open Clod Parte now",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Open Clod Parte now"
     }
   ]
 }
