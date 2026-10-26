@@ -395,7 +395,7 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
 
 ## 2026-10-26: Windows scaffold
 
-- Tauri is pinned to 2.12.4 (`@tauri-apps/api`, `@tauri-apps/cli` and the crate). The 3.0 alpha is out,
+- Tauri is pinned to 2.12: `@tauri-apps/api` and `@tauri-apps/cli` at 2.12.4, the `tauri` crate at 2.12.5 (same minor, which `tauri build` requires). The 3.0 alpha is out,
   but an alpha under a shipping app is a cost with no feature we need yet.
 - The Rust toolchain is pinned in `windows/rust-toolchain.toml` (1.97.1 with rustfmt and clippy), so
   local builds and the CI job use the same compiler.
