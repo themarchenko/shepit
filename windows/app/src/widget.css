@@ -1,0 +1,24 @@
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* 96x60 window; the pill sits 26px above the bottom edge, as on macOS. */
+.pill {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  width: 40px;
+  height: 8px;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 0.75px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.38);
+}
