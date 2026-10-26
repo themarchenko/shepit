@@ -24,6 +24,20 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      # Reads the build cache CI saves on main (see ci.yml); a tag run never writes one.
+      - name: Xcode version
+        id: xcode
+        run: echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore builds
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            Packages/ShepitCore/.build
+            .build/DerivedData
+          key: build-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('Packages/ShepitCore/Package.resolved') }}
+          restore-keys: build-${{ runner.os }}-${{ steps.xcode.outputs.version }}-
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

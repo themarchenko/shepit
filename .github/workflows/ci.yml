@@ -16,14 +16,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Cache SwiftPM
+      # Dependencies (WhisperKit, FluidAudio, GRDB) take most of the build time. Restoring both build
+      # directories lets SwiftPM and Xcode skip them; the key changes with the Xcode version and the
+      # resolved packages, because objects from another Xcode or another package version are useless.
+      - name: Xcode version
+        id: xcode
+        run: echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache builds
         uses: actions/cache@v4
         with:
           path: |
             Packages/ShepitCore/.build
-            .build/DerivedData/SourcePackages
-          key: spm-${{ runner.os }}-${{ hashFiles('Packages/ShepitCore/Package.resolved') }}
-          restore-keys: spm-${{ runner.os }}-
+            .build/DerivedData
+          key: build-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('Packages/ShepitCore/Package.resolved') }}
+          restore-keys: build-${{ runner.os }}-${{ steps.xcode.outputs.version }}-
 
       - name: Install XcodeGen
         run: brew install xcodegen
