@@ -6,7 +6,7 @@ import XCTest
 final class SharedFixtureTests: XCTestCase {
     // DictionaryCorrector.correct(_ text: String, dictionary: [String]) -> String
     func testDictionaryCorrection() throws {
-        let f: FixtureFile<DictionaryCorrectionInput, String> = try SharedFixtures.load("dictionary-correction.json", minimumCases: 21)
+        let f: FixtureFile<DictionaryCorrectionInput, String> = try SharedFixtures.load("dictionary-correction.json", minimumCases: 23)
         for c in f.cases {
             XCTAssertEqual(DictionaryCorrector.correct(c.input.text, dictionary: c.input.dictionary), c.expected, c.name)
         }

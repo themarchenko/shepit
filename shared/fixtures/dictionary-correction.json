@@ -361,6 +361,42 @@
         ]
       },
       "expected": "Привіт, Hey Claude!"
+    },
+    {
+      "name": "Graphemes/YBetweenConsonantsComposed",
+      "input": {
+        "text": "смйт код",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit",
+          "Smyth Code"
+        ]
+      },
+      "expected": "Smyth Code"
+    },
+    {
+      "name": "Graphemes/YBetweenConsonantsDecomposed",
+      "input": {
+        "text": "смйт код",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit",
+          "Smyth Code"
+        ]
+      },
+      "expected": "Smyth Code"
     }
   ]
 }
