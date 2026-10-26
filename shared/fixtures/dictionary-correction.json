@@ -188,6 +188,215 @@
         ]
       },
       "expected": "Run handleSubmit in UserService.swift"
+    },
+    {
+      "name": "Boundary/OneEditMissIsCorrected",
+      "input": {
+        "text": "Відкрий клод пот і перевір",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий Claude Code і перевір"
+    },
+    {
+      "name": "Boundary/TwoEditMissIsUnchanged",
+      "input": {
+        "text": "Відкрий клод порт і перевір",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий клод порт і перевір"
+    },
+    {
+      "name": "Boundary/OneEditMissLatinIsCorrected",
+      "input": {
+        "text": "Open Clod Pode now",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Open Claude Code now"
+    },
+    {
+      "name": "Boundary/TwoEditMissLatinIsUnchanged",
+      "input": {
+        "text": "Open Clod Parte now",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Open Clod Parte now"
+    },
+    {
+      "name": "Graphemes/StressedWord",
+      "input": {
+        "text": "клод́ код",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "клод́ код"
+    },
+    {
+      "name": "Graphemes/StressedWordInSentence",
+      "input": {
+        "text": "Відкрий клод́ код і перевір",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий клод́ код і перевір"
+    },
+    {
+      "name": "Graphemes/StressedLastLetter",
+      "input": {
+        "text": "Відкрий кло́д код",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit"
+        ]
+      },
+      "expected": "Відкрий кло́д код"
+    },
+    {
+      "name": "Graphemes/ComposedYBaseline",
+      "input": {
+        "text": "хей клод",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit",
+          "Hey Claude"
+        ]
+      },
+      "expected": "Hey Claude"
+    },
+    {
+      "name": "Graphemes/DecomposedY",
+      "input": {
+        "text": "хей клод",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit",
+          "Hey Claude"
+        ]
+      },
+      "expected": "Hey Claude"
+    },
+    {
+      "name": "Graphemes/DecomposedYInSentence",
+      "input": {
+        "text": "Привіт, хей клод!",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit",
+          "Hey Claude"
+        ]
+      },
+      "expected": "Привіт, Hey Claude!"
+    },
+    {
+      "name": "Graphemes/YBetweenConsonantsComposed",
+      "input": {
+        "text": "смйт код",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit",
+          "Smyth Code"
+        ]
+      },
+      "expected": "Smyth Code"
+    },
+    {
+      "name": "Graphemes/YBetweenConsonantsDecomposed",
+      "input": {
+        "text": "смйт код",
+        "dictionary": [
+          "Claude Code",
+          "handleSubmit",
+          "UserService.swift",
+          "Vercel",
+          "Supabase",
+          "commit",
+          "pull request",
+          "Shepit",
+          "Smyth Code"
+        ]
+      },
+      "expected": "Smyth Code"
     }
   ]
 }

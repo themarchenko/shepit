@@ -15,6 +15,27 @@
         "text": ""
       },
       "expected": ""
+    },
+    {
+      "name": "Graphemes/SpaceWithMark",
+      "input": {
+        "text": "a ́b"
+      },
+      "expected": "A b"
+    },
+    {
+      "name": "Graphemes/FirstClusterMarkUppercase",
+      "input": {
+        "text": "ᾳ β"
+      },
+      "expected": "ΑΙ β"
+    },
+    {
+      "name": "Graphemes/CrLf",
+      "input": {
+        "text": "a\r\nb"
+      },
+      "expected": "A b"
     }
   ]
 }

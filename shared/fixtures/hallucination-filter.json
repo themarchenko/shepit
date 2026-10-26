@@ -141,6 +141,41 @@
         "text": "підпишіться на канал"
       },
       "expected": true
+    },
+    {
+      "name": "Graphemes/StressedPhrase",
+      "input": {
+        "text": "до зустрічі́"
+      },
+      "expected": false
+    },
+    {
+      "name": "Graphemes/PhraseWithOtherMark",
+      "input": {
+        "text": "до зустрічі҃"
+      },
+      "expected": false
+    },
+    {
+      "name": "Graphemes/PhraseWithRomanNumeral",
+      "input": {
+        "text": "Thank you Ⅻ"
+      },
+      "expected": true
+    },
+    {
+      "name": "Graphemes/PhraseWithSpacingMark",
+      "input": {
+        "text": "до зустрічіः"
+      },
+      "expected": false
+    },
+    {
+      "name": "Graphemes/PhraseWithEnclosingMark",
+      "input": {
+        "text": "bye⃝"
+      },
+      "expected": false
     }
   ]
 }

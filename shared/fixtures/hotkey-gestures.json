@@ -172,6 +172,127 @@
           "output": "short_tap"
         }
       ]
+    },
+    {
+      "name": "Boundary/ReleaseAt0.24IsShortTap",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "up",
+            "at": 0.24
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        }
+      ]
+    },
+    {
+      "name": "Boundary/ReleaseAt0.26IsPressEnded",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "up",
+            "at": 0.26
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "press_ended",
+          "duration": 0.26
+        }
+      ]
+    },
+    {
+      "name": "Boundary/SecondTapUpAt0.44IsDoubleTap",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "up",
+            "at": 0.1
+          },
+          {
+            "key": "down",
+            "at": 0.44
+          },
+          {
+            "key": "up",
+            "at": 0.54
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        },
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "double_tap"
+        }
+      ]
+    },
+    {
+      "name": "Boundary/SecondTapUpAt0.46IsNotDoubleTap",
+      "input": {
+        "events": [
+          {
+            "key": "down",
+            "at": 0
+          },
+          {
+            "key": "up",
+            "at": 0.1
+          },
+          {
+            "key": "down",
+            "at": 0.46
+          },
+          {
+            "key": "up",
+            "at": 0.56
+          }
+        ]
+      },
+      "expected": [
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        },
+        {
+          "output": "press_began"
+        },
+        {
+          "output": "short_tap"
+        }
+      ]
     }
   ]
 }
