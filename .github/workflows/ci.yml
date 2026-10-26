@@ -23,8 +23,11 @@ jobs:
         id: xcode
         run: echo "version=$(xcodebuild -version | head -1 | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
-      - name: Cache builds
-        uses: actions/cache@v4
+      # Only main saves the cache. Each saved copy is about 2.3 GB against GitHub's 10 GB per repo, so
+      # caches saved by pull requests would push main's out.
+      - name: Restore builds
+        id: restore
+        uses: actions/cache/restore@v4
         with:
           path: |
             Packages/ShepitCore/.build
@@ -40,3 +43,12 @@ jobs:
 
       - name: Build the app
         run: make build
+
+      - name: Save builds
+        if: github.ref == 'refs/heads/main' && steps.restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            Packages/ShepitCore/.build
+            .build/DerivedData
+          key: ${{ steps.restore.outputs.cache-primary-key }}
