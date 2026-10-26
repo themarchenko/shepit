@@ -220,7 +220,11 @@ resolve_step() { # $1 run, $2 script, $3 cwd, $4 onlyIfTouched
       fi
       prefix="export PATH=$(printf %q "$node_bin"):\"\$PATH\"; "
     fi
-    if [ "$pm" = pnpm ] && ! PATH="${node_bin:+$node_bin:}$PATH" command -v pnpm >/dev/null 2>&1; then
+    # corepack runs the exact pnpm named in packageManager. A different global pnpm delegates to it
+    # and rewrites pnpm-lock.yaml on the way, which then breaks the frozen install in CI.
+    if [ "$pm" = pnpm ] && { jq -e '.packageManager' "$step_cwd/package.json" >/dev/null 2>&1 \
+      || ! PATH="${node_bin:+$node_bin:}$PATH" command -v pnpm >/dev/null 2>&1; } \
+      && PATH="${node_bin:+$node_bin:}$PATH" command -v corepack >/dev/null 2>&1; then
       pm="COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm"
     fi
     step_cmd="${prefix}CI=1 $pm run --silent $2"

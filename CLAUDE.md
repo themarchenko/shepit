@@ -34,6 +34,12 @@ make logs       # live logs of the running app
 committed. Signing is ad hoc unless `apple/macOS/Config/Local.xcconfig` names a team (see
 `Signing.xcconfig` there).
 
+## Windows
+
+`windows/` is a Cargo workspace (`core`, `app/src-tauri`) plus the Tauri frontend in `windows/app`.
+Run pnpm there as `corepack pnpm` (Node comes from nvm): a different global pnpm rewrites
+`pnpm-lock.yaml`. CI on `windows-latest` builds the installer; nothing Windows-only runs on the Mac.
+
 ## Conventions
 
 - English only in code, comments, docs, commits and UI strings.
