@@ -62,9 +62,11 @@ impl<R: Recorder> Runner<R> {
         }
     }
 
+    /// Compatibility shim until the recognizer is wired (chunk C): the core now hands out a
+    /// `Job` instead of a raw capture.
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn take_capture(&mut self) -> Option<Vec<f32>> {
-        self.controller.take_capture()
+        self.controller.take_job().map(|job| job.samples)
     }
 }
 
@@ -81,7 +83,10 @@ mod tests {
             Ok(())
         }
         fn stop(&mut self) -> Vec<f32> {
-            vec![0.1; 16_000]
+            // Half silence so the speech gate passes (a constant tone has no energy step).
+            let mut v = vec![0.0; 8_000];
+            v.extend(vec![0.1; 8_000]);
+            v
         }
     }
 
@@ -94,14 +99,15 @@ mod tests {
     }
 
     #[test]
-    fn one_second_hold_goes_listening_then_idle() {
+    fn one_second_hold_goes_listening_then_processing() {
         let mut runner = Runner::new(FakeRecorder);
         let down = runner.step(rctrl(WM_KEYDOWN), 10.0).expect("view changes");
         assert_eq!(down.phase, Phase::Listening);
         assert!(!down.hands_free);
 
+        // Chunk C wires the recognizer; until then a kept hold waits in Processing.
         let up = runner.step(rctrl(WM_KEYUP), 11.0).expect("view changes");
-        assert_eq!(up.phase, Phase::Idle);
+        assert_eq!(up.phase, Phase::Processing);
     }
 
     #[test]

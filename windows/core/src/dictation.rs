@@ -1,12 +1,20 @@
 //! Dictation session for the Windows port: key events -> gesture -> recorder, per
-//! docs/spec/hotkey.md:43-56. No recognition or paste yet.
+//! docs/spec/hotkey.md:43-56, then the recognition states of DictationSession.swift:140-185 and
+//! 218-221. The controller owns no engine: it hands out a `Job` and takes the result back. No paste.
 
 use crate::audio::{is_long_enough, smooth_level, LevelHistory};
 use crate::gesture::{HotkeyGesture, Output};
 use crate::keys::{KeyEvent, KeyFilter, RawKey};
+use crate::speech::{done_preview, has_enough_speech, is_junk};
 
 /// Failed state resets to idle after 4 s (DictationSession.swift:234).
 pub const FAILED_RESET_SECS: f64 = 4.0;
+
+/// Done state resets to idle after 2.5 s (DictationSession.swift:221).
+pub const DONE_RESET_SECS: f64 = 2.5;
+
+/// Shown for silence, an empty transcript and junk (DictationSession.swift:178, 194).
+const NOTHING_RECOGNIZED: &str = "Nothing recognized";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaptureError {
@@ -53,8 +61,42 @@ pub trait Recorder {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum State {
     Idle,
-    Recording { hands_free: bool },
-    Failed { message: String },
+    Recording {
+        hands_free: bool,
+    },
+    /// Waiting for the model to download or load (DictationSession.swift:11).
+    LoadingModel,
+    Transcribing,
+    Done {
+        preview: String,
+    },
+    Failed {
+        message: String,
+    },
+}
+
+impl State {
+    /// DictationSession.swift:23-28, without the formatting and inserting states Windows lacks.
+    fn is_busy(&self) -> bool {
+        matches!(self, State::LoadingModel | State::Transcribing)
+    }
+}
+
+/// The recognizer's state as the controller sees it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ModelStatus {
+    /// Fraction 0..=1 of the download.
+    Downloading(f32),
+    Loading,
+    Ready,
+    Failed,
+}
+
+/// Recorded audio for the recognizer. `id` tells a late result from the current one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Job {
+    pub id: u64,
+    pub samples: Vec<f32>,
 }
 
 /// Gesture and key outputs that reach the session.
@@ -81,11 +123,14 @@ pub fn action_for(state: &State, event: Event) -> Action {
     match (state, event) {
         (State::Recording { hands_free: true }, Event::PressBegan) => Action::Stop,
         (State::Recording { hands_free: false }, Event::PressBegan) => Action::None,
+        // A press while busy is ignored (DictationSession.swift:67-70).
+        (s, Event::PressBegan) if s.is_busy() => Action::None,
         (_, Event::PressBegan) => Action::Start,
         (State::Recording { .. }, Event::PressEnded) => Action::Stop,
         (State::Recording { hands_free: false }, Event::ShortTap) => Action::Cancel,
         (State::Recording { hands_free: false }, Event::DoubleTap) => Action::MakeHandsFree,
         (State::Recording { .. }, Event::Esc) => Action::Cancel,
+        (s, Event::Esc) if s.is_busy() => Action::Cancel,
         _ => Action::None,
     }
 }
@@ -94,7 +139,16 @@ pub fn action_for(state: &State, event: Event) -> Action {
 pub enum Phase {
     Idle,
     Listening,
+    /// Loading the model or transcribing; `View::stage` says which.
+    Processing,
+    Done,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    Loading,
+    Transcribing,
 }
 
 /// What the widget shows. `levels` always has 32 entries, oldest first.
@@ -102,8 +156,13 @@ pub enum Phase {
 pub struct View {
     pub phase: Phase,
     pub hands_free: bool,
+    /// The failure text, or the done preview.
     pub message: String,
     pub levels: Vec<f32>,
+    /// Set in `Phase::Processing` only.
+    pub stage: Option<Stage>,
+    /// Download fraction while the model downloads and a dictation waits for it.
+    pub progress: Option<f32>,
 }
 
 pub struct Controller<R: Recorder> {
@@ -112,7 +171,13 @@ pub struct Controller<R: Recorder> {
     gesture: HotkeyGesture,
     state: State,
     failed_at: f64,
-    capture: Option<Vec<f32>>,
+    done_at: f64,
+    model: ModelStatus,
+    next_job_id: u64,
+    /// The job whose result is still wanted; cleared by Esc so a late result is dropped.
+    current_job: Option<u64>,
+    pending_job: Option<Job>,
+    result: Option<String>,
     smoothed: f32,
     history: LevelHistory,
 }
@@ -125,10 +190,22 @@ impl<R: Recorder> Controller<R> {
             gesture: HotkeyGesture::new(),
             state: State::Idle,
             failed_at: 0.0,
-            capture: None,
+            done_at: 0.0,
+            model: ModelStatus::Loading,
+            next_job_id: 1,
+            current_job: None,
+            pending_job: None,
+            result: None,
             smoothed: 0.0,
             history: LevelHistory::new(),
         }
+    }
+
+    /// Job ids start at `first`. The app adds an offset per controller restart so a result from
+    /// the previous controller never matches a new job.
+    pub fn with_first_job_id(mut self, first: u64) -> Self {
+        self.next_job_id = first;
+        self
     }
 
     /// `at` is seconds on a monotonic clock, taken in the hook callback.
@@ -154,27 +231,98 @@ impl<R: Recorder> Controller<R> {
                 let samples = self.stop_recorder();
                 // Too short to be speech: dropped silently (DictationSession.swift:49).
                 if is_long_enough(samples.len()) {
-                    self.capture = Some(samples);
+                    self.begin_processing(samples, at);
                 }
             }
-            Action::Cancel => {
-                self.stop_recorder();
-            }
+            Action::Cancel => self.cancel(),
             Action::MakeHandsFree => self.state = State::Recording { hands_free: true },
         }
     }
 
+    /// Esc. Only a recording owns the microphone (DictationSession.swift:121); a busy state
+    /// just forgets its job so the late result is ignored.
+    fn cancel(&mut self) {
+        if matches!(self.state, State::Recording { .. }) {
+            self.stop_recorder();
+        }
+        self.state = State::Idle;
+        self.current_job = None;
+        self.pending_job = None;
+    }
+
+    /// The speech gate, then a job for the recognizer (DictationSession.swift:176-190).
+    fn begin_processing(&mut self, samples: Vec<f32>, at: f64) {
+        if !has_enough_speech(&samples) {
+            self.fail(NOTHING_RECOGNIZED.to_string(), at);
+            return;
+        }
+        let id = self.next_job_id;
+        self.next_job_id += 1;
+        self.current_job = Some(id);
+        self.pending_job = Some(Job { id, samples });
+        self.state = if self.model == ModelStatus::Ready {
+            State::Transcribing
+        } else {
+            State::LoadingModel
+        };
+    }
+
+    fn fail(&mut self, message: String, at: f64) {
+        self.state = State::Failed { message };
+        self.failed_at = at;
+    }
+
+    /// The model changed state. A dictation waiting in `LoadingModel` moves on once it is ready.
+    pub fn on_model(&mut self, status: ModelStatus) {
+        self.model = status;
+        if status == ModelStatus::Ready && self.state == State::LoadingModel {
+            self.state = State::Transcribing;
+        }
+    }
+
+    /// The recognizer finished job `id`. A result for any other id is dropped.
+    pub fn on_recognized(&mut self, id: u64, result: Result<String, String>, at: f64) {
+        if self.current_job != Some(id) {
+            return;
+        }
+        self.current_job = None;
+        match result {
+            // Empty and junk transcripts fail the same way (DictationSession.swift:194).
+            Ok(text) if text.trim().is_empty() || is_junk(&text) => {
+                self.fail(NOTHING_RECOGNIZED.to_string(), at)
+            }
+            Ok(text) => {
+                self.state = State::Done {
+                    preview: done_preview(&text),
+                };
+                self.done_at = at;
+                self.result = Some(text);
+            }
+            Err(message) => self.fail(message, at),
+        }
+    }
+
+    /// The job created by the last stop, handed over once.
+    pub fn take_job(&mut self) -> Option<Job> {
+        self.pending_job.take()
+    }
+
+    /// The id the recognizer should still work on, if any.
+    pub fn current_job(&self) -> Option<u64> {
+        self.current_job
+    }
+
+    /// The accepted transcript, handed over once.
+    pub fn take_result(&mut self) -> Option<String> {
+        self.result.take()
+    }
+
     fn start(&mut self, at: f64) {
-        self.capture = None;
+        self.result = None;
         self.clear_levels();
         match self.recorder.start() {
             Ok(()) => self.state = State::Recording { hands_free: false },
-            Err(e) => {
-                self.state = State::Failed {
-                    message: format!("Microphone: {e}"),
-                };
-                self.failed_at = at;
-            }
+            Err(e) => self.fail(format!("Microphone: {e}"), at),
         }
     }
 
@@ -205,36 +353,52 @@ impl<R: Recorder> Controller<R> {
             return;
         }
         self.stop_recorder();
-        self.state = State::Failed {
-            message: format!("Microphone: {error}"),
-        };
-        self.failed_at = at;
+        self.fail(format!("Microphone: {error}"), at);
     }
 
-    /// Resets Failed to idle once `FAILED_RESET_SECS` have passed.
+    /// Resets Done and Failed to idle once their time has passed.
     pub fn poll(&mut self, now: f64) {
-        if matches!(self.state, State::Failed { .. }) && now - self.failed_at >= FAILED_RESET_SECS {
+        let expired = match self.state {
+            State::Failed { .. } => now - self.failed_at >= FAILED_RESET_SECS,
+            State::Done { .. } => now - self.done_at >= DONE_RESET_SECS,
+            _ => false,
+        };
+        if expired {
             self.state = State::Idle;
         }
     }
 
     pub fn view(&self) -> View {
-        let (phase, hands_free, message) = match &self.state {
-            State::Idle => (Phase::Idle, false, String::new()),
-            State::Recording { hands_free } => (Phase::Listening, *hands_free, String::new()),
-            State::Failed { message } => (Phase::Failed, false, message.clone()),
+        let (phase, hands_free, message, stage) = match &self.state {
+            State::Idle => (Phase::Idle, false, String::new(), None),
+            State::Recording { hands_free } => (Phase::Listening, *hands_free, String::new(), None),
+            State::LoadingModel => (
+                Phase::Processing,
+                false,
+                String::new(),
+                Some(Stage::Loading),
+            ),
+            State::Transcribing => (
+                Phase::Processing,
+                false,
+                String::new(),
+                Some(Stage::Transcribing),
+            ),
+            State::Done { preview } => (Phase::Done, false, preview.clone(), None),
+            State::Failed { message } => (Phase::Failed, false, message.clone(), None),
+        };
+        let progress = match (&self.state, self.model) {
+            (State::LoadingModel, ModelStatus::Downloading(p)) => Some(p),
+            _ => None,
         };
         View {
             phase,
             hands_free,
             message,
             levels: self.history.levels().to_vec(),
+            stage,
+            progress,
         }
-    }
-
-    /// The last kept recording, handed over once.
-    pub fn take_capture(&mut self) -> Option<Vec<f32>> {
-        self.capture.take()
     }
 }
 
@@ -251,6 +415,7 @@ mod tests {
         stops: Cell<u32>,
         start_error: RefCell<Option<CaptureError>>,
         stop_len: Cell<usize>,
+        silent: Cell<bool>,
     }
 
     struct FakeRecorder(Rc<Shared>);
@@ -265,7 +430,15 @@ mod tests {
         }
         fn stop(&mut self) -> Vec<f32> {
             self.0.stops.set(self.0.stops.get() + 1);
-            vec![0.1; self.0.stop_len.get()]
+            // Half silence, half tone: a constant 0.1 has no frame above the noise floor and
+            // would fail the speech gate.
+            let n = self.0.stop_len.get();
+            if self.0.silent.get() {
+                return vec![0.0; n];
+            }
+            let mut v = vec![0.0; n / 2];
+            v.extend(vec![0.1; n - n / 2]);
+            v
         }
     }
 
@@ -273,6 +446,17 @@ mod tests {
         let shared = Rc::new(Shared::default());
         shared.stop_len.set(16_000);
         (Controller::new(FakeRecorder(shared.clone())), shared)
+    }
+
+    fn setup_ready() -> (Controller<FakeRecorder>, Rc<Shared>) {
+        let (mut c, shared) = setup();
+        c.on_model(ModelStatus::Ready);
+        (c, shared)
+    }
+
+    fn dictate(c: &mut Controller<FakeRecorder>, from: f64) {
+        press(c, from);
+        release(c, from + 1.0);
     }
 
     fn press(c: &mut Controller<FakeRecorder>, at: f64) {
@@ -381,14 +565,14 @@ mod tests {
 
     #[test]
     fn one_second_hold_keeps_16000_samples() {
-        let (mut c, shared) = setup();
+        let (mut c, shared) = setup_ready();
         press(&mut c, 0.0);
         assert_eq!(c.view().phase, Phase::Listening);
         release(&mut c, 1.0);
-        assert_eq!(c.view().phase, Phase::Idle);
+        assert_eq!(c.view().phase, Phase::Processing);
         assert_eq!(shared.stops.get(), 1);
-        assert_eq!(c.take_capture().map(|s| s.len()), Some(16_000));
-        assert_eq!(c.take_capture(), None);
+        assert_eq!(c.take_job().map(|j| j.samples.len()), Some(16_000));
+        assert_eq!(c.take_job(), None);
     }
 
     #[test]
@@ -398,7 +582,7 @@ mod tests {
         press(&mut c, 0.0);
         release(&mut c, 1.0);
         assert_eq!(c.view().phase, Phase::Idle);
-        assert_eq!(c.take_capture(), None);
+        assert_eq!(c.take_job(), None);
     }
 
     #[test]
@@ -407,7 +591,12 @@ mod tests {
         shared.stop_len.set(6400);
         press(&mut c, 0.0);
         release(&mut c, 1.0);
-        assert_eq!(c.take_capture().map(|s| s.len()), Some(6400));
+        // Past the 0.4 s length check; the fake's 0.2 s of tone then fails the 0.3 s speech gate.
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.message.as_str()),
+            (Phase::Failed, "Nothing recognized")
+        );
     }
 
     #[test]
@@ -417,7 +606,7 @@ mod tests {
         release(&mut c, 0.1);
         assert_eq!((shared.starts.get(), shared.stops.get()), (1, 1));
         assert_eq!(c.view().phase, Phase::Idle);
-        assert_eq!(c.take_capture(), None);
+        assert_eq!(c.take_job(), None);
     }
 
     #[test]
@@ -431,8 +620,8 @@ mod tests {
         assert_eq!((v.phase, v.hands_free), (Phase::Listening, true));
         assert_eq!(shared.starts.get(), 2);
         press(&mut c, 2.0);
-        assert_eq!(c.view().phase, Phase::Idle);
-        assert_eq!(c.take_capture().map(|s| s.len()), Some(16_000));
+        assert_eq!(c.view().phase, Phase::Processing);
+        assert_eq!(c.take_job().map(|j| j.samples.len()), Some(16_000));
     }
 
     #[test]
@@ -443,7 +632,7 @@ mod tests {
         assert_eq!(c.view().phase, Phase::Idle);
         assert_eq!(shared.stops.get(), 1);
         release(&mut c, 1.0);
-        assert_eq!(c.take_capture(), None);
+        assert_eq!(c.take_job(), None);
     }
 
     #[test]
@@ -475,7 +664,7 @@ mod tests {
             0.6,
         );
         release(&mut c, 1.0);
-        assert_eq!(c.take_capture().map(|s| s.len()), Some(16_000));
+        assert_eq!(c.take_job().map(|j| j.samples.len()), Some(16_000));
     }
 
     #[test]
@@ -508,7 +697,7 @@ mod tests {
         assert_eq!(v.phase, Phase::Failed);
         assert_eq!(v.message, "Microphone: device lost");
         assert_eq!(shared.stops.get(), 1);
-        assert!(c.take_capture().is_none());
+        assert!(c.take_job().is_none());
         c.poll(5.9);
         assert_eq!(c.view().phase, Phase::Failed);
         c.poll(6.0);
@@ -560,6 +749,8 @@ mod tests {
         let v = c.view();
         assert_eq!((v.phase, v.hands_free), (Phase::Listening, false));
         release(&mut c, 1.0);
+        assert_eq!(c.view().phase, Phase::Processing);
+        esc(&mut c, 1.5);
         *shared.start_error.borrow_mut() = Some(CaptureError::AccessDenied);
         press(&mut c, 2.0);
         assert_eq!(c.view().phase, Phase::Failed);
@@ -587,5 +778,220 @@ mod tests {
             classify_error("stream broke"),
             CaptureError::Other("stream broke".into())
         );
+    }
+
+    // The recognition states.
+
+    #[test]
+    fn press_began_is_ignored_while_busy_and_starts_from_done() {
+        for s in [State::LoadingModel, State::Transcribing] {
+            assert_eq!(action_for(&s, Event::PressBegan), Action::None);
+        }
+        let done = State::Done {
+            preview: "x".into(),
+        };
+        assert_eq!(action_for(&done, Event::PressBegan), Action::Start);
+    }
+
+    #[test]
+    fn esc_cancels_while_busy_and_is_ignored_in_done_and_failed() {
+        assert_eq!(action_for(&State::LoadingModel, Event::Esc), Action::Cancel);
+        assert_eq!(action_for(&State::Transcribing, Event::Esc), Action::Cancel);
+        let done = State::Done {
+            preview: "x".into(),
+        };
+        let failed = State::Failed {
+            message: "x".into(),
+        };
+        assert_eq!(action_for(&done, Event::Esc), Action::None);
+        assert_eq!(action_for(&failed, Event::Esc), Action::None);
+    }
+
+    #[test]
+    fn stop_with_speech_and_a_ready_model_transcribes_and_queues_a_job() {
+        let (mut c, _s) = setup_ready();
+        dictate(&mut c, 0.0);
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.stage),
+            (Phase::Processing, Some(Stage::Transcribing))
+        );
+        let job = c.take_job().expect("job");
+        assert_eq!(job.samples.len(), 16_000);
+        assert_eq!(c.current_job(), Some(job.id));
+    }
+
+    #[test]
+    fn stop_before_the_model_is_ready_waits_in_loading_then_transcribes() {
+        let (mut c, _s) = setup();
+        c.on_model(ModelStatus::Loading);
+        dictate(&mut c, 0.0);
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.stage),
+            (Phase::Processing, Some(Stage::Loading))
+        );
+        assert!(c.take_job().is_some());
+        c.on_model(ModelStatus::Ready);
+        assert_eq!(c.view().stage, Some(Stage::Transcribing));
+    }
+
+    #[test]
+    fn silence_fails_with_nothing_recognized_and_makes_no_job() {
+        let (mut c, shared) = setup_ready();
+        shared.silent.set(true);
+        dictate(&mut c, 0.0);
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.message.as_str()),
+            (Phase::Failed, "Nothing recognized")
+        );
+        assert_eq!(c.take_job(), None);
+        c.poll(4.9);
+        assert_eq!(c.view().phase, Phase::Failed);
+        c.poll(5.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    fn transcribe(c: &mut Controller<FakeRecorder>, at: f64) -> u64 {
+        dictate(c, at);
+        c.take_job().expect("job").id
+    }
+
+    #[test]
+    fn ok_result_is_done_for_two_and_a_half_seconds() {
+        let (mut c, _s) = setup_ready();
+        let id = transcribe(&mut c, 0.0);
+        c.on_recognized(id, Ok("hello there".into()), 10.0);
+        let v = c.view();
+        assert_eq!((v.phase, v.message.as_str()), (Phase::Done, "hello there"));
+        c.poll(12.49);
+        assert_eq!(c.view().phase, Phase::Done);
+        c.poll(12.5);
+        assert_eq!(c.view().phase, Phase::Idle);
+        assert_eq!(c.take_result().as_deref(), Some("hello there"));
+        assert_eq!(c.take_result(), None);
+    }
+
+    #[test]
+    fn blank_or_junk_results_are_nothing_recognized() {
+        for text in ["   \n", "", "Thank you."] {
+            let (mut c, _s) = setup_ready();
+            let id = transcribe(&mut c, 0.0);
+            c.on_recognized(id, Ok(text.into()), 5.0);
+            let v = c.view();
+            assert_eq!(
+                (v.phase, v.message.as_str()),
+                (Phase::Failed, "Nothing recognized"),
+                "{text:?}"
+            );
+            assert_eq!(c.take_result(), None);
+        }
+    }
+
+    #[test]
+    fn an_error_result_fails_with_its_message() {
+        let (mut c, _s) = setup_ready();
+        let id = transcribe(&mut c, 0.0);
+        c.on_recognized(id, Err("Transcription failed: boom".into()), 5.0);
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.message.as_str()),
+            (Phase::Failed, "Transcription failed: boom")
+        );
+    }
+
+    #[test]
+    fn esc_while_transcribing_goes_idle_at_once_and_a_late_result_is_ignored() {
+        let (mut c, shared) = setup_ready();
+        let id = transcribe(&mut c, 0.0);
+        esc(&mut c, 2.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+        assert_eq!(shared.stops.get(), 1);
+        assert_eq!(c.current_job(), None);
+        c.on_recognized(id, Ok("late words".into()), 3.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+        assert_eq!(c.take_result(), None);
+    }
+
+    #[test]
+    fn late_result_after_esc_is_ignored() {
+        let (mut c, _s) = setup_ready();
+        let id = transcribe(&mut c, 0.0);
+        esc(&mut c, 2.0);
+        c.on_recognized(id, Err("x".into()), 3.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn esc_while_loading_then_ready_stays_idle() {
+        let (mut c, _s) = setup();
+        transcribe(&mut c, 0.0);
+        assert_eq!(c.view().stage, Some(Stage::Loading));
+        esc(&mut c, 2.0);
+        c.on_model(ModelStatus::Ready);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn a_result_with_an_old_id_is_ignored_while_a_newer_job_runs() {
+        let (mut c, _s) = setup_ready();
+        let old = transcribe(&mut c, 0.0);
+        esc(&mut c, 1.5);
+        let new = transcribe(&mut c, 3.0);
+        assert_ne!(old, new);
+        c.on_recognized(old, Ok("stale".into()), 5.0);
+        assert_eq!(c.view().phase, Phase::Processing);
+        assert_eq!(c.current_job(), Some(new));
+        c.on_recognized(new, Ok("fresh".into()), 6.0);
+        assert_eq!(c.view().message, "fresh");
+    }
+
+    #[test]
+    fn press_while_transcribing_does_not_start_the_recorder() {
+        let (mut c, shared) = setup_ready();
+        transcribe(&mut c, 0.0);
+        press(&mut c, 2.0);
+        assert_eq!(shared.starts.get(), 1);
+        assert_eq!(c.view().phase, Phase::Processing);
+    }
+
+    #[test]
+    fn a_new_dictation_can_start_from_done() {
+        let (mut c, shared) = setup_ready();
+        let id = transcribe(&mut c, 0.0);
+        c.on_recognized(id, Ok("hello".into()), 2.0);
+        press(&mut c, 3.0);
+        assert_eq!(c.view().phase, Phase::Listening);
+        assert_eq!(shared.starts.get(), 2);
+    }
+
+    #[test]
+    fn download_progress_shows_while_waiting_and_ready_clears_it() {
+        let (mut c, _s) = setup();
+        c.on_model(ModelStatus::Downloading(0.0));
+        dictate(&mut c, 0.0);
+        c.on_model(ModelStatus::Downloading(0.42));
+        let v = c.view();
+        assert_eq!((v.stage, v.progress), (Some(Stage::Loading), Some(0.42)));
+        c.on_model(ModelStatus::Ready);
+        let v = c.view();
+        assert_eq!((v.stage, v.progress), (Some(Stage::Transcribing), None));
+    }
+
+    #[test]
+    fn first_job_id_can_be_set() {
+        let shared = Rc::new(Shared::default());
+        shared.stop_len.set(16_000);
+        let mut c = Controller::new(FakeRecorder(shared)).with_first_job_id(1 << 32);
+        c.on_model(ModelStatus::Ready);
+        assert_eq!(transcribe(&mut c, 0.0), 1 << 32);
+        assert_eq!(transcribe_after_done(&mut c), (1 << 32) + 1);
+    }
+
+    fn transcribe_after_done(c: &mut Controller<FakeRecorder>) -> u64 {
+        let id = c.current_job().unwrap();
+        c.on_recognized(id, Err("x".into()), 3.0);
+        transcribe(c, 10.0)
     }
 }

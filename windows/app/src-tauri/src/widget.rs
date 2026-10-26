@@ -8,7 +8,7 @@ pub fn window_size(view: &View) -> (f64, f64) {
         (Phase::Idle, _) => (96.0, 60.0),
         (Phase::Listening, false) => (188.0, 84.0),
         (Phase::Listening, true) => (222.0, 84.0),
-        (Phase::Failed, _) => (520.0, 126.0),
+        (Phase::Processing | Phase::Done | Phase::Failed, _) => (520.0, 126.0),
     }
 }
 
@@ -19,6 +19,8 @@ pub fn idle_view() -> View {
         hands_free: false,
         message: String::new(),
         levels: vec![0.0; 32],
+        stage: None,
+        progress: None,
     }
 }
 
@@ -43,6 +45,8 @@ impl WidgetState {
         let phase = match view.phase {
             Phase::Idle => "idle",
             Phase::Listening => "listening",
+            Phase::Processing => "processing",
+            Phase::Done => "done",
             Phase::Failed => "failed",
         };
         Self {
@@ -94,6 +98,8 @@ mod tests {
             hands_free,
             message: message.to_string(),
             levels: vec![0.0; 32],
+            stage: None,
+            progress: None,
         }
     }
 
