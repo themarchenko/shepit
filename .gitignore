@@ -17,6 +17,12 @@ apple/spike/results/
 # Personal signing identity, see apple/macOS/Config/Signing.xcconfig
 apple/macOS/Config/Local.xcconfig
 
+# Pipeline working files (audits, run reports, plans)
+docs/_working/
+
 # Claude Code personal settings
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Agent worktrees
+.claude/worktrees/

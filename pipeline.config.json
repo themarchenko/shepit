@@ -1,0 +1,48 @@
+{
+  "gates": {
+    "apple": {
+      "paths": ["apple/"],
+      "fast": [
+        { "name": "swift-test", "run": "swift test --package-path apple/ShepitCore" }
+      ],
+      "commit": [
+        { "name": "mac-build", "run": "make build", "onlyIfTouched": ["apple/macOS/"] }
+      ]
+    },
+    "windows": {
+      "paths": ["windows/"],
+      "requiresDir": "windows",
+      "fast": [
+        { "name": "cargo-fmt", "run": "cargo fmt --all --check", "cwd": "@cargo" },
+        { "name": "cargo-clippy", "run": "cargo clippy --workspace --all-targets -- -D warnings", "cwd": "@cargo" },
+        { "name": "cargo-test", "run": "cargo test --workspace", "cwd": "@cargo" },
+        { "name": "ui-typecheck", "script": "typecheck", "cwd": "@frontend" },
+        { "name": "ui-lint", "script": "lint", "cwd": "@frontend" },
+        { "name": "ui-test", "script": "test", "cwd": "@frontend" }
+      ],
+      "commit": []
+    }
+  },
+  "shared": {
+    "paths": ["shared/", "docs/spec/"],
+    "runs": ["apple", "windows"]
+  },
+  "sharedCore": [
+    "docs/spec/**",
+    "shared/**",
+    "apple/ShepitCore/Sources/ShepitCore/Update/**",
+    "apple/ShepitCore/Sources/ShepitCore/Insertion/**",
+    ".github/workflows/**",
+    "install.sh",
+    "apple/macOS/Config/**",
+    "Makefile",
+    "windows/**/updater*",
+    "windows/**/insert*"
+  ],
+  "verification": {
+    "macosUi": "render the view offscreen with NSView.cacheDisplay; never capture the screen",
+    "windows": "cargo test locally plus the Windows CI job",
+    "humanOnly": "list as 'needs device check' in the run report; never claim as done"
+  },
+  "costBudgetUsd": 15
+}
