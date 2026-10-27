@@ -1,11 +1,12 @@
 {
   "version": 1,
-  "description": "layout_for: widget style, phase, hands-free, hover and live-text flag in; shape size and radius, flow pill caption row flag and logical window size out. Windows only: WidgetLayout lives in the macOS app target, so no Swift runner reads it. Numbers in points; the window is the shape (plus the 42 pt flow pill caption row, 464 pt wide minimum) and the 28 x 26 shadow margin on each side, rounded up. Radius is half the height for flowPill and captionBar (capsules). Table: docs/spec/widget.md.",
+  "description": "layout_for: widget style, phase, hands-free, hover and live-text flag in; shape size and radius, flow pill caption row flag and logical window size out. Windows only: WidgetLayout lives in the macOS app target, so no Swift runner reads it. Numbers in points; the window is the shape (plus the 42 pt flow pill caption row, 464 pt wide minimum) and the 28 x 26 shadow margin on each side, rounded up. Radius is half the height for flowPill and captionBar (capsules). Table: docs/spec/widget.md. Hover hint widths differ from macOS (flowPill 300, captionBar 360, island 280 instead of 262, 330, 252): the Windows key label is longer (Right Ctrl) and the font is Segoe UI, so the macOS widths clip the hint.",
   "source": {
     "shapes": "apple/macOS/Shepit/Widget/WidgetModel.swift:87-94 (flowPill), :104-110 (captionBar), :112-120 (island)",
     "caption": "WidgetModel.swift:96-102 (flowPillShowsCaption), :85 (captionMaxWidth 440), :136-140 (width at least 464, height + 8 + 34)",
     "window": "WidgetModel.swift:84 (margin 28 x 26), :146 (ceil of shape + 2 x margin)",
-    "radius": "WidgetView.swift:229-230 (flowPill Capsule), :323-324 (captionBar Capsule), WidgetModel.swift:112-120 (island radius)"
+    "radius": "WidgetView.swift:229-230 (flowPill Capsule), :323-324 (captionBar Capsule), WidgetModel.swift:112-120 (island radius)",
+    "hover": "Windows only: idle-hover widths widened to fit 'Hold [Right Ctrl] to talk · click for hands-free' (macOS WidgetModel.swift:87-120 has 262, 330, 252)"
   },
   "cases": [
     {
@@ -41,13 +42,13 @@
       },
       "expected": {
         "shape": {
-          "width": 262,
+          "width": 300,
           "height": 28,
           "radius": 14.0
         },
         "caption": false,
         "window": {
-          "width": 318,
+          "width": 356,
           "height": 80
         }
       }
@@ -217,13 +218,13 @@
       },
       "expected": {
         "shape": {
-          "width": 330,
+          "width": 360,
           "height": 30,
           "radius": 15.0
         },
         "caption": false,
         "window": {
-          "width": 386,
+          "width": 416,
           "height": 82
         }
       }
@@ -393,13 +394,13 @@
       },
       "expected": {
         "shape": {
-          "width": 252,
+          "width": 280,
           "height": 30,
           "radius": 15
         },
         "caption": false,
         "window": {
-          "width": 308,
+          "width": 336,
           "height": 82
         }
       }

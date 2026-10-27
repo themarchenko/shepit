@@ -78,6 +78,13 @@ const CAPTION_WIDTH: f64 = 440.0 + 24.0;
 /// Caption row height and the gap above the pill (WidgetModel.swift:127).
 const CAPTION_ROW: f64 = 8.0 + 34.0;
 
+/// Hover hint widths. macOS has 262, 330 and 252, which fit its short "Right ⌥" key label. The hint
+/// here names "Right Ctrl" in a 11 px monospace keycap next to Segoe UI 12 px text, which is wider, so the
+/// Windows shapes are wider (docs/spec/widget.md). The frontend shrinks the text to 10 px as a last resort.
+const FLOW_PILL_HOVER_WIDTH: f64 = 300.0;
+const CAPTION_BAR_HOVER_WIDTH: f64 = 360.0;
+const ISLAND_HOVER_WIDTH: f64 = 280.0;
+
 pub fn layout_for(input: &LayoutInput) -> Layout {
     // Hover only grows an idle widget, and only the flow pill and the island read hands-free.
     let idle = input.phase == Phase::Idle;
@@ -90,7 +97,7 @@ pub fn layout_for(input: &LayoutInput) -> Layout {
     let (shape, caption) = match input.style {
         Style::FlowPill => {
             let (w, h) = match input.phase {
-                Phase::Idle if hovering => (262.0, 28.0),
+                Phase::Idle if hovering => (FLOW_PILL_HOVER_WIDTH, 28.0),
                 Phase::Idle => (40.0, 8.0),
                 Phase::Listening => (if input.hands_free { 166.0 } else { 132.0 }, 32.0),
                 Phase::Processing => (112.0, 32.0),
@@ -105,7 +112,14 @@ pub fn layout_for(input: &LayoutInput) -> Layout {
         }
         Style::CaptionBar => {
             let (w, h) = match input.phase {
-                Phase::Idle => (if hovering { 330.0 } else { 178.0 }, 30.0),
+                Phase::Idle => (
+                    if hovering {
+                        CAPTION_BAR_HOVER_WIDTH
+                    } else {
+                        178.0
+                    },
+                    30.0,
+                ),
                 Phase::Failed => (270.0, 42.0),
                 _ => (560.0, 42.0),
             };
@@ -113,7 +127,7 @@ pub fn layout_for(input: &LayoutInput) -> Layout {
         }
         Style::Island => {
             let (w, h, radius) = match input.phase {
-                Phase::Idle if hovering => (252.0, 30.0, 15.0),
+                Phase::Idle if hovering => (ISLAND_HOVER_WIDTH, 30.0, 15.0),
                 Phase::Idle => (96.0, 26.0, 13.0),
                 Phase::Listening if input.has_live => (410.0, 94.0, 24.0),
                 Phase::Listening => (270.0, 36.0, 18.0),

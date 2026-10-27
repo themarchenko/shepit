@@ -281,17 +281,17 @@ mod tests {
     }
 
     #[test]
-    fn a_hovered_idle_island_payload_is_252_by_30() {
+    fn a_hovered_idle_island_payload_is_280_by_30() {
         let p = Presentation {
             style: Style::Island,
             hovering: true,
             ..Presentation::default()
         };
         let json = payload(&view(Phase::Idle, false, ""), &p);
-        assert_eq!(json["shape"]["width"], 252.0);
+        assert_eq!(json["shape"]["width"], 280.0);
         assert_eq!(json["shape"]["height"], 30.0);
         assert_eq!(json["shape"]["radius"], 15.0);
-        assert_eq!(json["window"]["width"], 308.0);
+        assert_eq!(json["window"]["width"], 336.0);
         assert_eq!(json["window"]["height"], 82.0);
     }
 
