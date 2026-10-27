@@ -62,7 +62,7 @@ Context keys, in the JSON object:
 
 The dictionary part takes at most the last 120 entries (the newest). At most 5 examples; the code never passes any (Pipeline/DictationSession.swift:195-196, README, Gaps).
 
-The target context fields are bundle id, app name, window title, URL, text before the caret, selected text, editable focus and secure input (Context/TargetContext.swift:4-12).
+The target context fields are bundle id, app name, window title, URL, text before the caret, selected text, editable focus and secure input (Context/TargetContext.swift:4-12). When the focused field is secure (secure event input is on, or the field has the secure text subrole) no text is read: text before the caret and selected text stay empty, while the app name and window title are still captured (ContextProbe.mayReadText).
 
 Windows field mapping (windows/core/src/context.rs, windows/app/src-tauri/src/insert_win.rs; formatting itself is Windows task 9):
 
