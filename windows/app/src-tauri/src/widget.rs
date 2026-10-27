@@ -139,8 +139,8 @@ pub struct DemoStep {
     pub seconds: f64,
 }
 
-/// The demo loop of Settings and the tour (WidgetDemo.swift:41-72 without the formatting stage):
-/// idle 1.6 s, hover 1.3 s, listening 4.1 s, transcribing 0.75 s, inserting 0.4 s, done 2.6 s.
+/// The demo loop of Settings and the tour (WidgetDemo.swift:41-72): idle 1.6 s, hover 1.3 s,
+/// listening 4.1 s, transcribing 0.75 s, formatting 1.15 s, inserting 0.4 s, done 2.6 s.
 /// Built with the real layout, fade off, `hotkey`'s label on the keycap.
 pub fn demo_script(style: Style, hotkey: Hotkey) -> Vec<DemoStep> {
     let presentation = |hovering: bool| Presentation {
@@ -172,6 +172,11 @@ pub fn demo_script(style: Style, hotkey: Hotkey) -> Vec<DemoStep> {
             view(Phase::Processing, Some(Stage::Transcribing), ""),
             false,
             0.75,
+        ),
+        step(
+            view(Phase::Processing, Some(Stage::Formatting), ""),
+            false,
+            1.15,
         ),
         step(
             view(Phase::Processing, Some(Stage::Inserting), ""),
@@ -438,6 +443,13 @@ mod tests {
     }
 
     #[test]
+    fn the_formatting_stage_reaches_the_payload() {
+        let mut v = view(Phase::Processing, false, "");
+        v.stage = Some(Stage::Formatting);
+        assert_eq!(state(&v).stage, Some("formatting"));
+    }
+
+    #[test]
     fn the_inserting_stage_reaches_the_payload() {
         let mut v = view(Phase::Processing, false, "");
         v.stage = Some(Stage::Inserting);
@@ -468,7 +480,7 @@ mod tests {
     }
 
     #[test]
-    fn the_demo_has_six_steps_in_order() {
+    fn the_demo_has_seven_steps_in_order() {
         let steps = script(Style::FlowPill);
         let seen: Vec<(String, Option<&str>, bool)> = steps
             .iter()
@@ -481,6 +493,7 @@ mod tests {
                 ("idle".to_string(), None, true),
                 ("listening".to_string(), None, false),
                 ("processing".to_string(), Some("transcribing"), false),
+                ("processing".to_string(), Some("formatting"), false),
                 ("processing".to_string(), Some("inserting"), false),
                 ("done".to_string(), None, false),
             ]
@@ -490,7 +503,7 @@ mod tests {
     #[test]
     fn the_demo_timings_follow_the_mac_demo() {
         let seconds: Vec<f64> = script(Style::Island).iter().map(|s| s.seconds).collect();
-        assert_eq!(seconds, [1.6, 1.3, 4.1, 0.75, 0.4, 2.6]);
+        assert_eq!(seconds, [1.6, 1.3, 4.1, 0.75, 1.15, 0.4, 2.6]);
     }
 
     #[test]
@@ -554,7 +567,7 @@ mod tests {
             assert_eq!(step.state.target.as_deref(), Some("Notepad"));
         }
         assert_eq!(
-            steps[5].state.message,
+            steps[6].state.message,
             "Зустрінемось завтра о десятій, I'll send the notes."
         );
     }
