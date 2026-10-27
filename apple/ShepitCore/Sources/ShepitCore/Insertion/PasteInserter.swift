@@ -90,11 +90,16 @@ public final class PasteInserter {
             return .clipboardOnly
         }
         sendPaste()
-        // A cancelled dictation must still give the clipboard back, or the user keeps our text on it.
+        // A cancelled dictation must still give the clipboard back, but not before the delay: ⌘V is already
+        // on its way, and restoring now could paste the user's own clipboard into the target instead.
         do {
             try await Task.sleep(for: restoreDelay)
         } catch {
-            restoreIfUntouched(snapshot, ourChangeCount)
+            let delay = restoreDelay
+            Task { @MainActor in
+                try? await Task.sleep(for: delay)
+                self.restoreIfUntouched(snapshot, ourChangeCount)
+            }
             throw error
         }
         restoreIfUntouched(snapshot, ourChangeCount)

@@ -529,7 +529,7 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   by the user; Windows does the same since PR #14.
 - Context capture: no text before the caret or selection is read when secure event input is on or the
   focused field has the secure text subrole. App name and window title are still captured.
-- Paste: the clipboard is restored when the dictation is cancelled during the 350 ms wait, as on Windows.
+- Paste: the clipboard is restored when the dictation is cancelled during the 350 ms wait, still after the full delay, as on Windows. Restoring at once would race the paste already sent and could paste the previous clipboard (a copied password, say) into the target.
 
 ## Pending (Phase 0)
 

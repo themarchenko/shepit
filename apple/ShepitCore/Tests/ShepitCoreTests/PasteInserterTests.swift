@@ -36,11 +36,11 @@ final class PasteInserterTests: XCTestCase {
         XCTAssertFalse((pasteboard.types ?? []).contains(PasteInserter.concealedType))
     }
 
-    func testClipboardIsRestoredWhenCancelledDuringThePasteWait() async {
+    func testClipboardIsRestoredAfterTheDelayWhenCancelledDuringThePasteWait() async throws {
         pasteboard.setString("mine", forType: .string)
         let inserter = PasteInserter(pasteboard: pasteboard)
         inserter.isTrusted = { true }
-        inserter.restoreDelay = .seconds(30)
+        inserter.restoreDelay = .milliseconds(300)
         let pasted = expectation(description: "paste sent")
         inserter.sendPaste = { pasted.fulfill() }
         let task = Task { @MainActor in
@@ -49,6 +49,9 @@ final class PasteInserterTests: XCTestCase {
         await fulfillment(of: [pasted], timeout: 5)
         task.cancel()
         _ = await task.result
+        // The paste keys are already sent, so the target must still find the dictated text.
+        XCTAssertEqual(pasteboard.string(forType: .string), "dictated")
+        try await Task.sleep(for: .milliseconds(900))
         XCTAssertEqual(pasteboard.string(forType: .string), "mine")
     }
 }
