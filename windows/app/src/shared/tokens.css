@@ -1,0 +1,357 @@
+/* Colours, type and controls of the Settings and tour windows. From docs/design/settings-onboarding.html,
+   with the accent changed from blue to the widget's off-white (primary buttons: off-white, dark text).
+   Every class here starts with "sp-" because widget.css, loaded for the demo, owns names such as .seg. */
+:root {
+  color-scheme: dark;
+  --win: #1f2023;
+  --group: #2a2b2f;
+  --group-line: rgba(255, 255, 255, 0.07);
+  --field: #34353a;
+  --ink: #ebe8e2;
+  --muted: #9b988f;
+  --accent: #f4f2ee;
+  --on-accent: #141416;
+  --hair: rgba(255, 255, 255, 0.15);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ui-font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+/* widget.css makes the page transparent for the widget window. These windows are opaque. */
+html body.sp-app,
+body.sp-app #root {
+  background: var(--win);
+  color: var(--ink);
+  font: 13px/1.45 var(--ui-font);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Not a universal rule: the widget markup inside the demo is sized for its own box model. */
+.sp-app [class^="sp-"],
+.sp-app [class*=" sp-"] {
+  box-sizing: border-box;
+}
+
+.sp-app button {
+  font: inherit;
+  color: inherit;
+}
+
+.sp-app :focus-visible {
+  outline: 2px solid rgba(244, 242, 238, 0.8);
+  outline-offset: 2px;
+}
+
+/* Groups and rows */
+.sp-group-title {
+  margin: 0 0 6px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sp-group {
+  background: var(--group);
+  border-radius: 10px;
+  border: 1px solid var(--group-line);
+}
+
+.sp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  min-height: 44px;
+}
+
+.sp-group > * + * {
+  border-top: 1px solid var(--group-line);
+}
+
+.sp-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.sp-row-detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sp-row-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+/* Buttons */
+.sp-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sp-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sp-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sp-btn.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 500;
+}
+
+.sp-btn.primary:hover {
+  background: #fff;
+}
+
+.sp-btn.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.sp-btn.quiet:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Toggle */
+.sp-toggle {
+  width: 34px;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 0;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+  flex: none;
+  transition: background 0.2s;
+}
+
+.sp-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f2f2f2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition:
+    transform 0.25s var(--ease),
+    background 0.2s;
+}
+
+.sp-toggle[aria-checked="true"] {
+  background: var(--accent);
+}
+
+.sp-toggle[aria-checked="true"]::after {
+  background: var(--on-accent);
+  transform: translateX(14px);
+}
+
+/* Segmented control */
+.sp-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sp-segmented button {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: rgba(244, 242, 238, 0.6);
+}
+
+.sp-segmented button[aria-checked="true"] {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Slider: the filled part is drawn with --fill (0 to 100%). */
+.sp-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sp-slider input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 190px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0,
+    var(--accent) var(--fill),
+    rgba(255, 255, 255, 0.18) var(--fill),
+    rgba(255, 255, 255, 0.18) 100%
+  );
+  margin: 0;
+}
+
+.sp-slider input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Key cap in the grey window (the glass one lives in widget.css) */
+.sp-keycap {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font: 12px/1.3 Consolas, "Cascadia Mono", ui-monospace, monospace;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.sp-keycap.picking {
+  border-style: dashed;
+  color: var(--muted);
+  animation: sp-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes sp-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Notes and status */
+.sp-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.sp-warn {
+  font-size: 12.5px;
+  color: #eaae55;
+  background: rgba(234, 174, 85, 0.1);
+  border-radius: 10px;
+  padding: 8px 12px;
+  line-height: 1.4;
+}
+
+.sp-ok {
+  color: #86cfa0;
+}
+
+.sp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  flex: none;
+}
+
+.sp-dot.ok {
+  background: #86cfa0;
+}
+
+.sp-dot.warn {
+  background: #eaae55;
+}
+
+.sp-progress {
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.sp-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s var(--ease);
+}
+
+/* Hotkey picker and microphone check */
+.sp-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 14px;
+}
+
+.sp-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 24px;
+}
+
+.sp-mic-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Style picker and demo stage */
+.sp-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sp-demo {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9px;
+  background:
+    radial-gradient(110% 90% at 18% 8%, #5a6f70 0%, transparent 58%),
+    radial-gradient(90% 80% at 88% 96%, #7a6249 0%, transparent 55%),
+    linear-gradient(160deg, #2e3739, #22282a);
+}
+
+/* The widget is laid out at its real size and shrunk as a whole to fit. */
+.sp-demo-inner {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transform-origin: bottom left;
+}

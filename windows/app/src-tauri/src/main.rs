@@ -31,7 +31,7 @@ use std::time::{Duration, Instant};
 
 use settings_store::SettingsStore;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, State};
 use widget_host::WidgetHost;
 
@@ -126,6 +126,8 @@ fn main() {
             let mut tray = TrayIconBuilder::with_id(TRAY_ID)
                 .tooltip("Shepit")
                 .menu(&menu)
+                // Windows convention: a left click opens Settings, a right click shows the menu.
+                .show_menu_on_left_click(false)
                 .on_menu_event(
                     move |app, event| match tray::action_for(event.id().as_ref()) {
                         tray::MenuAction::Quit => app.exit(0),
@@ -154,8 +156,10 @@ fn main() {
                     },
                 )
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::DoubleClick {
+                    // Up only: a click also reports the press.
+                    if let TrayIconEvent::Click {
                         button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
                         ..
                     } = event
                     {
