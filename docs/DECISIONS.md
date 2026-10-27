@@ -516,6 +516,36 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   Notepad, Chrome or Edge, Windows Terminal, cmd, password field, held Shift or Alt, elevated terminal,
   Store-app exe names.
 
+## 2026-10-27: Windows widget
+
+Task 7 of PLAN-windows.md: the three styles, drag, saved position, idle fade, click and hold.
+
+- Rust owns every size. The core crate's `layout_for` gives the shape, the caption flag and the window size
+  per style and phase; the payload carries them and the frontend reads them as they are. The table is a
+  fixture (`windows/core/tests/fixtures/widget-layout-windows.json`) because `WidgetLayout` lives in the macOS
+  app target and no Swift runner could read it.
+- The window grows to the union of the current and the next size at once and shrinks 700 ms after the shape
+  has settled. The window is moved and resized with one `SetWindowPos`, and the state is sent after it, so the
+  shape never jumps. The frontend holds a new state until the webview is as large as the payload window
+  (100 ms fallback).
+- No blur (decided with the user today, reversible). A WebView2 `backdrop-filter` cannot see the desktop and
+  Acrylic or Mica would fill the shadow margin too. The glass is black at `glassOpacity` with the hairline and
+  shadow.
+- The spring is a CSS `linear()` easing sampled from the same damped spring as macOS (response 0.4, damping
+  0.72), 40 points over 600 ms.
+- Settings live in `app_config_dir()/settings.json` (docs/spec/settings.md). The anchor is stored in physical
+  pixels of the virtual screen.
+- Captions are one line; live words keep the newest end, results keep the start.
+- Hover and idle widths are wider than on macOS: the Windows key label is "Right Ctrl" and the font is Segoe
+  UI. The new widths (flowPill hover 300, captionBar hover 360, island hover 280, island idle 128) are
+  estimates, because Segoe UI is not available on the Mac. A frontend fallback shrinks the text to 10 px
+  if it still overflows. Check them on a device and change the table if they are off.
+- The layout looked off-centre in headless Chrome at first. The cause was the harness (a minimum viewport
+  width), not the app. The dev mock now sizes the stage to the payload window and checks the rendered shape
+  against the payload; `windows/app/scripts/widget-shots.sh` fails on any mismatch.
+- Gaps: no right-click menu, no live text (task 12), no formatting step (task 9). Not verified: everything
+  that needs a Windows desktop. See PLAN-windows.md task 7.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run
