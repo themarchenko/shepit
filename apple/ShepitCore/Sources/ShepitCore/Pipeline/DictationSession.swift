@@ -192,6 +192,8 @@ public final class DictationSession: ObservableObject {
                                             wordCount: ModeResolver.wordCount(transcript.text),
                                             promptModeMinWords: settings.promptModeMinWords)
             let languageHint = settings.languageLock == "auto" ? transcript.language : settings.languageLock
+            // The context was captured at record start; a password field focused since then must not reach the agent either.
+            if ContextProbe.isSecureInputActive { context.secureInput = true }
             let request = FormatRequest(transcript: transcript.text, languageHint: languageHint, mode: mode,
                                         profile: profile, context: context, dictionary: settings.dictionary)
             let t1 = Date()

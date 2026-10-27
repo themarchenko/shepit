@@ -36,7 +36,7 @@ public enum CodexError: Error, LocalizedError, Equatable {
     case exited(Int32)
     case rpc(String)
     case turnFailed(String)
-    case badReply(String)
+    case badReply(bytes: Int)
     case paused(until: Date)
 
     public var errorDescription: String? {
@@ -46,7 +46,7 @@ public enum CodexError: Error, LocalizedError, Equatable {
         case .exited(let code): return code < 0 ? "Codex exited" : "Codex exited with code \(code)"
         case .rpc(let s): return "Codex error: \(s)"
         case .turnFailed(let s): return "Codex error: \(s)"
-        case .badReply(let s): return "Codex reply was not JSON: \(s.prefix(120))"
+        case .badReply(let n): return "Codex reply was not JSON (\(n) bytes)"
         case .paused(let until): return "Codex paused after repeated failures until \(until.formatted(date: .omitted, time: .standard))"
         }
     }
@@ -77,7 +77,7 @@ public actor CodexFormatter: Formatter {
         do {
             _ = try await ensureThread()
         } catch {
-            Log.formatter.error("codex warm-up failed: \(String(describing: error), privacy: .public)")
+            Log.formatter.error("codex warm-up failed: \(FormattingService.logKind(error), privacy: .public)")
         }
     }
 
@@ -105,7 +105,7 @@ public actor CodexFormatter: Formatter {
         }
         activeTurns += 1
         rotateIfNeeded()
-        guard let parsed = PromptBuilder.parseReply(reply) else { throw CodexError.badReply(reply) }
+        guard let parsed = PromptBuilder.parseReply(reply) else { throw CodexError.badReply(bytes: reply.utf8.count) }
         return FormatResult(text: Self.finish(parsed.text, profile: request.profile), language: parsed.language,
                             newTerms: parsed.newTerms, source: .codex, latency: Date().timeIntervalSince(t0))
     }
@@ -175,7 +175,7 @@ public actor CodexFormatter: Formatter {
                 pausedUntil = Date().addingTimeInterval(300)
                 Log.formatter.error("codex failed \(self.consecutiveFailures, privacy: .public) times in a row; pausing Codex formatting for 5 minutes")
             }
-            Log.formatter.error("codex start failed after \(Date().timeIntervalSince(t0), format: .fixed(precision: 1)) s: \(String(describing: error), privacy: .public); see \(config.workDirectory.path, privacy: .public)/codex-stderr.log")
+            Log.formatter.error("codex start failed after \(Date().timeIntervalSince(t0), format: .fixed(precision: 1)) s: \(FormattingService.logKind(error), privacy: .public); see \(config.workDirectory.path, privacy: .public)/codex-stderr.log")
             throw error
         }
     }
@@ -205,7 +205,7 @@ public actor CodexFormatter: Formatter {
             let threadID = try await codexDeadline(config.warmUpTimeout) { try await server.startWarmThread(config) }
             if self.server === server { standbyThread = threadID }
         } catch {
-            Log.formatter.error("codex standby thread failed: \(String(describing: error), privacy: .public)")
+            Log.formatter.error("codex standby thread failed: \(FormattingService.logKind(error), privacy: .public)")
         }
         if self.server === server { standbyTask = nil }
     }
@@ -585,7 +585,8 @@ final class CodexAppServerProcess: @unchecked Sendable {
             try? write(CodexProtocol.reply(toRequest: method, id: id))
         case .notification(let method, let params):
             if method == "error" || method == "warning" || method == "configWarning" {
-                Log.formatter.notice("codex \(method, privacy: .public): \(String(describing: params), privacy: .public)")
+                // Params are server text and may echo the turn, so they stay private.
+                Log.formatter.notice("codex \(method, privacy: .public): \(String(describing: params), privacy: .private)")
             }
             guard let threadID = params["threadId"] as? String else { return }
             let (turn, outcome): (ActiveTurn?, CodexTurnCollector.Outcome?) = lock.withLock {

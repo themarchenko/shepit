@@ -25,7 +25,7 @@ public enum WorkerError: Error, LocalizedError {
     case timeout
     case exited(Int32)
     case apiError(String)
-    case badReply(String)
+    case badReply(bytes: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -33,7 +33,7 @@ public enum WorkerError: Error, LocalizedError {
         case .timeout: return "Claude worker timed out"
         case .exited(let code): return "Claude worker exited with code \(code)"
         case .apiError(let s): return "Claude error: \(s)"
-        case .badReply(let s): return "Claude reply was not JSON: \(s.prefix(120))"
+        case .badReply(let n): return "Claude reply was not JSON (\(n) bytes)"
         }
     }
 }
@@ -193,7 +193,7 @@ public actor ClaudeCodeWorker: Formatter {
         do {
             _ = try await ensureActive()
         } catch {
-            Log.formatter.error("warm-up failed: \(String(describing: error), privacy: .public)")
+            Log.formatter.error("warm-up failed: \(FormattingService.logKind(error), privacy: .public)")
         }
     }
 
@@ -214,7 +214,7 @@ public actor ClaudeCodeWorker: Formatter {
         }
         lastUsage = reply.usage
         rotateIfNeeded()
-        guard let parsed = PromptBuilder.parseReply(reply.text) else { throw WorkerError.badReply(reply.text) }
+        guard let parsed = PromptBuilder.parseReply(reply.text) else { throw WorkerError.badReply(bytes: reply.text.utf8.count) }
         var text = parsed.text.trimmingCharacters(in: .newlines)
         if request.profile.stripTrailingNewline {
             while text.hasSuffix("\n") { text.removeLast() }
@@ -279,7 +279,7 @@ public actor ClaudeCodeWorker: Formatter {
         do {
             _ = try await proc.send("Warm-up. Return exactly: {\"text\": \"ok\", \"language\": \"en\", \"new_terms\": []}", timeout: config.warmUpTimeout)
         } catch {
-            Log.formatter.error("worker warm-up failed after \(Date().timeIntervalSince(t0), format: .fixed(precision: 1)) s: \(String(describing: error), privacy: .public); see \(self.config.workDirectory.path, privacy: .public)/worker-stderr.log")
+            Log.formatter.error("worker warm-up failed after \(Date().timeIntervalSince(t0), format: .fixed(precision: 1)) s: \(FormattingService.logKind(error), privacy: .public); see \(self.config.workDirectory.path, privacy: .public)/worker-stderr.log")
             throw error
         }
         Log.formatter.notice("worker warm in \(Date().timeIntervalSince(t0), format: .fixed(precision: 2)) s")
@@ -308,7 +308,7 @@ public actor ClaudeCodeWorker: Formatter {
             try await warm(proc)
             standby = proc
         } catch {
-            Log.formatter.error("standby spawn failed: \(String(describing: error), privacy: .public)")
+            Log.formatter.error("standby spawn failed: \(FormattingService.logKind(error), privacy: .public)")
         }
     }
 }
