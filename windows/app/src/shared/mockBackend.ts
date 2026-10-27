@@ -300,7 +300,7 @@ export function createMockBackend(): Backend {
     widgetVisible: state.widgetVisible,
     hotkey: hotkey(state.hotkeyId),
     model: state.model,
-    version: "0.4.0",
+    version: "0.3.1",
     polishing: state.polishing,
     claudeModel: state.claudeModel,
     claudeExecutable: state.claudeExecutable,

@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { onUpdateCard, updateAction, updateCardReady, updateResize, type CardButton, type CardPayload } from "../shared/api";
-import { useEvent } from "../shared/useSettings";
 
 // The 20 px of transparent window around the 380 px card (the macOS panel pads the same way).
 const MARGIN = 20;
@@ -28,16 +27,22 @@ export default function UpdateCard() {
   const [card, setCard] = useState<CardPayload | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Listen first, then ask: an event between the answer and the listener would be lost.
   useEffect(() => {
     let alive = true;
-    updateCardReady()
-      .then((c) => alive && setCard(c))
-      .catch((e) => console.warn("update_card_ready failed", e));
+    let off: (() => void) | undefined;
+    onUpdateCard(setCard)
+      .then((fn) => {
+        if (!alive) return fn();
+        off = fn;
+        return updateCardReady().then((c) => alive && setCard(c));
+      })
+      .catch((e) => console.warn("update card setup failed", e));
     return () => {
       alive = false;
+      off?.();
     };
   }, []);
-  useEvent(() => onUpdateCard(setCard));
 
   // The window is shown by the first resize, so it never appears at the wrong height.
   useLayoutEffect(() => {

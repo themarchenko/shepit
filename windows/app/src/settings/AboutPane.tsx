@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { checkUpdatesNow, getUpdateStatus, onUpdateStatus, showTour, showUpdateCard, type UpdateStatus } from "../shared/api";
 import { Button, Group, Row, Toggle } from "../shared/controls";
-import { useEvent, type PaneProps } from "../shared/useSettings";
+import { type PaneProps } from "../shared/useSettings";
 
 const RELATIVE = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
@@ -24,16 +24,22 @@ const BUSY = new Set(["checking", "downloading", "installing"]);
 
 export default function AboutPane({ settings, update }: PaneProps) {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
+  // Listen first, then ask: an event between the answer and the listener would be lost.
   useEffect(() => {
     let alive = true;
-    getUpdateStatus()
-      .then((s) => alive && setStatus(s))
+    let off: (() => void) | undefined;
+    onUpdateStatus(setStatus)
+      .then((fn) => {
+        if (!alive) return fn();
+        off = fn;
+        return getUpdateStatus().then((s) => alive && setStatus(s));
+      })
       .catch(() => {});
     return () => {
       alive = false;
+      off?.();
     };
   }, []);
-  useEvent(() => onUpdateStatus(setStatus));
 
   return (
     <>
