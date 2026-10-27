@@ -257,26 +257,70 @@ fn conf_installs_passively_and_per_user() {
     );
 }
 
-#[test]
-fn release_conf_creates_updater_artifacts() {
-    let release = json("../app/src-tauri/tauri.release.conf.json");
-    assert_eq!(release["bundle"]["createUpdaterArtifacts"], true);
-}
+// The release build uses tauri.runtime.conf.json and signs the staged installer in a separate step
+// (`tauri signer sign`), so the signing key never reaches `tauri build`, the Vite build or a build.rs.
 
 #[test]
-fn release_conf_resources_equal_the_runtime_conf() {
-    let release = json("../app/src-tauri/tauri.release.conf.json");
+fn build_conf_never_creates_updater_artifacts() {
     let runtime = json("../app/src-tauri/tauri.runtime.conf.json");
-    assert_eq!(
-        release["bundle"]["resources"],
-        runtime["bundle"]["resources"]
-    );
+    assert!(runtime["bundle"].get("createUpdaterArtifacts").is_none());
 }
 
 #[test]
-fn release_conf_has_no_plugins_key() {
-    let release = json("../app/src-tauri/tauri.release.conf.json");
-    assert!(release.get("plugins").is_none());
+fn build_conf_has_no_plugins_key() {
+    let runtime = json("../app/src-tauri/tauri.runtime.conf.json");
+    assert!(runtime.get("plugins").is_none());
+}
+
+#[test]
+fn there_is_no_release_conf_that_turns_signing_into_the_build() {
+    assert!(!path("../app/src-tauri/tauri.release.conf.json").exists());
+}
+
+fn conf_pair() -> (serde_json::Value, serde_json::Value) {
+    (
+        json("../app/src-tauri/tauri.conf.json"),
+        json("../app/src-tauri/tauri.runtime.conf.json"),
+    )
+}
+
+#[test]
+fn check_config_passes_for_the_repo_files() {
+    let (conf, runtime) = conf_pair();
+    check_config(&conf, &runtime).unwrap();
+}
+
+#[test]
+fn check_config_requires_signed_version() {
+    let (mut conf, runtime) = conf_pair();
+    conf["plugins"]["updater"]["requireSignedVersion"] = false.into();
+    assert!(check_config(&conf, &runtime).is_err());
+    conf["plugins"]["updater"]
+        .as_object_mut()
+        .unwrap()
+        .remove("requireSignedVersion");
+    assert!(check_config(&conf, &runtime).is_err());
+}
+
+#[test]
+fn check_config_accepts_only_the_exact_endpoint() {
+    let (mut conf, runtime) = conf_pair();
+    conf["plugins"]["updater"]["endpoints"] = serde_json::json!([
+        "https://github.com/themarchenko/shepit/releases/latest/download/latest.json",
+        "https://github.com/themarchenko/shepit/raw/main/latest.json"
+    ]);
+    assert!(check_config(&conf, &runtime).is_err());
+    conf["plugins"]["updater"]["endpoints"] = serde_json::json!([
+        "https://github.com/themarchenko/shepit/releases/latest/download/latest.json?x=1"
+    ]);
+    assert!(check_config(&conf, &runtime).is_err());
+}
+
+#[test]
+fn check_config_refuses_updater_artifacts_in_the_build_conf() {
+    let (conf, mut runtime) = conf_pair();
+    runtime["bundle"]["createUpdaterArtifacts"] = true.into();
+    assert!(check_config(&conf, &runtime).is_err());
 }
 
 #[test]

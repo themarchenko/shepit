@@ -20,6 +20,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # A tag can be pushed from any branch. Only a commit that reached main went through review and
+      # CI, so refuse to sign or publish anything else. Runs before any build; no `if:` on purpose.
+      - name: Check the commit is on main
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=2147483647 origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main"
+            exit 1
+          fi
+
       - name: Check the tag against the app version
         if: github.event_name == 'push'
         id: version
@@ -121,10 +132,22 @@ jobs:
       contents: read
     outputs:
       tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+
+      # A tag can be pushed from any branch. Only a commit that reached main went through review and
+      # CI, so refuse to sign or publish anything else. Runs before any build; no `if:` on purpose.
+      - name: Check the commit is on main
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=2147483647 origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main"
+            exit 1
+          fi
 
       # One version per tag for both platforms. The feed announces the tag's version, so an installed
       # app that reports another one would be offered the same update forever.
@@ -143,6 +166,7 @@ jobs:
             exit 1
           fi
           echo "tag=v$cargo" >> "$GITHUB_OUTPUT"
+          echo "version=$cargo" >> "$GITHUB_OUTPUT"
 
       # Same steps as windows.yml, so a release builds the way CI does.
       - name: Install Rust toolchain
@@ -200,7 +224,7 @@ jobs:
           cp -L "$src" windows/app/src-tauri/runtime/DirectML.dll
           ls -l windows/app/src-tauri/runtime
 
-      # Without the key the build would produce an installer with no signature. Fail before spending
+      # Without the key the signing step would fail after the whole build. Fail before spending
       # the build time. The values stay out of the shell: only whether they are set is passed in.
       - name: Check the updater signing secrets
         shell: bash
@@ -213,14 +237,11 @@ jobs:
             exit 1
           fi
 
-      # tauri.release.conf.json turns on the signed updater artifact and repeats the DirectML
-      # resource of tauri.runtime.conf.json. The key is available to this step only.
-      - name: Build and sign the installer
+      # The release build is the CI build: no signing key in its environment, so the Vite build and
+      # every build.rs run without it. The installer is signed in a separate step below.
+      - name: Build the installer
         working-directory: windows/app
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build --config src-tauri/tauri.release.conf.json
+        run: pnpm tauri build --config src-tauri/tauri.runtime.conf.json
 
       # Fails when the installer lacks DirectML.dll (a clean machine could not start the app).
       - name: Check the installer carries DirectML.dll
@@ -241,8 +262,20 @@ jobs:
           setup="${installers[0]}"
           mkdir dist
           cp "$setup" dist/Shepit-setup.exe
-          cp "$setup.sig" dist/Shepit-setup.exe.sig
           (cd dist && sha256sum Shepit-setup.exe > Shepit-setup.exe.sha256)
+
+      # The key and password are in the environment of this step only, which runs one command. The
+      # CLI reads both from the environment. `pnpm exec`, not `pnpm tauri`: the package script echoes
+      # its arguments. --app-version puts `version:` into the signed comment, as `tauri build` does
+      # for updater artifacts, so the app can check the feed's version against what was signed.
+      - name: Sign the installer
+        working-directory: windows/app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: pnpm exec tauri signer sign --app-version "$VERSION" ../../dist/Shepit-setup.exe > /dev/null
 
       - name: Write the update feed
         working-directory: windows
@@ -314,7 +347,9 @@ jobs:
 
           # A published Windows build is never replaced. latest.json is the commit marker, so a rerun
           # after a partial upload carries on, and a rerun after a full one stops here.
-          if gh release view "$release" --json assets --jq '.assets[].name' | grep -qx latest.json; then
+          # Into a variable first: with pipefail, grep -q closing the pipe early would fail gh with SIGPIPE.
+          assets=$(gh release view "$release" --json assets --jq '.assets[].name')
+          if grep -qx latest.json <<< "$assets"; then
             echo "::notice::$release already has latest.json, leaving the Windows files as they are"
             exit 0
           fi

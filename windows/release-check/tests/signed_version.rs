@@ -77,10 +77,5 @@ fn the_tag_must_be_plain_x_y_z() {
 fn the_check_config_rules_hold_for_the_repo_files() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../app/src-tauri");
     let read = |n: &str| serde_json::from_slice(&fs::read(dir.join(n)).unwrap()).unwrap();
-    check_config(
-        &read("tauri.conf.json"),
-        &read("tauri.release.conf.json"),
-        &read("tauri.runtime.conf.json"),
-    )
-    .unwrap();
+    check_config(&read("tauri.conf.json"), &read("tauri.runtime.conf.json")).unwrap();
 }

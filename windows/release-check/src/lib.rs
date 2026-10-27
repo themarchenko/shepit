@@ -211,9 +211,14 @@ pub fn verify_release_strict(
     verify_feed_with(feed_json, installer, tag, PINNED_UPDATER_PUBKEY, true)
 }
 
-/// The config rules the updater trust depends on, over the parsed `tauri.conf.json`,
-/// `tauri.release.conf.json` and `tauri.runtime.conf.json`.
-pub fn check_config(conf: &Value, release: &Value, runtime: &Value) -> Result<(), VerifyError> {
+/// The one update endpoint the app may carry.
+pub const UPDATE_ENDPOINT: &str =
+    "https://github.com/themarchenko/shepit/releases/latest/download/latest.json";
+
+/// The config rules the updater trust depends on, over the parsed `tauri.conf.json` and
+/// `tauri.runtime.conf.json`. The release build uses the runtime config and signs the installer in a
+/// separate step, so the signing key is never in the environment of `tauri build`.
+pub fn check_config(conf: &Value, runtime: &Value) -> Result<(), VerifyError> {
     let updater = &conf["plugins"]["updater"];
     if updater["pubkey"].as_str() != Some(PINNED_UPDATER_PUBKEY) {
         return err("tauri.conf.json plugins.updater.pubkey is not the pinned key");
@@ -224,18 +229,13 @@ pub fn check_config(conf: &Value, release: &Value, runtime: &Value) -> Result<()
     if let Some(k) = obj.keys().find(|k| k.starts_with("dangerous")) {
         return err(format!("plugins.updater.{k} is not allowed"));
     }
-    let endpoints = updater["endpoints"].as_array().filter(|e| !e.is_empty());
-    let endpoints =
-        endpoints.ok_or_else(|| VerifyError("plugins.updater.endpoints is empty".into()))?;
-    for e in endpoints {
-        let ok = e
-            .as_str()
-            .is_some_and(|s| s.starts_with("https://github.com/themarchenko/shepit/"));
-        if !ok {
-            return err(format!(
-                "update endpoint {e} is not https on themarchenko/shepit"
-            ));
-        }
+    if updater["requireSignedVersion"] != true {
+        return err("plugins.updater.requireSignedVersion must be true");
+    }
+    if updater["endpoints"].as_array().map(Vec::as_slice) != Some(&[Value::from(UPDATE_ENDPOINT)]) {
+        return err(format!(
+            "plugins.updater.endpoints must be exactly [{UPDATE_ENDPOINT}]"
+        ));
     }
     if updater["windows"]["installMode"] != "passive" {
         return err("plugins.updater.windows.installMode must be passive");
@@ -246,14 +246,13 @@ pub fn check_config(conf: &Value, release: &Value, runtime: &Value) -> Result<()
     if conf["bundle"].get("createUpdaterArtifacts").is_some() {
         return err("tauri.conf.json must not create updater artifacts (PR builds have no key)");
     }
-    if release["bundle"]["createUpdaterArtifacts"] != true {
-        return err("tauri.release.conf.json must set bundle.createUpdaterArtifacts");
+    if runtime["bundle"].get("createUpdaterArtifacts").is_some() {
+        return err(
+            "tauri.runtime.conf.json (the release build config) must not create updater artifacts",
+        );
     }
-    if release["bundle"]["resources"] != runtime["bundle"]["resources"] {
-        return err("release resources differ from tauri.runtime.conf.json");
-    }
-    if release.get("plugins").is_some() {
-        return err("tauri.release.conf.json must not carry a plugins key");
+    if runtime.get("plugins").is_some() {
+        return err("tauri.runtime.conf.json must not carry a plugins key");
     }
     Ok(())
 }

@@ -38,7 +38,6 @@ fn verify(args: &[String]) -> Result<(), VerifyError> {
     let dir = flag(args, "--conf-dir").unwrap_or_else(|_| "app/src-tauri".into());
     check_config(
         &read_json(&format!("{dir}/tauri.conf.json"))?,
-        &read_json(&format!("{dir}/tauri.release.conf.json"))?,
         &read_json(&format!("{dir}/tauri.runtime.conf.json"))?,
     )?;
     verify_release(&feed, &installer, &tag)?;
