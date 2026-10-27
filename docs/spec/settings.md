@@ -44,17 +44,17 @@ Notes:
   parsed, defaults are used, and the first write copies the bad file to `settings.json.bak` once before it
   replaces it.
 - Speaker notes go into the system prompt (polishing.md).
-- Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are kept in `settings.json` under `%APPDATA%\com.themarchenko.shepit`, with the same key names. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.
+- Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are fields of the one `settings.json` file (windows/core/src/settings.rs, 19 known keys), with the same key names. Every write, including the updater's own `lastUpdateCheck`, goes through the settings store under one lock, so the About switch and the updater cannot overwrite each other. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.
 - Windows panes: General (dictation key, default mode, prompt-mode word limit, recognizer status, show widget, microphone test),
   Appearance (style, glass, fade when idle, reset position), Polishing (provider, Claude model, executable paths, speaker notes)
-  and About (version, the Parakeet CC-BY-4.0 credit, show the welcome tour again). The Polishing tab sits between Appearance
+  and About (version, the Parakeet CC-BY-4.0 credit, the Updates group, show the welcome tour again). The Updates group has the `checkForUpdates` switch, a status line and Check now or Install... (updates-install.md, Installing an update (Windows)). The Polishing tab sits between Appearance
   and About and scrolls inside the 620x600 window. Language lock, dictionary, history, live preview, recognizer choice,
-  What's new, updates and launch at login are not shown until their tasks land (README, Platform-specific). Settings opens on General.
+  What's new and launch at login are not shown until their tasks land (README, Platform-specific). Settings opens on General.
 - Windows `hotkey` is stored as the choice id above. A bad id falls back to `rightCtrl`. `onboardingCompleted` defaults
   to false and is set by every way of closing the tour (finish, Skip, Esc, Alt+F4).
 - Windows edits from the UI go through one strict patch: an object with any of `widgetStyle`, `glassOpacity`
-  (clamped to 0.5-0.9), `fadeWhenIdle`, `widgetVisible` and `hotkey`. An unknown key, a wrong type or a bad id rejects the
-  whole patch and changes nothing. `widgetAnchor` and `onboardingCompleted` cannot be patched; they have their own commands.
+  (clamped to 0.5-0.9), `fadeWhenIdle`, `widgetVisible`, `hotkey` and `checkForUpdates`. An unknown key, a wrong type or a bad id rejects the
+  whole patch and changes nothing. `widgetAnchor`, `onboardingCompleted`, `skippedUpdate` and `lastUpdateCheck` cannot be patched (`skippedUpdate` and `lastUpdateCheck` belong to the updater); they have their own commands.
   Loading the file stays lenient, key by key.
 - Windows polishing keys (windows/core/src/settings.rs): `polishing`, `claudeModel`, `claudeExecutable`, `codexExecutable`,
   `defaultMode`, `fastPathMaxWords`, `promptModeMinWords`, `speakerNotes` and `dictionary`, with the names and defaults in the
