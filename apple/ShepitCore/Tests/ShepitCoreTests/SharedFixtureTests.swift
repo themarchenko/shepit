@@ -162,8 +162,7 @@ final class SharedFixtureTests: XCTestCase {
     }
 
     // FormattingService.format(_ request: FormatRequest) -> FormatResult, with a stub agent.
-    // The cases with secure true need the macOS rule "skip the agent when context.secureInput" from the
-    // fix/macos-polish-privacy PR; they are red until that PR is merged into this branch.
+    // The cases with secure true check the rule "skip the agent when context.secureInput".
     func testPolishRouting() async throws {
         let f: FixtureFile<RoutingInput, RoutingExpected> = try SharedFixtures.load("polish-routing.json", minimumCases: 11)
         for c in f.cases {

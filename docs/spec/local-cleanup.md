@@ -19,7 +19,7 @@ Fixture: `shared/fixtures/polish-routing.json` (`FormattingService.format` with 
 - Fast-path limit: setting `fastPathMaxWords`, default 8 words, negative values become 0 (FormattingService.swift:7, 17-19; Settings/AppSettings.swift:171). The comparison is `words <= limit`.
 - `local(t)` = `clean(DictionaryCorrector.correct(t, dictionary))` (FormattingService.swift:41-44). The dictionary is the whole saved dictionary (Pipeline/DictationSession.swift:196).
 - Mode `prompt` always goes to the agent when one exists; row 2 is for `clean` only.
-- Secure field (decision of 2026-10-27): when the captured context says the field is secure (macOS `secureInput`, Windows password flag true), the agent is skipped and the local text is used, so a dictation into a password field never leaves the device. Raw mode and the fast path already stay local and keep their own source. The insert still refuses a secure field. The fixture input `secure` is false when missing. Known gap: macOS applies the rule in the `fix/macos-polish-privacy` change; until it merges, the secure cases of the Swift runner are red.
+- Secure field (decision of 2026-10-27): when the captured context says the field is secure (macOS `secureInput`, Windows password flag true), the agent is skipped and the local text is used, so a dictation into a password field never leaves the device. Raw mode and the fast path already stay local and keep their own source. The insert still refuses a secure field. The fixture input `secure` is false when missing.
 - There is no fallback from one agent to the other (see polishing.md).
 - Plan intent that the code lacks: README, Gaps.
 
