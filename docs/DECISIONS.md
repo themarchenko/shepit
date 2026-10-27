@@ -516,6 +516,21 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   Notepad, Chrome or Edge, Windows Terminal, cmd, password field, held Shift or Alt, elevated terminal,
   Store-app exe names.
 
+## 2026-10-27: macOS privacy follow-ups
+
+Five macOS changes found while porting to Windows. The spec gap rows they closed are gone.
+
+- Release feed: a release whose `Shepit.dmg` URL is not https is rejected (`insecureDiskImage`). The
+  signature check stays the boundary; this is defence in depth.
+- Prompt dictionary: the agent now gets the last 120 entries (newest), not the first 120. Learned terms
+  are appended, so entries past 120 never reached the agent. Same direction as the recognizer (last 30).
+- Paste: the dictated text is written with empty `org.nspasteboard.TransientType` and `ConcealedType`
+  so clipboard managers skip it. The restore of the user's previous contents is not marked. Confirmed
+  by the user; Windows does the same since PR #14.
+- Context capture: no text before the caret or selection is read when secure event input is on or the
+  focused field has the secure text subrole. App name and window title are still captured.
+- Paste: the clipboard is restored when the dictation is cancelled during the 350 ms wait, as on Windows.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run
