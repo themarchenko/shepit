@@ -28,8 +28,44 @@ pub struct Env {
 /// A place whose variable is unset is left out. Relative and empty `PATH` entries are skipped.
 /// Only `.exe` and `.cmd` appear: never an extensionless file, `.ps1` or `.bat`.
 pub fn candidates(name: &str, env: &Env) -> Vec<String> {
-    let _ = (name, env);
-    todo!("task 9 chunk A: candidates")
+    let mut out = Vec::new();
+    if let Some(home) = env.user_profile.as_deref() {
+        out.push(join(home, &format!(r".local\bin\{name}.exe")));
+    }
+    for entry in env.path.as_deref().unwrap_or("").split(';') {
+        // PATH entries are sometimes quoted when they hold spaces.
+        let entry = entry.trim().trim_matches('"');
+        if is_absolute(entry) {
+            out.push(join(entry, &format!("{name}.exe")));
+            out.push(join(entry, &format!("{name}.cmd")));
+        }
+    }
+    if let Some(dir) = env.app_data.as_deref() {
+        out.push(join(dir, &format!(r"npm\{name}.cmd")));
+    }
+    if let Some(dir) = env.local_app_data.as_deref() {
+        out.push(join(dir, &format!(r"Microsoft\WinGet\Links\{name}.exe")));
+    }
+    if let Some(home) = env.user_profile.as_deref() {
+        out.push(join(home, &format!(r".bun\bin\{name}.exe")));
+        out.push(join(home, &format!(r"scoop\shims\{name}.exe")));
+    }
+    out
+}
+
+/// `C:\...` (either slash after the colon) or a UNC path. `C:rel` and `\rooted` are relative to
+/// something we cannot know, so they do not count.
+fn is_absolute(p: &str) -> bool {
+    let b = p.as_bytes();
+    if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/')
+    {
+        return true;
+    }
+    p.starts_with(r"\\")
+}
+
+fn join(dir: &str, tail: &str) -> String {
+    format!("{}\\{}", dir.trim_end_matches(['\\', '/']), tail)
 }
 
 /// The executable for `name`. A non-empty `configured` path wins when it ends in `.exe` or
@@ -42,16 +78,32 @@ pub fn find_agent(
     env: &Env,
     exists: &dyn Fn(&str) -> bool,
 ) -> Option<String> {
-    let _ = (name, configured, env, exists);
-    todo!("task 9 chunk A: find_agent")
+    if !configured.is_empty() {
+        let lower = configured.to_lowercase();
+        let ok_ext = lower.ends_with(".exe") || lower.ends_with(".cmd");
+        return (ok_ext && exists(configured)).then(|| configured.to_string());
+    }
+    candidates(name, env).into_iter().find(|p| exists(p))
 }
 
 /// SharedControls.swift:81-89. When the selected agent is gone the choice becomes Claude if it
 /// was found, else Codex if it was found, else Off. `Off`, or a selected agent that was found,
 /// stays as it is.
 pub fn fallback_provider(selected: Polishing, claude_found: bool, codex_found: bool) -> Polishing {
-    let _ = (selected, claude_found, codex_found);
-    todo!("task 9 chunk A: fallback_provider")
+    let found = match selected {
+        Polishing::Off => return Polishing::Off,
+        Polishing::Claude => claude_found,
+        Polishing::Codex => codex_found,
+    };
+    if found {
+        selected
+    } else if claude_found {
+        Polishing::Claude
+    } else if codex_found {
+        Polishing::Codex
+    } else {
+        Polishing::Off
+    }
 }
 
 #[cfg(test)]

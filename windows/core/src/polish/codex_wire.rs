@@ -1,7 +1,7 @@
 //! The Codex app-server wire format (CodexFormatter.swift:225-440): JSON-RPC 2.0 without the
 //! `jsonrpc` field, one JSON object per line. Pure; the process is driven by `shepit-agent`.
 
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 /// The same warm-up text as Claude (CodexFormatter.swift:229).
 pub const WARM_UP_MESSAGE: &str = super::claude_wire::WARM_UP_MESSAGE;
@@ -24,15 +24,28 @@ pub const CONFIG_OVERRIDES: [&str; 12] = [
 
 /// Root `-c` flags, then `app-server --listen stdio://` (CodexFormatter.swift:250-252).
 pub fn arguments() -> Vec<String> {
-    todo!("task 9 chunk A: codex arguments")
+    CONFIG_OVERRIDES
+        .iter()
+        .flat_map(|o| ["-c", o])
+        .chain(["app-server", "--listen", "stdio://"])
+        .map(String::from)
+        .collect()
 }
 
 /// The PATH for the child: the executable's own folder first, then the inherited PATH, joined
 /// with `;`. An npm install of Codex is a Node script and nvm keeps `node` beside it
 /// (CodexFormatter.swift:262-268). An executable path without a folder leaves PATH as it was.
 pub fn child_path(executable: &str, inherited: Option<&str>) -> String {
-    let _ = (executable, inherited);
-    todo!("task 9 chunk A: child_path")
+    let inherited = inherited.unwrap_or("");
+    let Some(cut) = executable.rfind(['\\', '/']) else {
+        return inherited.to_string();
+    };
+    let own = &executable[..cut];
+    if inherited.is_empty() {
+        own.to_string()
+    } else {
+        format!("{own};{inherited}")
+    }
 }
 
 /// Notifications the client opts out of: deltas repeat what `item/completed` delivers whole.
@@ -46,34 +59,61 @@ pub const SKIPPED_NOTIFICATIONS: [&str; 4] = [
 /// `initialize` params: `clientInfo` {name shepit, title Shepit, version} and
 /// `capabilities.optOutNotificationMethods`.
 pub fn initialize_params(version: &str) -> Value {
-    let _ = version;
-    todo!("task 9 chunk A: initialize_params")
+    json!({
+        "clientInfo": {"name": "shepit", "title": "Shepit", "version": version},
+        "capabilities": {"optOutNotificationMethods": SKIPPED_NOTIFICATIONS},
+    })
 }
 
 /// `thread/start` params: `cwd`, `baseInstructions` (the system prompt), `ephemeral` true and, only
 /// when `model` is not empty, `model`.
 pub fn thread_start_params(model: &str, system_prompt: &str, work_dir: &str) -> Value {
-    let _ = (model, system_prompt, work_dir);
-    todo!("task 9 chunk A: thread_start_params")
+    let mut params = json!({
+        "cwd": work_dir,
+        "baseInstructions": system_prompt,
+        "ephemeral": true,
+    });
+    if !model.is_empty() {
+        params["model"] = json!(model);
+    }
+    params
 }
 
 /// `turn/start` params: `threadId`, `input` with one text item, `outputSchema`, and `effort` only
 /// when given and not empty.
 pub fn turn_start_params(thread_id: &str, text: &str, effort: Option<&str>) -> Value {
-    let _ = (thread_id, text, effort);
-    todo!("task 9 chunk A: turn_start_params")
+    let mut params = json!({
+        "threadId": thread_id,
+        "input": [{"type": "text", "text": text}],
+        "outputSchema": reply_schema(),
+    });
+    if let Some(effort) = effort.filter(|e| !e.is_empty()) {
+        params["effort"] = json!(effort);
+    }
+    params
 }
 
 /// The reply shape the prompt asks for; strict structured output needs every key required and no
 /// extras (CodexFormatter.swift:291-301).
 pub fn reply_schema() -> Value {
-    todo!("task 9 chunk A: reply_schema")
+    json!({
+        "type": "object",
+        "properties": {
+            "text": {"type": "string"},
+            "language": {"type": "string", "enum": ["uk", "en", "mixed"]},
+            "new_terms": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["text", "language", "new_terms"],
+        "additionalProperties": false,
+    })
 }
 
 /// One message as a line: compact JSON, slashes unescaped, a single trailing `\n`.
 pub fn encode_line(message: &Value) -> String {
-    let _ = message;
-    todo!("task 9 chunk A: encode_line")
+    // serde_json writes compact output and leaves "/" alone.
+    let mut line = message.to_string();
+    line.push('\n');
+    line
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,24 +139,72 @@ pub enum Incoming {
 /// A message with `method` and a non-null `id` is a request, with `method` alone a notification;
 /// otherwise it is a response and needs an integer `id`.
 pub fn classify(message: &Value) -> Option<Incoming> {
-    let _ = message;
-    todo!("task 9 chunk A: classify")
+    let params = message
+        .get("params")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    if let Some(method) = message.get("method").and_then(Value::as_str) {
+        let method = method.to_string();
+        return Some(match message.get("id") {
+            Some(id) if !id.is_null() => Incoming::Request {
+                id: id.clone(),
+                method,
+                params,
+            },
+            _ => Incoming::Notification { method, params },
+        });
+    }
+    let id = message.get("id")?.as_i64()?;
+    if let Some(error) = message.get("error").and_then(Value::as_object) {
+        let text = error
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown error");
+        let text = match error.get("code").and_then(Value::as_i64) {
+            Some(code) => format!("{text} ({code})"),
+            None => text.to_string(),
+        };
+        return Some(Incoming::Response {
+            id,
+            result: Map::new(),
+            error: Some(text),
+        });
+    }
+    Some(Incoming::Response {
+        id,
+        result: message
+            .get("result")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default(),
+        error: None,
+    })
 }
 
 pub fn thread_id_from_start_result(result: &Map<String, Value>) -> Option<String> {
-    let _ = result;
-    todo!("task 9 chunk A: thread id")
+    nested_id(result, "thread")
 }
 
 pub fn turn_id_from_start_result(result: &Map<String, Value>) -> Option<String> {
-    let _ = result;
-    todo!("task 9 chunk A: turn id")
+    nested_id(result, "turn")
+}
+
+fn nested_id(map: &Map<String, Value>, key: &str) -> Option<String> {
+    map.get(key)?.get("id")?.as_str().map(String::from)
 }
 
 /// Approvals are declined; anything else gets a JSON-RPC error `-32601`.
 pub fn reply_to_request(method: &str, id: &Value) -> Value {
-    let _ = (method, id);
-    todo!("task 9 chunk A: reply_to_request")
+    match method {
+        "item/commandExecution/requestApproval" | "item/fileChange/requestApproval" => {
+            json!({"id": id, "result": {"decision": "decline"}})
+        }
+        _ => json!({
+            "id": id,
+            "error": {"code": -32601, "message": format!("Shepit does not handle {method}")},
+        }),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,19 +219,103 @@ pub struct TurnCollector {
     /// Known once `turn/start` answers or `turn/started` arrives; notifications of other turns
     /// are ignored from then on.
     pub turn_id: Option<String>,
+    /// `(text, phase)` of each agent message, in arrival order.
+    messages: Vec<(String, Option<String>)>,
+    last_error: Option<String>,
 }
 
 impl TurnCollector {
     pub fn new(turn_id: Option<&str>) -> Self {
         Self {
             turn_id: turn_id.map(str::to_string),
+            messages: Vec::new(),
+            last_error: None,
         }
     }
 
     /// The outcome once the turn has completed; `None` while it runs.
     pub fn consume(&mut self, method: &str, params: &Map<String, Value>) -> Option<Outcome> {
-        let _ = (method, params);
-        todo!("task 9 chunk A: TurnCollector::consume")
+        if let (Some(mine), Some(other)) = (&self.turn_id, turn_id_in(params)) {
+            if mine != other {
+                return None;
+            }
+        }
+        match method {
+            "turn/started" => {
+                if self.turn_id.is_none() {
+                    self.turn_id = turn_id_in(params).map(String::from);
+                }
+            }
+            "item/completed" => {
+                let item = params.get("item")?.as_object()?;
+                if item.get("type")?.as_str()? != "agentMessage" {
+                    return None;
+                }
+                let text = item.get("text")?.as_str()?.to_string();
+                let phase = item.get("phase").and_then(Value::as_str).map(String::from);
+                self.messages.push((text, phase));
+            }
+            "error" => {
+                // Codex retries transient errors itself; those do not end the turn.
+                if params.get("willRetry").and_then(Value::as_bool) == Some(true) {
+                    return None;
+                }
+                if let Some(error) = params.get("error").and_then(Value::as_object) {
+                    self.last_error = Some(describe(error));
+                }
+            }
+            "turn/completed" => {
+                let turn = params.get("turn").and_then(Value::as_object);
+                let status = turn
+                    .and_then(|t| t.get("status"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown");
+                if status == "completed" {
+                    return Some(match self.final_text() {
+                        Some(t) if !t.trim().is_empty() => Outcome::Reply(t.to_string()),
+                        _ => Outcome::Failed("turn completed without a reply".into()),
+                    });
+                }
+                if let Some(error) = turn.and_then(|t| t.get("error")).and_then(Value::as_object) {
+                    return Some(Outcome::Failed(describe(error)));
+                }
+                return Some(Outcome::Failed(
+                    self.last_error
+                        .clone()
+                        .unwrap_or_else(|| format!("turn {status}")),
+                ));
+            }
+            _ => {}
+        }
+        None
+    }
+
+    /// The answer rather than commentary the model wrote on the way.
+    fn final_text(&self) -> Option<&str> {
+        self.messages
+            .iter()
+            .rev()
+            .find(|(_, phase)| phase.as_deref() != Some("commentary"))
+            .or_else(|| self.messages.last())
+            .map(|(text, _)| text.as_str())
+    }
+}
+
+fn turn_id_in(params: &Map<String, Value>) -> Option<&str> {
+    if let Some(id) = params.get("turnId").and_then(Value::as_str) {
+        return Some(id);
+    }
+    params.get("turn")?.get("id")?.as_str()
+}
+
+fn describe(error: &Map<String, Value>) -> String {
+    let message = error
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown error");
+    match error.get("codexErrorInfo").and_then(Value::as_str) {
+        Some(info) => format!("{message} ({info})"),
+        None => message.to_string(),
     }
 }
 

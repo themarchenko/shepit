@@ -18,7 +18,6 @@ pub const DEBOUNCE_SECS: f64 = 1.5;
 
 /// Counts failed starts and pauses starting after two in a row.
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)] // fields are read once the logic lands
 pub struct StartGate {
     failures: u32,
     paused_until: Option<f64>,
@@ -32,19 +31,24 @@ impl StartGate {
     /// `Ok` when a start may be tried at `now`. While paused: `Err(paused_until)`, so the format
     /// call fails at once and the dictation uses local text. The pause ends at `paused_until`.
     pub fn check(&self, now: f64) -> Result<(), f64> {
-        let _ = now;
-        todo!("task 9 chunk A: StartGate::check")
+        match self.paused_until {
+            Some(until) if now < until => Err(until),
+            _ => Ok(()),
+        }
     }
 
     /// A start or warm-up failed at `now`. The second failure in a row starts the pause.
     pub fn on_start_failed(&mut self, now: f64) {
-        let _ = now;
-        todo!("task 9 chunk A: StartGate::on_start_failed")
+        self.failures += 1;
+        if self.failures >= FAILURES_BEFORE_PAUSE {
+            self.paused_until = Some(now + PAUSE_SECS);
+        }
     }
 
     /// A start succeeded: the count and the pause reset.
     pub fn on_start_ok(&mut self) {
-        todo!("task 9 chunk A: StartGate::on_start_ok")
+        self.failures = 0;
+        self.paused_until = None;
     }
 }
 
@@ -66,13 +70,17 @@ pub enum Rotation {
 
 /// What to do after a turn, given the turns the active conversation has had.
 pub fn rotation(active_turns: u32, standby: Standby) -> Rotation {
-    let _ = (active_turns, standby);
-    todo!("task 9 chunk A: rotation")
+    if active_turns >= MAX_TURNS && standby == Standby::Ready {
+        Rotation::Promote
+    } else if active_turns >= STANDBY_AFTER_TURNS && standby == Standby::Absent {
+        Rotation::StartStandby
+    } else {
+        Rotation::Nothing
+    }
 }
 
 /// Fires once, `delay` seconds after the last `touch`.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // fields are read once the logic lands
 pub struct Debounce {
     delay: f64,
     last_touch: Option<f64>,
@@ -87,18 +95,22 @@ impl Debounce {
     }
 
     pub fn touch(&mut self, now: f64) {
-        let _ = now;
-        todo!("task 9 chunk A: Debounce::touch")
+        self.last_touch = Some(now);
     }
 
     /// True once when `delay` has passed since the last touch; false again until the next touch.
     pub fn due(&mut self, now: f64) -> bool {
-        let _ = now;
-        todo!("task 9 chunk A: Debounce::due")
+        match self.last_touch {
+            Some(t) if now - t >= self.delay => {
+                self.last_touch = None;
+                true
+            }
+            _ => false,
+        }
     }
 
     pub fn pending(&self) -> bool {
-        todo!("task 9 chunk A: Debounce::pending")
+        self.last_touch.is_some()
     }
 }
 

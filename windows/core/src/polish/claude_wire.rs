@@ -19,15 +19,43 @@ pub const SCRUBBED_ENV: [&str; 3] = [
 /// The argv of one worker (ClaudeCodeWorker.swift:62-67). `effort` is `low`. Holds only constants,
 /// the model id and two paths the app owns: no user text.
 pub fn args(model: &str, effort: &str, system_prompt_file: &str, debug_file: &str) -> Vec<String> {
-    let _ = (model, effort, system_prompt_file, debug_file);
-    todo!("task 9 chunk A: claude args")
+    [
+        "-p",
+        "--input-format",
+        "stream-json",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--model",
+        model,
+        "--effort",
+        effort,
+        "--tools",
+        "",
+        "--setting-sources",
+        "",
+        "--strict-mcp-config",
+        "--no-session-persistence",
+        "--system-prompt-file",
+        system_prompt_file,
+        "--debug-file",
+        debug_file,
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
 }
 
 /// One user turn as a line of stdin: a JSON object `{"type":"user","message":{"role":"user",
 /// "content":<content>}}` and a single trailing `\n`.
 pub fn user_line(content: &str) -> String {
-    let _ = content;
-    todo!("task 9 chunk A: claude user_line")
+    let mut line = serde_json::json!({
+        "type": "user",
+        "message": {"role": "user", "content": content},
+    })
+    .to_string();
+    line.push('\n');
+    line
 }
 
 /// A `result` event (ClaudeCodeWorker.swift:104-112, 180-186).
@@ -43,15 +71,49 @@ pub struct ClaudeResult {
 /// `Some` for an event with `type` `result`; `None` for any other event. A missing `result`
 /// reads as empty text and a missing `is_error` as false.
 pub fn decode_result(event: &Value) -> Option<ClaudeResult> {
-    let _ = event;
-    todo!("task 9 chunk A: decode_result")
+    if event.get("type")?.as_str()? != "result" {
+        return None;
+    }
+    let usage = event
+        .get("usage")
+        .and_then(Value::as_object)
+        .map(|m| {
+            m.iter()
+                .filter_map(|(k, v)| v.as_i64().map(|n| (k.clone(), n)))
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(ClaudeResult {
+        text: event
+            .get("result")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        is_error: event
+            .get("is_error")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        subtype: event
+            .get("subtype")
+            .and_then(Value::as_str)
+            .map(String::from),
+        usage,
+    })
 }
 
 impl ClaudeResult {
     /// The reply text, or `PolishError::Api` for an error result: the text when it is not empty,
     /// else the subtype, else `unknown`.
     pub fn into_text(self) -> Result<String, PolishError> {
-        todo!("task 9 chunk A: ClaudeResult::into_text")
+        if !self.is_error {
+            return Ok(self.text);
+        }
+        let msg = if !self.text.is_empty() {
+            self.text
+        } else {
+            self.subtype.unwrap_or_else(|| "unknown".to_string())
+        };
+        Err(PolishError::Api(msg))
     }
 }
 
@@ -59,7 +121,6 @@ impl ClaudeResult {
 /// line that is empty or not a JSON object is skipped (ClaudeCodeWorker.swift:101-107). Bytes are
 /// buffered, so a chunk may end inside a line or inside a multi-byte character.
 #[derive(Debug, Default)]
-#[allow(dead_code)] // fields are read once the logic lands
 pub struct LineBuffer {
     pending: Vec<u8>,
 }
@@ -71,14 +132,27 @@ impl LineBuffer {
 
     /// Adds a chunk and returns the objects of every line it completed.
     pub fn push(&mut self, bytes: &[u8]) -> Vec<Value> {
-        let _ = bytes;
-        todo!("task 9 chunk A: LineBuffer::push")
+        self.pending.extend_from_slice(bytes);
+        let mut out = Vec::new();
+        while let Some(nl) = self.pending.iter().position(|&b| b == b'\n') {
+            let line: Vec<u8> = self.pending.drain(..=nl).collect();
+            out.extend(parse_object(&line[..nl]));
+        }
+        out
     }
 
     /// The stream ended: a last line without `\n` still counts.
     pub fn finish(&mut self) -> Vec<Value> {
-        todo!("task 9 chunk A: LineBuffer::finish")
+        let rest = std::mem::take(&mut self.pending);
+        parse_object(&rest).into_iter().collect()
     }
+}
+
+fn parse_object(line: &[u8]) -> Option<Value> {
+    let line = line.strip_suffix(b"\r").unwrap_or(line);
+    serde_json::from_slice::<Value>(line)
+        .ok()
+        .filter(Value::is_object)
 }
 
 #[cfg(test)]
