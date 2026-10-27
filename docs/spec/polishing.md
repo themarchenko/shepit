@@ -60,7 +60,7 @@ Context keys, in the JSON object:
 | `text_before_caret` | known and not empty | last 500 characters |
 | `selected_text` | known and not empty | first 2000 characters |
 
-The dictionary part takes at most the first 120 entries. At most 5 examples; the code never passes any (Pipeline/DictationSession.swift:195-196, README, Gaps).
+The dictionary part takes at most the last 120 entries (the newest). At most 5 examples; the code never passes any (Pipeline/DictationSession.swift:195-196, README, Gaps).
 
 The target context fields are bundle id, app name, window title, URL, text before the caret, selected text, editable focus and secure input (Context/TargetContext.swift:4-12).
 

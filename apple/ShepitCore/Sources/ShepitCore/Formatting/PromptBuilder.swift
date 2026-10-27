@@ -67,8 +67,10 @@ public enum PromptBuilder {
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
 
         var m = "Context:\n\(ctxJSON)\n"
+        // Newest entries, the same direction as the recognizer: learned terms are appended, so a long
+        // dictionary would otherwise never show its recent ones to the agent.
         if !r.dictionary.isEmpty {
-            m += "\nDictionary (preferred spellings): " + r.dictionary.prefix(120).joined(separator: ", ") + "\n"
+            m += "\nDictionary (preferred spellings): " + r.dictionary.suffix(120).joined(separator: ", ") + "\n"
         }
         if !r.examples.isEmpty {
             m += "\nRecent accepted examples for this profile:\n"
