@@ -37,3 +37,4 @@ Notes:
 - The legacy `widgetPositions` key is removed on launch (:150, 180). Platform-specific.
 - Settings changes take effect without a restart: hotkey, engine preload, agent replacement, live preview and fast-path limit (macOS/Shepit/App/AppDelegate.swift:159-215, see polishing.md).
 - Speaker notes go into the system prompt (polishing.md).
+- Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are kept in `settings.json` under `%APPDATA%\com.themarchenko.shepit`, with the same key names. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.

@@ -48,7 +48,7 @@ Source: UpdateInstaller.swift:44-106. Swift-only.
 - The download is HTTPS from GitHub (the asset URL from the release feed) into a fresh temp directory named with a UUID, removed afterwards (:47-52); the asset URL is the release's `browser_download_url` on GitHub, and the feed parser rejects a non-https scheme.
 - The quarantine flag is removed on the staged copy only (:63). The signature and identity check follows (:65) and nothing from the download is executed in between: it is only mounted read-only and copied.
 - There is no size or checksum check. `expectedSize` only drives progress (:52).
-- Platform-specific, Windows: the updater must verify the update's signature against a key pinned in the installed app before it installs anything, and refuse with no fallback when the check fails.
+- Platform-specific, Windows: the updater verifies the update's minisign signature against a key pinned in the installed app before it runs the installer, and refuses with no fallback when the check fails (see Trust boundary, Windows).
 
 ## install.sh (macOS)
 
@@ -56,3 +56,45 @@ Source: install.sh:12-80.
 
 - Needs macOS 26 or later (:19-22). Downloads `Shepit.dmg` from the latest release; `SHEPIT_URL` replaces the URL, `SHEPIT_DIR` replaces `/Applications` (:15-16).
 - Verifies the code signature, quits only the copy being replaced, installs (with sudo if needed), strips the quarantine flag, opens the app (:32-57, 62-68).
+
+## Release feed (Windows)
+
+Sources: `.github/workflows/release.yml`, `windows/release-check`, `windows/app/src-tauri/tauri.conf.json`. Rust tests, no shared fixture.
+
+- One version per tag for both platforms. `version` in `windows/app/src-tauri/Cargo.toml` must equal `CFBundleShortVersionString` in `apple/macOS/project.yml`; `ci.yml` fails a pull request where they differ, and the release workflow fails a tag that does not match both.
+- A release carries four assets: `Shepit.dmg` (macOS, unchanged), `Shepit-setup.exe`, `Shepit-setup.exe.sha256` (`<hex>  Shepit-setup.exe`) and `latest.json`. macOS code ignores the three Windows assets.
+- The app reads `https://github.com/themarchenko/shepit/releases/latest/download/latest.json`. Only https endpoints are accepted. Drafts and pre-releases never serve it.
+- `latest.json` has `version` (the tag without "v"), `notes`, `pub_date` and exactly one platform, `windows-x86_64`, with `signature` and `url`. The url is versioned (`releases/download/<tag>/Shepit-setup.exe`), so the feed and the installer always match.
+- The macOS job creates the release; a separate job adds the Windows files afterwards, `latest.json` last. For about a minute after the macOS publish, or until a re-run if the Windows build failed, the latest release has no Windows feed. The background check fails silently and retries at the next hourly look (Check schedule above).
+- A published Windows build is never replaced: a re-run that finds `latest.json` on the release changes nothing.
+- A newer version is decided by the version order above (`isNewer`, fixture `app-version.json`), not by the updater plugin's own comparison.
+
+## Installing an update (Windows)
+
+Sources: `windows/app/src-tauri/tauri.conf.json`, `tauri-plugin-updater` 2.14.0. Needs device checks.
+
+- The app checks on the schedule above, offers the update in a card, supports skip, and has Check for Updates and the daily-check switch in the tray menu.
+- Installing downloads `Shepit-setup.exe`, verifies the signature, runs the installer in passive mode (progress window, no questions, per-user, no administrator rights) and relaunches the app.
+- Models under the install folder (`%LOCALAPPDATA%\Shepit\models`) must survive an update.
+- Windows does not compare the version inside the installer with the feed. The release workflow guarantees they match: `release-check verify` fails the build otherwise.
+
+## Trust boundary (Windows)
+
+Sources: `windows/release-check/src/lib.rs`, `tauri.conf.json`, `tauri.release.conf.json`.
+
+- Every update must carry a minisign signature that verifies against the public key in `plugins.updater.pubkey` of the installed app. There is no fallback and no override; the plugin refuses before it runs anything, and no `dangerous*` key is set.
+- `requireSignedVersion` is on: the signed comment must carry a version equal to the version the feed announces. A tampered feed cannot offer an older signed installer as an update.
+- The same key is pinned a second time as `PINNED_UPDATER_PUBKEY` in `windows/release-check`. A unit test requires the two to be equal. The release workflow verifies the built installer against the constant, before anything is uploaded.
+- The private key and its password live only in the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and in a local folder of the maintainer. The key is never replaced: installed copies would stop updating, as with the macOS certificate.
+- The installer itself is not code-signed (no Authenticode certificate). The signature check above is the update boundary; the first install is covered below.
+- Signing happens only in the release workflow, through `tauri.release.conf.json`. Pull request builds have no secrets and build an unsigned installer.
+
+## install.ps1 (Windows)
+
+Source: `install.ps1`, run by `windows.yml` against the CI build. Needs device checks.
+
+- Needs 64-bit Windows 10 or later. Sets TLS 1.2. `SHEPIT_URL` replaces the installer URL and may be a local path.
+- The checksum is always read from `<installer url>.sha256` and always compared; a mismatch stops with "damaged, try again". There is no way to skip it.
+- Runs `Unblock-File` on the download, stops only `shepit-app` processes whose path is under `%LOCALAPPDATA%\Shepit`, runs the installer with `/S` and waits, fails on a nonzero exit code, then starts the app.
+- Installs for the current user only. No administrator rights, no UAC prompt.
+- The installer is not code-signed, so a browser download shows SmartScreen ("Windows protected your PC"; More info, Run anyway). A file downloaded by PowerShell carries no Mark of the Web, so install.ps1 does not trigger it. The README says so. Not yet verified on a device.
