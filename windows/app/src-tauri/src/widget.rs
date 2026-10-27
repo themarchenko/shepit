@@ -1,16 +1,8 @@
 use serde::Serialize;
 use shepit_core::dictation::{Phase, Stage, View};
-
-/// Logical window size for a view: the shape plus the shadow margin of 28 x 26 on each side, and
-/// for a failed view the 440 px caption row (WidgetModel.swift:84, 87-102, 132-147).
-pub fn window_size(view: &View) -> (f64, f64) {
-    match (view.phase, view.hands_free) {
-        (Phase::Idle, _) => (96.0, 60.0),
-        (Phase::Listening, false) => (188.0, 84.0),
-        (Phase::Listening, true) => (222.0, 84.0),
-        (Phase::Processing | Phase::Done | Phase::Failed, _) => (520.0, 126.0),
-    }
-}
+use shepit_core::widget::{
+    frame_for, layout_for, monitor_for, LayoutInput, Monitor, Point, Rect, Size, Style,
+};
 
 /// The view a fresh controller starts in; used to reset the widget after a controller restart.
 pub fn idle_view() -> View {
@@ -21,17 +13,52 @@ pub fn idle_view() -> View {
         levels: vec![0.0; 32],
         stage: None,
         progress: None,
+        target: None,
     }
 }
 
-/// Whether the window must be resized and re-seated. Level-only updates arrive about 30 times a
-/// second and must only emit the event.
-pub fn needs_resize(old: &View, new: &View) -> bool {
-    old.phase != new.phase || old.hands_free != new.hands_free
+/// What the payload needs besides the view: the settings and the pointer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Presentation {
+    pub style: Style,
+    pub glass_opacity: f64,
+    pub fade_when_idle: bool,
+    pub hovering: bool,
 }
 
-/// The `widget-state` event payload: {"phase","handsFree","message","levels","stage","progress"}.
-/// `stage` and `progress` are always present and null when they do not apply.
+impl Default for Presentation {
+    fn default() -> Self {
+        Self {
+            style: Style::FlowPill,
+            glass_opacity: 0.7,
+            fade_when_idle: true,
+            hovering: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LiveJson {
+    pub stable: String,
+    pub unstable: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ShapeJson {
+    pub width: f64,
+    pub height: f64,
+    pub radius: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WindowJson {
+    pub width: f64,
+    pub height: f64,
+}
+
+/// The `widget-state` event payload: {"phase","handsFree","message","levels","stage","progress",
+/// "style","glassOpacity","fadeWhenIdle","keyLabel","hovering","target","live","shape","caption",
+/// "window"}. `stage`, `progress` and `target` are always present and null when they do not apply.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WidgetState {
@@ -41,10 +68,21 @@ pub struct WidgetState {
     pub levels: Vec<f32>,
     pub stage: Option<&'static str>,
     pub progress: Option<f32>,
+    pub style: String,
+    pub glass_opacity: f64,
+    pub fade_when_idle: bool,
+    pub key_label: String,
+    pub hovering: bool,
+    pub target: Option<String>,
+    pub live: LiveJson,
+    pub shape: ShapeJson,
+    pub caption: bool,
+    pub window: WindowJson,
 }
 
 impl WidgetState {
-    pub fn from_view(view: &View) -> Self {
+    /// Fills the layout numbers from the core table, so the frontend never keeps its own copy.
+    pub fn new(view: &View, presentation: &Presentation) -> Self {
         let phase = match view.phase {
             Phase::Idle => "idle",
             Phase::Listening => "listening",
@@ -52,6 +90,7 @@ impl WidgetState {
             Phase::Done => "done",
             Phase::Failed => "failed",
         };
+        let layout = layout_for(&layout_input(view, presentation));
         Self {
             phase: phase.to_string(),
             hands_free: view.hands_free,
@@ -63,38 +102,67 @@ impl WidgetState {
                 Stage::Inserting => "inserting",
             }),
             progress: view.progress,
+            style: presentation.style.id().to_string(),
+            glass_opacity: presentation.glass_opacity,
+            fade_when_idle: presentation.fade_when_idle,
+            key_label: KEY_LABEL.to_string(),
+            hovering: presentation.hovering,
+            target: view.target.clone(),
+            // Stays empty until the live preview exists (task 12).
+            live: LiveJson {
+                stable: String::new(),
+                unstable: String::new(),
+            },
+            shape: ShapeJson {
+                width: layout.shape.width,
+                height: layout.shape.height,
+                radius: layout.shape.radius,
+            },
+            caption: layout.caption,
+            window: WindowJson {
+                width: layout.window.width,
+                height: layout.window.height,
+            },
         }
     }
 }
 
-/// Distance from the work area bottom to the idle pill's bottom edge, in logical points.
-/// macOS: the anchor sits 4 pt above `visibleFrame.minY`, but `frame(for:)` clamps the panel
-/// to `margin` (8 pt), so the panel bottom is 8 pt up; the pill is a further 26 pt up because
-/// of the shadow margin (WidgetController.swift:27, 196-213; WidgetModel.swift:84).
-const PILL_BOTTOM_ABOVE_WORK_AREA: f64 = 34.0;
-/// Shadow margin below the pill inside the window, in logical points.
-const SHADOW_MARGIN_BELOW: f64 = 26.0;
-/// Minimum distance between the window and the work area edges (WidgetController.swift:27).
-const EDGE_MARGIN: f64 = 8.0;
+/// The hotkey's name as the widget shows it. Fixed until the hotkey can be chosen.
+const KEY_LABEL: &str = "Right Ctrl";
 
-/// Top-left position for the widget window: centred horizontally, the idle pill's bottom edge
-/// 34 logical points above the work area bottom, then clamped inside the work area like the
-/// macOS panel. `work_area` is (x, y, width, height) and `window` is (width, height), both in
-/// physical pixels; y grows downward.
-pub fn default_position(
-    work_area: (i32, i32, i32, i32),
-    window: (i32, i32),
-    scale: f64,
-) -> (i32, i32) {
-    let (wx, wy, w, h) = work_area;
-    let margin = (EDGE_MARGIN * scale).round() as i32;
-    let bottom_gap = ((PILL_BOTTOM_ABOVE_WORK_AREA - SHADOW_MARGIN_BELOW) * scale).round() as i32;
-    let x = wx + w / 2 - window.0 / 2;
-    let y = wy + h - bottom_gap - window.1;
+fn layout_input(view: &View, presentation: &Presentation) -> LayoutInput {
+    LayoutInput {
+        style: presentation.style,
+        phase: view.phase,
+        hands_free: view.hands_free,
+        hovering: presentation.hovering,
+        has_live: false,
+    }
+}
+
+/// The window size (logical) the view needs.
+pub fn window_for(view: &View, presentation: &Presentation) -> Size {
+    layout_for(&layout_input(view, presentation)).window
+}
+
+/// Logical size to physical pixels at `scale`.
+pub fn physical_size(size: Size, scale: f64) -> (i32, i32) {
     (
-        x.min(wx + w - window.0 - margin).max(wx + margin),
-        y.min(wy + h - window.1 - margin).max(wy + margin),
+        (size.width * scale).round() as i32,
+        (size.height * scale).round() as i32,
     )
+}
+
+/// The window frame for `size` around `anchor`, on the monitor that holds the anchor (the primary
+/// when none does). `None` without monitors. `monitors[0]` is the primary.
+pub fn placement(anchor: Point, size: Size, monitors: &[Monitor]) -> Option<Rect> {
+    let monitor = monitors.get(monitor_for(anchor, monitors).unwrap_or(0))?;
+    Some(frame_for(
+        anchor,
+        physical_size(size, monitor.scale),
+        monitor.work,
+        monitor.scale,
+    ))
 }
 
 #[cfg(test)]
@@ -110,6 +178,7 @@ mod tests {
             levels: vec![0.0; 32],
             stage: None,
             progress: None,
+            target: None,
         }
     }
 
@@ -124,111 +193,41 @@ mod tests {
         ]
     }
 
-    #[test]
-    fn resize_only_when_phase_or_hands_free_changes() {
-        let idle = view(Phase::Idle, false, "");
-        let listening = view(Phase::Listening, false, "");
-        let hands_free = view(Phase::Listening, true, "");
-        let mut louder = listening.clone();
-        louder.levels[31] = 0.9;
-        let mut other_text = view(Phase::Failed, false, "a");
-        assert!(needs_resize(&idle, &listening));
-        assert!(needs_resize(&listening, &hands_free));
-        assert!(!needs_resize(&listening, &louder));
-        assert!(!needs_resize(&idle, &idle));
-        let failed_b = view(Phase::Failed, false, "b");
-        assert!(!needs_resize(&other_text, &failed_b));
-        other_text.phase = Phase::Idle;
-        assert!(needs_resize(&other_text, &failed_b));
+    fn state(v: &View) -> WidgetState {
+        WidgetState::new(v, &Presentation::default())
     }
 
-    #[test]
-    fn idle_window_is_96_by_60() {
-        assert_eq!(window_size(&view(Phase::Idle, false, "")), (96.0, 60.0));
-    }
-
-    #[test]
-    fn push_to_talk_window_is_188_by_84() {
-        assert_eq!(
-            window_size(&view(Phase::Listening, false, "")),
-            (188.0, 84.0)
-        );
-    }
-
-    #[test]
-    fn hands_free_window_is_222_by_84() {
-        assert_eq!(
-            window_size(&view(Phase::Listening, true, "")),
-            (222.0, 84.0)
-        );
-    }
-
-    #[test]
-    fn failed_window_is_520_by_126() {
-        assert_eq!(
-            window_size(&view(Phase::Failed, false, "Microphone: access denied")),
-            (520.0, 126.0)
-        );
-    }
-
-    #[test]
-    fn processing_and_done_windows_are_520_by_126() {
-        assert_eq!(
-            window_size(&view(Phase::Processing, false, "")),
-            (520.0, 126.0)
-        );
-        assert_eq!(window_size(&view(Phase::Done, false, "hi")), (520.0, 126.0));
-    }
-
-    #[test]
-    fn a_stage_or_progress_change_alone_does_not_resize() {
-        let mut loading = view(Phase::Processing, false, "");
-        loading.stage = Some(Stage::Loading);
-        loading.progress = Some(0.3);
-        let mut transcribing = loading.clone();
-        transcribing.stage = Some(Stage::Transcribing);
-        transcribing.progress = None;
-        assert!(!needs_resize(&loading, &transcribing));
-    }
-
-    #[test]
-    fn pill_stays_34_above_work_area_for_every_phase_at_scale_1() {
-        for v in all_views() {
-            let (w, h) = window_size(&v);
-            let (_, y) = default_position((0, 0, 1920, 1040), (w as i32, h as i32), 1.0);
-            let pill_bottom = y + h as i32 - SHADOW_MARGIN_BELOW as i32;
-            assert_eq!(1040 - pill_bottom, 34, "{:?}", v.phase);
-        }
-    }
-
-    #[test]
-    fn pill_stays_34_logical_above_work_area_for_every_phase_at_scale_1_5() {
-        for v in all_views() {
-            let (w, h) = window_size(&v);
-            let (pw, ph) = ((w * 1.5).round() as i32, (h * 1.5).round() as i32);
-            let (_, y) = default_position((0, 0, 2560, 1400), (pw, ph), 1.5);
-            let pill_bottom = y + ph - (SHADOW_MARGIN_BELOW * 1.5) as i32;
-            assert_eq!(1400 - pill_bottom, 51, "{:?}", v.phase);
-        }
+    fn payload(v: &View, p: &Presentation) -> serde_json::Value {
+        serde_json::to_value(WidgetState::new(v, p)).unwrap()
     }
 
     #[test]
     fn widget_state_json_has_the_agreed_keys() {
         let mut v = view(Phase::Listening, true, "");
         v.levels[31] = 0.5;
-        let json = serde_json::to_value(WidgetState::from_view(&v)).unwrap();
+        let json = payload(&v, &Presentation::default());
         let obj = json.as_object().unwrap();
         let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
         keys.sort();
         assert_eq!(
             keys,
             [
+                "caption",
+                "fadeWhenIdle",
+                "glassOpacity",
                 "handsFree",
+                "hovering",
+                "keyLabel",
                 "levels",
+                "live",
                 "message",
                 "phase",
                 "progress",
-                "stage"
+                "shape",
+                "stage",
+                "style",
+                "target",
+                "window"
             ]
         );
         assert_eq!(obj["phase"], "listening");
@@ -239,6 +238,75 @@ mod tests {
         // Present as null so the frontend never sees a missing key.
         assert!(obj["progress"].is_null());
         assert!(obj["stage"].is_null());
+        assert!(obj["target"].is_null());
+    }
+
+    #[test]
+    fn the_payload_carries_the_presentation() {
+        let p = Presentation {
+            style: Style::Island,
+            glass_opacity: 0.55,
+            fade_when_idle: false,
+            hovering: true,
+        };
+        let json = payload(&view(Phase::Idle, false, ""), &p);
+        assert_eq!(json["style"], "island");
+        assert_eq!(json["glassOpacity"], 0.55);
+        assert_eq!(json["fadeWhenIdle"], false);
+        assert_eq!(json["hovering"], true);
+        assert_eq!(json["keyLabel"], "Right Ctrl");
+    }
+
+    #[test]
+    fn the_payload_carries_the_layout_numbers() {
+        // flowPill, hands-free: 166 x 32 capsule in a 222 x 84 window (WidgetModel.swift:87-92, 146).
+        let json = payload(&view(Phase::Listening, true, ""), &Presentation::default());
+        assert_eq!(json["shape"]["width"], 166.0);
+        assert_eq!(json["shape"]["height"], 32.0);
+        assert_eq!(json["shape"]["radius"], 16.0);
+        assert_eq!(json["caption"], false);
+        assert_eq!(json["window"]["width"], 222.0);
+        assert_eq!(json["window"]["height"], 84.0);
+    }
+
+    #[test]
+    fn a_failed_flow_pill_payload_has_the_caption_row_and_window() {
+        let json = payload(
+            &view(Phase::Failed, false, "Microphone: no microphone found"),
+            &Presentation::default(),
+        );
+        assert_eq!(json["caption"], true);
+        assert_eq!(json["window"]["width"], 520.0);
+        assert_eq!(json["window"]["height"], 126.0);
+    }
+
+    #[test]
+    fn a_hovered_idle_island_payload_is_252_by_30() {
+        let p = Presentation {
+            style: Style::Island,
+            hovering: true,
+            ..Presentation::default()
+        };
+        let json = payload(&view(Phase::Idle, false, ""), &p);
+        assert_eq!(json["shape"]["width"], 252.0);
+        assert_eq!(json["shape"]["height"], 30.0);
+        assert_eq!(json["shape"]["radius"], 15.0);
+        assert_eq!(json["window"]["width"], 308.0);
+        assert_eq!(json["window"]["height"], 82.0);
+    }
+
+    #[test]
+    fn the_target_app_name_reaches_the_payload() {
+        let mut v = view(Phase::Listening, false, "");
+        v.target = Some("Notepad".into());
+        assert_eq!(payload(&v, &Presentation::default())["target"], "Notepad");
+    }
+
+    #[test]
+    fn live_text_is_empty_until_task_12() {
+        let json = payload(&view(Phase::Listening, false, ""), &Presentation::default());
+        assert_eq!(json["live"]["stable"], "");
+        assert_eq!(json["live"]["unstable"], "");
     }
 
     #[test]
@@ -246,31 +314,27 @@ mod tests {
         let mut v = view(Phase::Processing, false, "");
         v.stage = Some(Stage::Loading);
         v.progress = Some(0.5);
-        let json = serde_json::to_value(WidgetState::from_view(&v)).unwrap();
+        let json = serde_json::to_value(state(&v)).unwrap();
         assert_eq!(json["phase"], "processing");
         assert_eq!(json["stage"], "loading");
         assert_eq!(json["progress"], 0.5);
         v.stage = Some(Stage::Transcribing);
         v.progress = None;
-        let json = serde_json::to_value(WidgetState::from_view(&v)).unwrap();
+        let json = serde_json::to_value(state(&v)).unwrap();
         assert_eq!(json["stage"], "transcribing");
         assert!(json["progress"].is_null());
     }
 
     #[test]
     fn done_payload_carries_the_preview() {
-        let json =
-            serde_json::to_value(WidgetState::from_view(&view(Phase::Done, false, "hi"))).unwrap();
+        let json = serde_json::to_value(state(&view(Phase::Done, false, "hi"))).unwrap();
         assert_eq!(json["phase"], "done");
         assert_eq!(json["message"], "hi");
     }
 
     #[test]
     fn widget_state_phase_names_are_lowercase() {
-        let phases: Vec<String> = all_views()
-            .iter()
-            .map(|v| WidgetState::from_view(v).phase)
-            .collect();
+        let phases: Vec<String> = all_views().iter().map(|v| state(v).phase).collect();
         assert_eq!(
             phases,
             [
@@ -285,42 +349,55 @@ mod tests {
     }
 
     #[test]
-    fn centres_on_primary_1080p() {
-        // 96 x 60 window: bottom 8 above the work area, so the pill sits 34 above.
-        assert_eq!(
-            default_position((0, 0, 1920, 1040), (96, 60), 1.0),
-            (912, 972)
-        );
-    }
-
-    #[test]
-    fn pill_bottom_is_34_logical_above_work_area_at_150_percent() {
-        let (_, y) = default_position((0, 0, 2560, 1400), (144, 90), 1.5);
-        let pill_bottom = y + 90 - (SHADOW_MARGIN_BELOW * 1.5) as i32;
-        assert_eq!(1400 - pill_bottom, 51);
-    }
-
-    #[test]
-    fn work_area_with_negative_origin() {
-        assert_eq!(
-            default_position((-1280, 0, 1280, 984), (96, 60), 1.0),
-            (-688, 916)
-        );
-    }
-
-    #[test]
-    fn window_is_clamped_inside_the_work_area() {
-        // Work area smaller than window plus margins: the 8 pt margin wins on the low side.
-        assert_eq!(
-            default_position((100, 50, 60, 70), (96, 60), 1.0),
-            (108, 58)
-        );
-    }
-
-    #[test]
     fn the_inserting_stage_reaches_the_payload() {
         let mut v = view(Phase::Processing, false, "");
         v.stage = Some(Stage::Inserting);
-        assert_eq!(WidgetState::from_view(&v).stage, Some("inserting"));
+        assert_eq!(state(&v).stage, Some("inserting"));
+    }
+
+    fn monitors() -> Vec<Monitor> {
+        vec![
+            Monitor {
+                work: Rect {
+                    x: 0,
+                    y: 0,
+                    width: 1920,
+                    height: 1040,
+                },
+                scale: 1.0,
+            },
+            Monitor {
+                work: Rect {
+                    x: 1920,
+                    y: 0,
+                    width: 2560,
+                    height: 1400,
+                },
+                scale: 1.5,
+            },
+        ]
+    }
+
+    #[test]
+    fn placement_scales_the_window_by_the_monitor_that_holds_the_anchor() {
+        let size = Size {
+            width: 96.0,
+            height: 60.0,
+        };
+        let first = placement(Point { x: 960, y: 1032 }, size, &monitors()).unwrap();
+        assert_eq!((first.width, first.height), (96, 60));
+        let second = placement(Point { x: 3200, y: 1392 }, size, &monitors()).unwrap();
+        assert_eq!((second.width, second.height), (144, 90));
+    }
+
+    #[test]
+    fn placement_falls_back_to_the_primary_and_needs_a_monitor() {
+        let size = Size {
+            width: 96.0,
+            height: 60.0,
+        };
+        let far = placement(Point { x: -5000, y: 10 }, size, &monitors()).unwrap();
+        assert_eq!((far.x, far.y), (8, 8));
+        assert_eq!(placement(Point { x: 0, y: 0 }, size, &[]), None);
     }
 }
