@@ -8,10 +8,13 @@
 #
 # Denied:
 #   - `git add .` / `-A` / `--all` (stage exact paths only)
-#   - commit or push while on main/master; push to a main/master ref
+#   - commit or push while on main/master (a push of one vX.Y.Z tag is allowed); push to a
+#     main/master ref
 #   - force push
 #   - deleting or moving tags: `git tag -d/-f`, `git push --delete` of a v* tag or refs/tags
 #   - `rm -rf` outside the project and temp dirs, --dangerously-skip-permissions
+#   - `gh secret set|delete|remove`: release secrets are set once, by a person or a script
+#     the user approved
 #   - `security list-keychains -s`, `delete-keychain`, `add-trusted-cert`, unless the
 #     command runs a script under scripts/agent/ or .github/ (an earlier mistake
 #     rewrote the maintainer's keychain search list)
@@ -122,6 +125,17 @@ if has 'rm[[:space:]]+(-[A-Za-z]*[rR][A-Za-z]*[fF]|-[A-Za-z]*[fF][A-Za-z]*[rR]|-
   done < <(printf '%s\n' "$command" | sed -E 's/(&&|\|\||;|\|)/\n/g')
 fi
 
+# --- repo secrets ------------------------------------------------------------
+# Replacing a signing secret would publish releases that installed copies refuse. Flags may sit
+# between `gh` and `secret` (`gh -R owner/repo secret set`), and `gh api` reaches the same endpoint.
+if has '(^|[[:space:];&|(])gh[[:space:]]+([^;&|]*[[:space:]])?secret[[:space:]]+(set|delete|remove)([[:space:]]|$)' \
+  || has '(^|[[:space:];&|(])gh[[:space:]]+api[^;&|]*actions/secrets'; then
+  deny "changing repo secrets is forbidden for agents; the signing secrets are never replaced."
+fi
+if has 'scripts/release/new-updater-key\.sh'; then
+  deny "the updater key is created once, by a person; agents never run that script."
+fi
+
 # --- permission bypass ------------------------------------------------------
 if has 'dangerously-skip-permissions'; then
   deny "'--dangerously-skip-permissions' is forbidden."
@@ -152,6 +166,12 @@ if git_subcmd commit || git_subcmd push; then
     target="${BASH_REMATCH[2]}"
   fi
   branch="$(git -C "$target" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
+  # Pushing exactly one release tag and nothing else is allowed from any branch, main included:
+  # releases are tagged on main. The delete and force checks above have already run.
+  tag_only_push='^[[:space:]]*git([[:space:]]+-C[[:space:]]+[A-Za-z0-9_./-]+)?[[:space:]]+push[[:space:]]+origin[[:space:]]+(refs/tags/)?v[0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$'
+  if [[ "$command" =~ $tag_only_push ]]; then
+    exit 0
+  fi
   if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
     deny "commit/push on the '$branch' branch is forbidden; work on a feature branch or worktree."
   fi
