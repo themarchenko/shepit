@@ -195,9 +195,64 @@ fn a_cancel_drops_the_process() {
     w.shutdown();
 }
 
+/// Polishes with a cancel flag that flips after 300 ms; returns the result and how long it took.
+fn polish_cancelled_after_300ms(w: &mut ClaudeWorker) -> (Result<String, PolishError>, Duration) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    let flag = Arc::new(AtomicBool::new(false));
+    let setter = {
+        let flag = flag.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            flag.store(true, Ordering::SeqCst);
+        })
+    };
+    let t0 = Instant::now();
+    let r = w.polish(&message("after the respawn"), &|| {
+        flag.load(Ordering::SeqCst)
+    });
+    setter.join().unwrap();
+    (r, t0.elapsed())
+}
+
+#[test]
+fn a_cancel_during_the_respawn_warm_up_returns_fast_and_does_not_pause() {
+    let sb = Sandbox::new();
+    // The first start answers; every later warm-up hangs. warm_up is 10 s, so only the cancel can
+    // end the wait.
+    let mut w = ClaudeWorker::new(sb.claude(&[("SHEPIT_FAKE_HANG_WARM_FROM", "2")]));
+    say(&mut w, "one");
+    assert!(matches!(ask(&mut w, "exit"), Err(PolishError::Exited(_))));
+    // Three cancelled respawns: FAILURES_BEFORE_PAUSE of them would pause the worker if they counted.
+    for _ in 0..3 {
+        let (r, took) = polish_cancelled_after_300ms(&mut w);
+        assert_eq!(r, Err(PolishError::Cancelled));
+        assert!(took < Duration::from_secs(2), "{took:?}");
+    }
+    w.shutdown();
+}
+
 #[test]
 fn the_source_is_claude() {
     let sb = Sandbox::new();
     let w = ClaudeWorker::new(sb.claude(&[]));
     assert_eq!(w.source(), shepit_core::polish::route::Source::Claude);
+}
+
+#[test]
+fn a_dead_standby_is_not_promoted_at_the_turn_limit() {
+    let sb = Sandbox::new();
+    // Every start after the first exits right after its warm-up, so the standby is ready and dead.
+    let mut cfg = sb.claude(&[("SHEPIT_FAKE_EXIT_AFTER_WARM_FROM", "2")]);
+    cfg.timings.standby_after_turns = 2;
+    cfg.timings.max_turns = 3;
+    let mut w = ClaudeWorker::new(cfg);
+    let a = tag_of(&say(&mut w, "a")); // turn 2: the standby starts
+    assert!(wait_until(Duration::from_secs(10), || sb.starts() == 2));
+    std::thread::sleep(Duration::from_millis(700)); // the standby warms up, then exits
+    let b = tag_of(&say(&mut w, "b")); // turn 3: the limit, but the standby is dead
+    let c = tag_of(&say(&mut w, "c"));
+    assert_eq!(b, a);
+    assert_eq!(c, a, "the live process stays when the standby is dead");
+    w.shutdown();
 }

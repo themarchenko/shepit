@@ -259,9 +259,13 @@ fn spawn_server(config: &CodexConfig) -> Result<Server, PolishError> {
     Ok(Server { proc, conn })
 }
 
-fn handshake(conn: &Conn, deadline: Instant) -> Result<(), PolishError> {
+fn handshake(
+    conn: &Conn,
+    deadline: Instant,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(), PolishError> {
     let params = initialize_params(env!("CARGO_PKG_VERSION"));
-    conn.call("initialize", params, deadline, &|| false)?;
+    conn.call("initialize", params, deadline, cancelled)?;
     if conn.write(&json!({"method": "initialized", "params": {}})) {
         Ok(())
     } else {
@@ -310,7 +314,7 @@ impl CodexWorker {
 
     /// Starts the process, the handshake, a thread and the warm-up turn.
     pub fn warm_up(&mut self) -> Result<(), PolishError> {
-        self.ensure_thread().map(|_| ())
+        self.ensure_thread(&|| false).map(|_| ())
     }
 
     pub fn shutdown(&mut self) {
@@ -349,7 +353,9 @@ impl CodexWorker {
         Some(next)
     }
 
-    fn ensure_thread(&mut self) -> Result<String, PolishError> {
+    /// `cancelled` reaches the warm-up of a respawned server, so Esc or a newer dictation does not
+    /// wait out the 40 s limit while the agent thread stays busy.
+    fn ensure_thread(&mut self, cancelled: &dyn Fn() -> bool) -> Result<String, PolishError> {
         if self.server.as_mut().is_some_and(|s| s.alive()) {
             if let Some(thread) = &self.active_thread {
                 return Ok(thread.clone());
@@ -363,17 +369,17 @@ impl CodexWorker {
                 return Err(PolishError::Paused);
             }
         }
-        self.start_server()
+        self.start_server(cancelled)
     }
 
-    fn start_server(&mut self) -> Result<String, PolishError> {
+    fn start_server(&mut self, cancelled: &dyn Fn() -> bool) -> Result<String, PolishError> {
         self.drop_server();
         let deadline = Instant::now() + self.config.timings.warm_up;
         let started = spawn_server(&self.config).and_then(|server| {
-            handshake(&server.conn, deadline)?;
+            handshake(&server.conn, deadline, cancelled)?;
             let thread = server
                 .conn
-                .start_warm_thread(&self.config, deadline, &|| false)?;
+                .start_warm_thread(&self.config, deadline, cancelled)?;
             Ok((server, thread))
         });
         match started {
@@ -385,6 +391,8 @@ impl CodexWorker {
                 self.active_turns = 1;
                 Ok(thread)
             }
+            // The user gave up, the server did not fail: no strike toward the pause.
+            Err(PolishError::Cancelled) => Err(PolishError::Cancelled),
             Err(e) => {
                 // `started` dropped the half-built server, which killed it.
                 self.failures += 1;
@@ -456,7 +464,7 @@ impl Polisher for CodexWorker {
         message: &str,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<String, PolishError> {
-        let thread = self.ensure_thread()?;
+        let thread = self.ensure_thread(cancelled)?;
         let conn = self
             .server
             .as_ref()

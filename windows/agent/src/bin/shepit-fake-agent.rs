@@ -13,6 +13,10 @@
 //! `hang` first spawn a grandchild that inherits stdout and keeps writing the heartbeat, so a test
 //! can tell whether the whole process tree was killed.
 //!
+//! `SHEPIT_FAKE_HANG_WARM_FROM=N` makes the warm-up of the Nth and later starts (counted in
+//! `starts.log`) never answer. `SHEPIT_FAKE_EXIT_AFTER_WARM_FROM=N` makes those starts exit right
+//! after answering the warm-up (Claude), so a standby can be ready and dead.
+//!
 //! Transcripts (the text after `Transcript:\n`, or the whole message): `hang` never answers, `exit`
 //! exits with code 3, `fail` is an error result (Claude) or a failed turn (Codex), `bad` answers
 //! with text that is not JSON (Claude), `approve` asks for a command approval (Codex). Anything else
@@ -41,6 +45,18 @@ fn send(value: &Value) {
 
 fn transcript_of(text: &str) -> &str {
     text.rsplit_once("Transcript:\n").map_or(text, |(_, t)| t)
+}
+
+/// Whether the env var `name` holds N and this is the Nth or a later start.
+fn from_start(dir: &std::path::Path, name: &str) -> bool {
+    let Some(n) = std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+    else {
+        return false;
+    };
+    let starts = std::fs::read_to_string(dir.join("starts.log")).map_or(0, |s| s.lines().count());
+    starts >= n
 }
 
 fn spawn_grandchild() {
@@ -141,7 +157,13 @@ fn claude(dir: &std::path::Path, args: &[String]) {
         let content = message["message"]["content"].as_str().unwrap_or("");
         let transcript = transcript_of(content);
         if content.starts_with("Warm-up") {
+            if from_start(dir, "SHEPIT_FAKE_HANG_WARM_FROM") {
+                continue;
+            }
             result(&reply("ok"), false);
+            if from_start(dir, "SHEPIT_FAKE_EXIT_AFTER_WARM_FROM") {
+                std::process::exit(0);
+            }
         } else if transcript == "hang" {
             spawn_grandchild();
         } else if transcript == "exit" {
@@ -213,6 +235,9 @@ fn codex(dir: &std::path::Path) {
                 );
                 let transcript = transcript_of(text);
                 if text.starts_with("Warm-up") {
+                    if from_start(dir, "SHEPIT_FAKE_HANG_WARM_FROM") {
+                        continue;
+                    }
                     complete(&thread_id, &turn_id, "ok");
                 } else if transcript == "hang" {
                     spawn_grandchild();

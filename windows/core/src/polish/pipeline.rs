@@ -104,7 +104,7 @@ fn local(request: &FormatRequest, source: Source, note: Option<String>) -> Forma
 }
 
 /// Logs and notes carry the kind and sizes only, never reply or server text.
-fn error_note(e: &PolishError) -> String {
+pub fn error_note(e: &PolishError) -> String {
     match e {
         PolishError::NotRunning => "agent not running".into(),
         PolishError::Timeout => "agent timed out".into(),

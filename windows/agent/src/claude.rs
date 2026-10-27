@@ -114,8 +114,12 @@ fn exchange(
     }
 }
 
-fn warm(live: &mut Live, timings: &Timings) -> Result<(), PolishError> {
-    exchange(live, WARM_UP_MESSAGE, timings.warm_up, &|| false).map(|_| ())
+fn warm(
+    live: &mut Live,
+    timings: &Timings,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(), PolishError> {
+    exchange(live, WARM_UP_MESSAGE, timings.warm_up, cancelled).map(|_| ())
 }
 
 pub struct ClaudeWorker {
@@ -142,7 +146,7 @@ impl ClaudeWorker {
 
     /// Starts the process and sends the warm-up turn. A failure counts toward the pause.
     pub fn warm_up(&mut self) -> Result<(), PolishError> {
-        self.ensure_active()
+        self.ensure_active(&|| false)
     }
 
     /// Closes stdin and kills the whole process tree of the active and standby processes.
@@ -168,7 +172,9 @@ impl ClaudeWorker {
         }
     }
 
-    fn ensure_active(&mut self) -> Result<(), PolishError> {
+    /// `cancelled` reaches the warm-up of a respawned process, so Esc or a newer dictation does
+    /// not wait out the 40 s limit while the agent thread stays busy.
+    fn ensure_active(&mut self, cancelled: &dyn Fn() -> bool) -> Result<(), PolishError> {
         if let Some(active) = &mut self.active {
             if active.alive() {
                 return Ok(());
@@ -187,7 +193,7 @@ impl ClaudeWorker {
             }
         }
         let started = spawn_live(&self.config).and_then(|mut live| {
-            warm(&mut live, &self.config.timings)?;
+            warm(&mut live, &self.config.timings, cancelled)?;
             Ok(live)
         });
         match started {
@@ -197,6 +203,9 @@ impl ClaudeWorker {
                 self.active = Some(live);
                 Ok(())
             }
+            // The user gave up, the process did not fail: no strike toward the pause. The half
+            // warmed process was dropped with `started`.
+            Err(PolishError::Cancelled) => Err(PolishError::Cancelled),
             Err(e) => {
                 self.failures += 1;
                 if self.failures >= FAILURES_BEFORE_PAUSE {
@@ -226,13 +235,18 @@ impl ClaudeWorker {
         }
         if turns >= timings.max_turns {
             if let SlotState::Ready(_) = slot.state {
-                let SlotState::Ready(next) = std::mem::replace(&mut slot.state, SlotState::Absent)
+                let SlotState::Ready(mut next) =
+                    std::mem::replace(&mut slot.state, SlotState::Absent)
                 else {
                     return;
                 };
                 drop(slot);
-                // Replacing the active value drops the old process, which kills it.
-                self.active = Some(next);
+                // A standby that died while waiting must not replace a working process
+                // (ClaudeCodeWorker.swift:308).
+                if next.alive() {
+                    // Replacing the active value drops the old process, which kills it.
+                    self.active = Some(next);
+                }
             }
         }
     }
@@ -240,7 +254,7 @@ impl ClaudeWorker {
 
 fn prepare_standby(config: ClaudeConfig, shared: Arc<Mutex<Standby>>, generation: u64) {
     let result = spawn_live(&config).and_then(|mut live| {
-        warm(&mut live, &config.timings)?;
+        warm(&mut live, &config.timings, &|| false)?;
         Ok(live)
     });
     let mut slot = shared.lock().unwrap();
@@ -263,7 +277,7 @@ impl Polisher for ClaudeWorker {
         message: &str,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<String, PolishError> {
-        self.ensure_active()?;
+        self.ensure_active(cancelled)?;
         let timeout = self.config.timings.request;
         let live = self.active.as_mut().ok_or(PolishError::NotRunning)?;
         match exchange(live, message, timeout, cancelled) {

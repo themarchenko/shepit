@@ -173,6 +173,43 @@ fn a_cancel_drops_the_process() {
     w.shutdown();
 }
 
+/// Polishes with a cancel flag that flips after 300 ms; returns the result and how long it took.
+fn polish_cancelled_after_300ms(w: &mut CodexWorker) -> (Result<String, PolishError>, Duration) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    let flag = Arc::new(AtomicBool::new(false));
+    let setter = {
+        let flag = flag.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            flag.store(true, Ordering::SeqCst);
+        })
+    };
+    let t0 = Instant::now();
+    let r = w.polish(&message("after the respawn"), &|| {
+        flag.load(Ordering::SeqCst)
+    });
+    setter.join().unwrap();
+    (r, t0.elapsed())
+}
+
+#[test]
+fn a_cancel_during_the_respawn_warm_up_returns_fast_and_does_not_pause() {
+    let sb = Sandbox::new();
+    // The first start answers; every later warm-up hangs. warm_up is 10 s, so only the cancel can
+    // end the wait.
+    let mut w = CodexWorker::new(sb.codex(&[("SHEPIT_FAKE_HANG_WARM_FROM", "2")]));
+    say(&mut w, "one");
+    assert!(matches!(ask(&mut w, "exit"), Err(PolishError::Exited(_))));
+    // Three cancelled respawns: FAILURES_BEFORE_PAUSE of them would pause the worker if they counted.
+    for _ in 0..3 {
+        let (r, took) = polish_cancelled_after_300ms(&mut w);
+        assert_eq!(r, Err(PolishError::Cancelled));
+        assert!(took < Duration::from_secs(2), "{took:?}");
+    }
+    w.shutdown();
+}
+
 #[test]
 fn the_source_is_codex() {
     let sb = Sandbox::new();
