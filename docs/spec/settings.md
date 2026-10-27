@@ -8,8 +8,8 @@ Source: `apple/ShepitCore/Sources/ShepitCore/Settings/AppSettings.swift`. Keys a
 | `hotkey` | id | `rightOption` | `rightOption`, `rightCommand`, `fn`. Windows: default `rightCtrl`; `rightCtrl`, `rightAlt`, `f13` to `f24` (hotkey.md, Windows) | :3-6, 157 |
 | `polishing` | id | `claude` (see polishing.md for the legacy switch) | `claude`, `codex`, `off` | :34-37, 160 |
 | `claudeModel` | id | `haiku` | `haiku`, `sonnet` | :26-29, 167 |
-| `claudeExecutable` | string | empty (search) | path | :168 |
-| `codexExecutable` | string | empty (search) | path | :161 |
+| `claudeExecutable` | string | empty (search) | path (Windows: plain absolute drive path, see polishing.md) | :168 |
+| `codexExecutable` | string | empty (search) | path (Windows: plain absolute drive path, see polishing.md) | :161 |
 | `defaultMode` | id | `clean` | `clean`, `prompt`, `raw` | :169 |
 | `fastPathMaxWords` | int | 8 | 0 and up | :171 |
 | `promptModeMinWords` | int | 40 | | :172 |

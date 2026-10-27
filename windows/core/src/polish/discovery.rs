@@ -68,7 +68,27 @@ fn join(dir: &str, tail: &str) -> String {
     format!("{}\\{}", dir.trim_end_matches(['\\', '/']), tail)
 }
 
-/// The executable for `name`. A non-empty `configured` path wins when it ends in `.exe` or
+/// A configured path is trusted more than a search hit, so it must be a plain local path: a drive
+/// letter, no UNC share, no `:` after the drive (NTFS alternate data streams) and no component
+/// ending in a space or a dot, which Win32 strips so the name seen here differs from the file run.
+fn is_plain_drive_path(p: &str) -> bool {
+    let b = p.as_bytes();
+    if !(b.len() >= 3
+        && b[0].is_ascii_alphabetic()
+        && b[1] == b':'
+        && (b[2] == b'\\' || b[2] == b'/'))
+    {
+        return false;
+    }
+    let rest = &p[2..];
+    !rest.contains(':')
+        && rest
+            .split(['\\', '/'])
+            .all(|c| !c.ends_with(' ') && !c.ends_with('.'))
+}
+
+/// The executable for `name`. A non-empty `configured` path wins when it is a plain drive path
+/// (see `is_plain_drive_path`), ends in `.exe` or
 /// `.cmd` (any case) and `exists` says it is a file; otherwise the agent counts as not found and
 /// the search does not run. An empty `configured` searches `candidates` and returns the first
 /// that exists.
@@ -81,7 +101,8 @@ pub fn find_agent(
     if !configured.is_empty() {
         let lower = configured.to_lowercase();
         let ok_ext = lower.ends_with(".exe") || lower.ends_with(".cmd");
-        return (ok_ext && exists(configured)).then(|| configured.to_string());
+        return (ok_ext && is_plain_drive_path(configured) && exists(configured))
+            .then(|| configured.to_string());
     }
     candidates(name, env).into_iter().find(|p| exists(p))
 }
@@ -304,6 +325,40 @@ mod tests {
         ] {
             let found = find_agent("claude", path, &env(), &|_| true);
             assert_eq!(found, None, "{path}");
+        }
+    }
+
+    #[test]
+    fn a_configured_path_must_be_a_plain_absolute_drive_path() {
+        for path in [
+            r"\\server\share\claude.exe",
+            "//server/share/claude.exe",
+            r"claude.exe",
+            r"mine\claude.exe",
+            r"\rooted\claude.exe",
+            r"C:claude.exe",
+            r"C:\m\claude.exe:stream.exe",
+            r"C:\m\claude.cmd:Zone.cmd",
+            r"C:\m \claude.exe",
+            r"C:\m.\claude.exe",
+            r"C:\m\..\claude.exe",
+            "C:\\m\\claude.exe ",
+            "C:\\m\\claude.exe.",
+        ] {
+            let found = find_agent("claude", path, &env(), &|_| true);
+            assert_eq!(found, None, "{path}");
+        }
+    }
+
+    #[test]
+    fn a_configured_path_with_spaces_or_dots_inside_names_is_accepted() {
+        for path in [
+            r"C:\Program Files\nodejs\claude.cmd",
+            "C:/tools/claude.exe",
+            r"D:\a.b\claude.exe",
+        ] {
+            let found = find_agent("claude", path, &env(), &|p| p == path);
+            assert_eq!(found.as_deref(), Some(path), "{path}");
         }
     }
 
