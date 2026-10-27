@@ -771,7 +771,8 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   logged with fixed text and does not fail the load.
 - Mac CPU numbers, not Windows (release build, 15 s clip, `live_preview_follows_the_fixture_clip`): warm-up 0.09 s; the first
   final after it 0.84 s for 15 s of audio; 25 passes, the longest 0.49 s, from about 0.13 s at 16 000 samples. The 1.0 s stop did not
-  trip. The Windows CI step prints the same numbers for the runner; they are not recorded here yet.
+  trip. Windows CI runner (10bbb65): warm-up 0.13-0.15 s; the first final after it 1.63 s for 15 s of audio; 23 passes, the
+  longest 0.50 s.
 - Device checks open: see PLAN-windows task 12.
 
 ## Pending (Phase 0)
