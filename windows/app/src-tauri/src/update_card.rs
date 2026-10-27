@@ -27,6 +27,8 @@ struct Corner {
 
 /// Also serializes `open`: two opens at once would both find no window and the second build would
 /// fail on the label.
+/// `open` holds it across `build()`, which waits on the main thread, so no main-thread code may
+/// take it.
 static CORNER: Mutex<Option<Corner>> = Mutex::new(None);
 
 /// The card's frame in physical pixels, its bottom-right corner on (`right`, `bottom`). `height`
