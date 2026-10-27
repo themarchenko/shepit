@@ -3,6 +3,8 @@
 mod controller;
 mod hook;
 mod insert;
+#[cfg(windows)]
+mod insert_win;
 mod recognizer;
 mod recorder;
 mod tray;
@@ -30,6 +32,12 @@ const TRAY_ID: &str = "main";
 /// match a job of the new one.
 const JOB_ID_STRIDE: u64 = 1 << 32;
 
+#[cfg(windows)]
+fn platform_desktop() -> impl insert::Desktop {
+    insert_win::WinDesktop::new()
+}
+
+#[cfg(not(windows))]
 fn platform_desktop() -> impl insert::Desktop {
     insert::NullDesktop
 }
