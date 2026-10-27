@@ -15,7 +15,9 @@ use shepit_agent::{
 use shepit_core::dictation::FormatJob;
 use shepit_core::polish::discovery::{find_agent, Env};
 use shepit_core::polish::lifecycle::{Debounce, DEBOUNCE_SECS};
-use shepit_core::polish::pipeline::{build_request, format_request, Formatted, Polisher};
+use shepit_core::polish::pipeline::{
+    build_request, error_note, format_request, Formatted, Polisher,
+};
 use shepit_core::polish::prompt::{system_prompt, FormatRequest};
 use shepit_core::polish::route::{route, Route, Source};
 use shepit_core::settings::{Polishing, Settings};
@@ -374,7 +376,8 @@ fn build_worker(spec: &AgentSpec) -> Option<Worker> {
     match result {
         Ok(()) => eprintln!("polish: warm-up ok ms={}", started.elapsed().as_millis()),
         Err(e) => eprintln!(
-            "polish: warm-up failed ({e:?}) ms={}",
+            "polish: warm-up failed ({}) ms={}",
+            error_note(&e),
             started.elapsed().as_millis()
         ),
     }

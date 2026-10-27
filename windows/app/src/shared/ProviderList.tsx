@@ -23,7 +23,9 @@ export default function ProviderList({ settings, update }: PaneProps) {
     return () => {
       alive = false;
     };
-  }, []);
+    // A saved executable path changes what is found, so it is looked up again. The settings Rust
+    // re-sends after a lookup carry the same paths and do not start another one.
+  }, [settings.claudeExecutable, settings.codexExecutable]);
 
   const detail = (id: Polishing, path: string | null): string => {
     if (id === "claude") return path ? `Uses your Claude subscription. ${path}` : "Install Claude Code from claude.ai/code, then run claude once to sign in.";
