@@ -274,23 +274,29 @@ pub fn action_effect(state: &UpdateState, action: CardAction) -> Effect {
     }
 }
 
-/// A check result opens the card only when it found a release the user should see.
+/// A check result opens the card only when it found a release the user should see. Up to date and
+/// failure show in the card only if it is already open (the tray opens it first) and in Settings;
+/// a card the user closed meanwhile stays closed, as on macOS (UpdateChecker.swift:56-70).
 pub fn opens_card(outcome: &CheckOutcome) -> bool {
     matches!(outcome.state, UpdateState::Available(_)) && outcome.show_card
 }
 
-// The worker. One thread runs checks and card clicks in order; an install runs on a thread of its
-// own so the card and the tray keep answering while it downloads.
+// The worker. One thread runs the checks, one at a time. Card clicks never go through it (a check
+// can take 20 s and a click must not wait), and an install runs on a thread of its own.
 
 enum UpdateMsg {
     /// The hourly look: checks only when checking is on and the last check is a day old.
     Look,
     /// `user` is a check someone asked for. `card_first` opens the card before it starts (the tray).
-    Check {
-        user: bool,
-        card_first: bool,
-    },
-    Action(CardAction),
+    Check { user: bool, card_first: bool },
+}
+
+/// What a card click does to the world. A trait so a test can watch it without a window.
+trait Surface {
+    fn close_card(&self);
+    fn open_page(&self, version: Option<&str>);
+    fn store_skip(&self, version: &str);
+    fn start_install(&self, version: String);
 }
 
 struct Session {
@@ -349,6 +355,27 @@ pub fn start(app: &AppHandle) -> std::io::Result<()> {
 }
 
 impl Updates {
+    /// A card click. Runs on the caller's thread: the worker may be inside a 20 s check, and a
+    /// click must not wait for it.
+    fn card_action(&self, action: CardAction, surface: &dyn Surface) {
+        let state = lock(&self.session).state.clone();
+        match action_effect(&state, action) {
+            Effect::Ignore => {}
+            Effect::Install(version) => surface.start_install(version),
+            Effect::Skip(version) => {
+                surface.store_skip(&version);
+                surface.close_card();
+            }
+            Effect::OpenPage { version, close } => {
+                surface.open_page(version.as_deref());
+                if close {
+                    surface.close_card();
+                }
+            }
+            Effect::Close => surface.close_card(),
+        }
+    }
+
     /// The tray item: the card opens first, then the check runs. Never blocks.
     pub fn check_from_tray(&self) {
         let _ = self.tx.send(UpdateMsg::Check {
@@ -358,14 +385,17 @@ impl Updates {
     }
 }
 
-fn work(app: AppHandle, updates: Updates, rx: Receiver<UpdateMsg>) {
+fn run_worker(rx: Receiver<UpdateMsg>, mut handle: impl FnMut(UpdateMsg)) {
     for msg in rx {
-        match msg {
-            UpdateMsg::Look => look(&app, &updates),
-            UpdateMsg::Check { user, card_first } => check(&app, &updates, user, card_first),
-            UpdateMsg::Action(action) => act(&app, &updates, action),
-        }
+        handle(msg);
     }
+}
+
+fn work(app: AppHandle, updates: Updates, rx: Receiver<UpdateMsg>) {
+    run_worker(rx, |msg| match msg {
+        UpdateMsg::Look => look(&app, &updates),
+        UpdateMsg::Check { user, card_first } => check(&app, &updates, user, card_first),
+    });
 }
 
 fn look(app: &AppHandle, updates: &Updates) {
@@ -419,12 +449,15 @@ fn publish(app: &AppHandle, updates: &Updates) {
 }
 
 fn check(app: &AppHandle, updates: &Updates, user: bool, card_first: bool) {
+    // Test and set in one step: a card click can start an install from another thread.
     let (busy, offered) = {
-        let session = lock(&updates.session);
-        (
-            is_busy(&session.state),
-            matches!(session.state, UpdateState::Available(_)),
-        )
+        let mut session = lock(&updates.session);
+        let busy = is_busy(&session.state);
+        let offered = matches!(session.state, UpdateState::Available(_));
+        if !busy && !(card_first && offered) {
+            session.state = UpdateState::Checking;
+        }
+        (busy, offered)
     };
     if card_first && (busy || offered) {
         open_card(app);
@@ -433,7 +466,6 @@ fn check(app: &AppHandle, updates: &Updates, user: bool, card_first: bool) {
     if busy {
         return;
     }
-    lock(&updates.session).state = UpdateState::Checking;
     publish(app, updates);
     if card_first {
         open_card(app);
@@ -469,32 +501,37 @@ fn check(app: &AppHandle, updates: &Updates, user: bool, card_first: bool) {
     }
 }
 
-fn act(app: &AppHandle, updates: &Updates, action: CardAction) {
-    let state = lock(&updates.session).state.clone();
-    match action_effect(&state, action) {
-        Effect::Ignore => {}
-        Effect::Install(version) => start_install(app, updates, version),
-        Effect::Skip(version) => {
-            let stored = settings_store::apply(app, |current| {
-                Ok(Settings {
-                    skipped_update: version.clone(),
-                    ..current.clone()
-                })
-            });
-            if let Err(err) = stored {
-                eprintln!("could not store the skipped version: {err}");
-            }
-            update_card::close(app);
+/// The real world behind a card click.
+struct AppSurface<'a> {
+    app: &'a AppHandle,
+    updates: &'a Updates,
+}
+
+impl Surface for AppSurface<'_> {
+    fn close_card(&self) {
+        update_card::close(self.app);
+    }
+
+    fn open_page(&self, version: Option<&str>) {
+        if let Err(err) = shell::open_release_page(version) {
+            eprintln!("{err}");
         }
-        Effect::OpenPage { version, close } => {
-            if let Err(err) = shell::open_release_page(version.as_deref()) {
-                eprintln!("{err}");
-            }
-            if close {
-                update_card::close(app);
-            }
+    }
+
+    fn store_skip(&self, version: &str) {
+        let stored = settings_store::apply(self.app, |current| {
+            Ok(Settings {
+                skipped_update: version.to_string(),
+                ..current.clone()
+            })
+        });
+        if let Err(err) = stored {
+            eprintln!("could not store the skipped version: {err}");
         }
-        Effect::Close => update_card::close(app),
+    }
+
+    fn start_install(&self, version: String) {
+        start_install(self.app, self.updates, version);
     }
 }
 
@@ -619,12 +656,20 @@ pub async fn update_card_ready(
 }
 
 #[tauri::command]
-pub async fn update_action(updates: State<'_, Updates>, action: String) -> Result<(), String> {
+pub async fn update_action(
+    app: AppHandle,
+    updates: State<'_, Updates>,
+    action: String,
+) -> Result<(), String> {
     let action = CardAction::parse(&action).ok_or_else(|| format!("unknown action: {action}"))?;
-    updates
-        .tx
-        .send(UpdateMsg::Action(action))
-        .map_err(|_| "The updater is not running".to_string())
+    updates.card_action(
+        action,
+        &AppSurface {
+            app: &app,
+            updates: &updates,
+        },
+    );
+    Ok(())
 }
 
 #[tauri::command]
@@ -910,6 +955,92 @@ mod tests {
         );
     }
 
+    // Card clicks while a check runs
+
+    #[derive(Default)]
+    struct Spy {
+        closed: Mutex<u32>,
+        pages: Mutex<Vec<Option<String>>>,
+    }
+
+    impl Surface for Spy {
+        fn close_card(&self) {
+            *self.closed.lock().unwrap() += 1;
+        }
+        fn open_page(&self, version: Option<&str>) {
+            self.pages.lock().unwrap().push(version.map(str::to_string));
+        }
+        fn store_skip(&self, _: &str) {}
+        fn start_install(&self, _: String) {}
+    }
+
+    /// An `Updates` whose worker is stuck in a check until the returned sender is used.
+    fn updates_in_a_slow_check(state: UpdateState) -> (Updates, Sender<()>) {
+        let (tx, rx) = mpsc::channel();
+        let updates = Updates {
+            session: Arc::new(Mutex::new(Session {
+                state,
+                pending: None,
+                total: None,
+            })),
+            tx,
+            tray_text: Arc::new(Mutex::new(String::new())),
+        };
+        let (release, wait) = mpsc::channel::<()>();
+        let (started_tx, started_rx) = mpsc::channel::<()>();
+        std::thread::spawn(move || {
+            run_worker(rx, |msg| {
+                if matches!(msg, UpdateMsg::Check { .. }) {
+                    started_tx.send(()).unwrap();
+                    let _ = wait.recv();
+                }
+            })
+        });
+        let _ = updates.tx.send(UpdateMsg::Check {
+            user: true,
+            card_first: false,
+        });
+        started_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the worker started the check");
+        (updates, release)
+    }
+
+    #[test]
+    fn dismiss_closes_the_card_while_a_check_runs() {
+        let (updates, release) = updates_in_a_slow_check(UpdateState::Checking);
+        let spy = Spy::default();
+        let started = std::time::Instant::now();
+        updates.card_action(CardAction::Dismiss, &spy);
+        assert_eq!(
+            *spy.closed.lock().unwrap(),
+            1,
+            "the card did not close at once"
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
+        release.send(()).unwrap();
+    }
+
+    #[test]
+    fn the_release_page_and_what_changed_open_while_a_check_runs() {
+        let (updates, release) = updates_in_a_slow_check(UpdateState::Failed(v("x")));
+        let spy = Spy::default();
+        updates.card_action(CardAction::ReleasePage, &spy);
+        assert_eq!(*spy.pages.lock().unwrap(), [None]);
+        assert_eq!(*spy.closed.lock().unwrap(), 1);
+        *lock(&updates.session) = Session {
+            state: UpdateState::Available(v("0.4.0")),
+            pending: None,
+            total: None,
+        };
+        updates.card_action(CardAction::WhatChanged, &spy);
+        assert_eq!(
+            spy.pages.lock().unwrap().last().unwrap().as_deref(),
+            Some("0.4.0")
+        );
+        release.send(()).unwrap();
+    }
+
     // opens_card
 
     #[test]
@@ -926,13 +1057,42 @@ mod tests {
         assert!(!opens_card(&out));
     }
 
+    // The macOS rule (UpdateChecker.swift:56-70, AppDelegate.swift:294-301): the card is a live view
+    // of the state while it is open, and a result opens it again only when it found a release.
+
     #[test]
-    fn up_to_date_and_errors_do_not_open_the_card_from_a_check() {
-        // The tray opens its card before it checks; Settings > About never opens one for these.
+    fn a_dismissed_card_stays_closed_when_a_user_check_ends_up_to_date() {
+        let out = on_check_result(CheckResult::UpToDate, true, "", NOW);
+        assert_eq!(out.state, UpdateState::UpToDate);
+        assert!(!opens_card(&out));
+    }
+
+    #[test]
+    fn a_dismissed_card_stays_closed_when_a_user_check_fails() {
+        let out = on_check_result(CheckResult::Error(v("offline")), true, "", NOW);
+        assert_eq!(out.state, UpdateState::Failed(v("offline")));
+        assert!(!opens_card(&out));
+    }
+
+    #[test]
+    fn settings_check_now_shows_up_to_date_and_failure_in_settings_only() {
+        // The card is not opened first (card_first is false for Check now), and neither result opens it.
         for result in [CheckResult::UpToDate, CheckResult::Error(v("offline"))] {
-            let out = on_check_result(result, true, "", NOW);
-            assert!(!opens_card(&out));
+            assert!(!opens_card(&on_check_result(result, true, "", NOW)));
         }
+    }
+
+    #[test]
+    fn a_user_check_that_finds_a_skipped_release_reopens_a_dismissed_card() {
+        let out = on_check_result(CheckResult::Newer(v("0.4.0")), true, "0.4.0", NOW);
+        assert!(opens_card(&out));
+    }
+
+    #[test]
+    fn a_background_failure_is_silent() {
+        let out = on_check_result(CheckResult::Error(v("offline")), false, "", NOW);
+        assert_eq!(out.state, UpdateState::Idle);
+        assert!(!opens_card(&out));
     }
 
     // Functional trust tests. A mock app hosts the real plugin; a server on 127.0.0.1 plays GitHub.
