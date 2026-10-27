@@ -534,7 +534,10 @@ Task 7 of PLAN-windows.md: the three styles, drag, saved position, idle fade, cl
 - The spring is a CSS `linear()` easing sampled from the same damped spring as macOS (response 0.4, damping
   0.72), 40 points over 600 ms.
 - Settings live in `app_config_dir()/settings.json` (docs/spec/settings.md). The anchor is stored in physical
-  pixels of the virtual screen.
+  pixels of the virtual screen. The core crate parses and serializes the file (`windows/core/src/settings.rs`,
+  tested on the Mac); reading, the atomic write and the `.bak` copy are in the app
+  (`windows/app/src-tauri/src/settings_store.rs`), because only the app knows the config folder. Core stays
+  free of file I/O, as it is for every other module.
 - Captions are one line; live words keep the newest end, results keep the start.
 - Hover and idle widths are wider than on macOS: the Windows key label is "Right Ctrl" and the font is Segoe
   UI. The new widths (flowPill hover 300, captionBar hover 360, island hover 280, island idle 128) are
