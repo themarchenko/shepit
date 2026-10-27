@@ -84,6 +84,9 @@ const CAPTION_ROW: f64 = 8.0 + 34.0;
 const FLOW_PILL_HOVER_WIDTH: f64 = 300.0;
 const CAPTION_BAR_HOVER_WIDTH: f64 = 360.0;
 const ISLAND_HOVER_WIDTH: f64 = 280.0;
+/// macOS has 96: mic icon, 8 pt gap and the "Right \u{2325}" keycap inside 14 pt padding. "Right Ctrl" is
+/// longer, so the idle island is 128 here. An estimate for Segoe UI and Consolas until a device check.
+const ISLAND_IDLE_WIDTH: f64 = 128.0;
 
 pub fn layout_for(input: &LayoutInput) -> Layout {
     // Hover only grows an idle widget, and only the flow pill and the island read hands-free.
@@ -128,7 +131,7 @@ pub fn layout_for(input: &LayoutInput) -> Layout {
         Style::Island => {
             let (w, h, radius) = match input.phase {
                 Phase::Idle if hovering => (ISLAND_HOVER_WIDTH, 30.0, 15.0),
-                Phase::Idle => (96.0, 26.0, 13.0),
+                Phase::Idle => (ISLAND_IDLE_WIDTH, 26.0, 13.0),
                 Phase::Listening if input.has_live => (410.0, 94.0, 24.0),
                 Phase::Listening => (270.0, 36.0, 18.0),
                 Phase::Processing => (410.0, 122.0, 26.0),

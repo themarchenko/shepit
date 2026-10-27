@@ -29,10 +29,10 @@ export default function Island({ s, elapsed }: StyleProps) {
                 <span>· click for hands-free</span>
               </FitRow>
             ) : (
-              <>
+              <FitRow size={12.5}>
                 <MicIcon size={10} />
                 <KeyCap label={s.keyLabel} />
-              </>
+              </FitRow>
             )}
           </>
         )}

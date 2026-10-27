@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "description": "layout_for: widget style, phase, hands-free, hover and live-text flag in; shape size and radius, flow pill caption row flag and logical window size out. Windows only: WidgetLayout lives in the macOS app target, so no Swift runner reads it. Numbers in points; the window is the shape (plus the 42 pt flow pill caption row, 464 pt wide minimum) and the 28 x 26 shadow margin on each side, rounded up. Radius is half the height for flowPill and captionBar (capsules). Table: docs/spec/widget.md. Hover hint widths differ from macOS (flowPill 300, captionBar 360, island 280 instead of 262, 330, 252): the Windows key label is longer (Right Ctrl) and the font is Segoe UI, so the macOS widths clip the hint.",
+  "description": "layout_for: widget style, phase, hands-free, hover and live-text flag in; shape size and radius, flow pill caption row flag and logical window size out. Windows only: WidgetLayout lives in the macOS app target, so no Swift runner reads it. Numbers in points; the window is the shape (plus the 42 pt flow pill caption row, 464 pt wide minimum) and the 28 x 26 shadow margin on each side, rounded up. Radius is half the height for flowPill and captionBar (capsules). Table: docs/spec/widget.md. Hover hint widths and the idle island differ from macOS (flowPill hover 300, captionBar hover 360, island hover 280 instead of 262, 330, 252; island idle 128 instead of 96): the Windows key label is longer (Right Ctrl) and the font is Segoe UI, so the macOS widths clip. All are estimates until a device check.",
   "source": {
     "shapes": "apple/macOS/Shepit/Widget/WidgetModel.swift:87-94 (flowPill), :104-110 (captionBar), :112-120 (island)",
     "caption": "WidgetModel.swift:96-102 (flowPillShowsCaption), :85 (captionMaxWidth 440), :136-140 (width at least 464, height + 8 + 34)",
     "window": "WidgetModel.swift:84 (margin 28 x 26), :146 (ceil of shape + 2 x margin)",
     "radius": "WidgetView.swift:229-230 (flowPill Capsule), :323-324 (captionBar Capsule), WidgetModel.swift:112-120 (island radius)",
-    "hover": "Windows only: idle-hover widths widened to fit 'Hold [Right Ctrl] to talk · click for hands-free' (macOS WidgetModel.swift:87-120 has 262, 330, 252)"
+    "hover": "Windows only: idle-hover widths and the idle island widened to fit 'Hold [Right Ctrl] to talk · click for hands-free' and the mic icon plus keycap (macOS WidgetModel.swift:87-120 has 262, 330, 252 and 96)"
   },
   "cases": [
     {
@@ -372,13 +372,13 @@
       },
       "expected": {
         "shape": {
-          "width": 96,
+          "width": 128,
           "height": 26,
           "radius": 13
         },
         "caption": false,
         "window": {
-          "width": 152,
+          "width": 184,
           "height": 78
         }
       }
