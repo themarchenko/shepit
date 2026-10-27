@@ -18,7 +18,7 @@ jobs:
   build:
     name: Windows build and test
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
@@ -68,6 +68,24 @@ jobs:
       - name: Rust tests
         working-directory: windows
         run: cargo test --workspace --locked
+
+      # The model is about 670 MB; the cache key changes only when a pin changes.
+      - name: Cache the speech model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/shepit-models
+          key: parakeet-v3-int8-${{ hashFiles('windows/engine/src/pins.rs') }}
+
+      - name: Transcribe the fixture clips
+        working-directory: windows
+        env:
+          SHEPIT_MODELS_DIR: ${{ runner.temp }}/shepit-models
+        run: cargo test -p shepit-engine --release --locked --test transcribe_fixture -- --ignored --nocapture
+
+      # ONNX Runtime may ship DLLs next to the exe; the installer has to carry them.
+      - name: List runtime DLLs
+        shell: bash
+        run: ls -l windows/target/release/*.dll || echo "no DLLs"
 
       # Builds the installer too, so a broken bundle fails here and not at release time.
       - name: Build the app and installer

@@ -1,0 +1,10 @@
+[
+  {
+    "file": "en-librivox-preamble.wav",
+    "language": "en",
+    "text": "This is a LibriVox recording. All LibriVox recordings are in the public domain. For more information or to volunteer.",
+    "must_contain": ["librivox", "recording", "public"],
+    "source": "https://archive.org/download/alice_in_wonderland_librivox/wonderland_ch_01_64kb.mp3 (first 7.5 s; Alice's Adventures in Wonderland, reader not named in the file)",
+    "license": "public domain (LibriVox)"
+  }
+]

@@ -3772,6 +3772,7 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "hound",
+ "ort",
  "serde_json",
  "sha2 0.11.1",
  "shepit-core",

@@ -2,3 +2,4 @@
 
 pub mod download;
 pub mod pins;
+pub mod recognizer;
