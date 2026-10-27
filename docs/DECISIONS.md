@@ -423,18 +423,38 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   0.3.12 asks for `2.0.0-rc.12`, but Cargo resolves rc.15, which it does not compile against
   (`Session::builder()` needs an `Environment` there, session.rs:154). Never run `cargo update` on
   ort; CI uses `--locked`.
-- ONNX Runtime is downloaded at build time by ort-sys (feature `download-binaries`, from cdn.pyke.io,
-  hash-checked; ort-sys build/main.rs:97-160) and linked statically on x86_64-pc-windows-msvc
-  (`rustc-link-lib=static=onnxruntime`, main.rs:160; dist `ms@1.24.2`, build/download/dist.txt:8).
-  The pyke build also links dxguid, DXCORE, DXGI, D3D12 and DirectML import libs
-  (static_link/mod.rs:54-62), so the exe needs those system DLLs at run time even on CPU. DirectML
-  ships with Windows 10 1903 and later. Needs a clean-machine check; CI lists
-  `windows/target/release/*.dll`.
+- ONNX Runtime is downloaded at build time by ort-sys (feature `download-binaries`) from pyke's CDN
+  (ort.pyke.io / cdn.pyke.io). The archive hash is baked into the crate and compared after download:
+  a mismatch is a build error (ort-sys build/main.rs:125-130). The crate itself is pinned by the
+  `Cargo.lock` checksum, so the expected hash cannot drift. It is linked statically on
+  x86_64-pc-windows-msvc (`rustc-link-lib=static=onnxruntime`, main.rs:160; dist `ms@1.24.2`,
+  build/download/dist.txt:8).
+- Finding: the pyke build is always compiled with DirectML, so ort-sys links dxguid, DXCORE, DXGI,
+  D3D12 and DirectML import libs even for CPU (static_link/mod.rs:54-62, comment at :56). The exe
+  therefore imports DirectML.dll at start-up. `copy-dylibs` (ort default) leaves
+  `windows/target/release/DirectML.dll` as a symlink into ort's download cache, and the Tauri NSIS
+  installer did not carry it. Fix: CI copies the resolved file to `windows/app/src-tauri/runtime/`
+  (git-ignored) and builds with `--config src-tauri/tauri.runtime.conf.json`, whose
+  `bundle.resources` maps it to the install folder root next to the exe. A CI step lists the
+  installer with `7z l` and fails when DirectML.dll is missing; another prints the exe's imports
+  (`dumpbin /dependents`). The config is passed on the command line, not kept in `tauri.conf.json`,
+  because tauri-build fails every plain `cargo build` when a listed resource is missing. A release
+  workflow for Windows must pass the same config and stage the file first. Needs a clean-machine check.
 - Pins: repo `istupakov/parakeet-tdt-0.6b-v3-onnx` at commit
   `8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce`, each file with size and SHA-256 (sizes and hashes from
   the `/tree/<commit>` API, re-checked with `shasum -a 256`). Files are downloaded to `<name>.part`
   and renamed only after a full SHA-256 match. At launch a file counts as installed when it exists
-  with the pinned size; it is not re-hashed. No auth header is sent and `HF_TOKEN` is never read.
+  with the pinned size; it is not re-hashed at launch. `verify_installed` re-hashes every pinned file
+  and deletes mismatches: the app runs it once when a load fails (then downloads again and retries),
+  and the CI fixture test runs it so a poisoned cache cannot pass. The `.part` file is `sync_all`ed
+  before the rename. No auth header is sent and `HF_TOKEN` is never read.
+- Downloads are https only (also after redirects; other hosts are allowed, the SHA-256 guards the
+  content). ureq 3.5 has no per-read timeout (`timeout_recv_body` is a budget for the whole body),
+  so a helper thread reads the body and the download fails after 60 s without data; the `.part`
+  file is kept and resumes. A stalled socket leaves that thread blocked until the OS closes it.
+- The recognizer sends `Ready` once. The controller loop keeps the latest model status outside the
+  loop and gives it to a controller restarted after a panic, so dictation does not stick in
+  "Loading model".
 - Models live in `%LOCALAPPDATA%\Shepit\models\parakeet-tdt-0.6b-v3-int8` (`dirs::data_local_dir`),
   not in the roaming profile: 670 MB does not belong in roaming sync.
 - Download retry differs from macOS. macOS rethrows the cached load failure
