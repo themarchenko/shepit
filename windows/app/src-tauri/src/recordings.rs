@@ -1,5 +1,5 @@
 //! The recordings folder: the last 200 dictations as 16 kHz mono 16-bit WAV files, named by UTC
-//! time (RecordingStore.swift). Only `.wav` files are ever touched.
+//! time (RecordingStore.swift). Only `.wav` files and the `.wav.tmp` a crash can leave are ever touched.
 
 use shepit_core::audio::wav_16k_mono;
 use shepit_core::history::{recording_file_name, to_prune};
@@ -41,21 +41,37 @@ fn wav_names(dir: &Path) -> io::Result<Vec<String>> {
     }
 }
 
-/// Deletes the oldest `.wav` files beyond `keep`, in name order. A missing folder is fine.
+/// A half-written file from a crash between the write and the rename in `save`. It holds speech
+/// audio, so Clear history and prune must not leave it behind.
+fn is_stale_tmp(name: &str) -> bool {
+    name.ends_with(".wav.tmp")
+}
+
+/// Deletes the oldest `.wav` files beyond `keep`, in name order, and any `.wav.tmp` left by a
+/// crash (saves and prunes run on one worker, so none is in flight). A missing folder is fine.
 pub fn prune(dir: &Path, keep: usize) -> io::Result<()> {
-    for name in to_prune(&wav_names(dir)?, keep) {
+    let names = wav_names(dir)?;
+    for name in names.iter().filter(|n| is_stale_tmp(n)) {
+        let _ = fs::remove_file(dir.join(name));
+    }
+    for name in to_prune(&names, keep) {
         let _ = fs::remove_file(dir.join(name));
     }
     Ok(())
 }
 
-/// Deletes every `.wav` file and returns how many. Other files stay. A missing folder gives 0.
+/// Deletes every `.wav` file and any `.wav.tmp`, and returns how many `.wav` files went. Other
+/// files stay. A missing folder gives 0.
 pub fn clear(dir: &Path) -> io::Result<usize> {
     let names = wav_names(dir)?;
     let mut removed = 0;
-    for name in names.into_iter().filter(|n| n.ends_with(".wav")) {
-        if fs::remove_file(dir.join(name)).is_ok() {
-            removed += 1;
+    for name in names {
+        if name.ends_with(".wav") {
+            if fs::remove_file(dir.join(name)).is_ok() {
+                removed += 1;
+            }
+        } else if is_stale_tmp(&name) {
+            let _ = fs::remove_file(dir.join(name));
         }
     }
     Ok(removed)
@@ -187,6 +203,19 @@ mod tests {
         t.touch("b.wav");
         t.touch("keep.txt");
         assert_eq!(clear(&t.0).unwrap(), 2);
+        assert_eq!(t.names(), ["keep.txt"]);
+    }
+
+    #[test]
+    fn clear_and_prune_also_remove_a_crash_leftover_tmp() {
+        let t = TempDir::new();
+        t.touch("20240101-000000-000.wav");
+        t.touch("20240101-000000-000.wav.tmp");
+        t.touch("keep.txt");
+        prune(&t.0, 5).unwrap();
+        assert_eq!(t.names(), ["20240101-000000-000.wav", "keep.txt"]);
+        t.touch("20240102-000000-000.wav.tmp");
+        assert_eq!(clear(&t.0).unwrap(), 1);
         assert_eq!(t.names(), ["keep.txt"]);
     }
 
