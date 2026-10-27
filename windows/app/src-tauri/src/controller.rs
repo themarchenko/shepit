@@ -1,5 +1,6 @@
 //! The controller loop body, free of Tauri and cpal so it runs in tests on any host.
 
+use shepit_core::context::TargetContext;
 use shepit_core::dictation::{
     CaptureError, Controller, InsertJob, Job, ModelStatus, Recorder, View,
 };
@@ -32,6 +33,8 @@ pub enum Msg {
         id: u64,
         result: Result<InsertOutcome, String>,
     },
+    /// The insert worker read the target context for dictation `id`.
+    Context { id: u64, context: TargetContext },
     /// The 100 ms receive timeout: lets the failed state reset.
     Tick,
 }
@@ -62,6 +65,7 @@ impl<R: Recorder> Runner<R> {
             Msg::StreamError(err) => self.controller.on_stream_error(err, now),
             Msg::Model(status) => self.controller.on_model(status),
             Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
+            Msg::Context { id, context } => self.controller.on_context(id, context),
             Msg::Inserted { id, result } => self.controller.on_inserted(id, result, now),
             Msg::Tick => self.controller.poll(now),
         }
@@ -92,6 +96,11 @@ impl<R: Recorder> Runner<R> {
     /// The id of the job whose result is still wanted, or 0. Job ids start at 1.
     pub fn wanted(&self) -> u64 {
         self.controller.current_job().unwrap_or(0)
+    }
+
+    /// The dictation id to capture the target context for, handed over once.
+    pub fn take_capture(&mut self) -> Option<u64> {
+        self.controller.take_capture()
     }
 
     /// The accepted transcript as an insert job, handed over once.
@@ -340,5 +349,113 @@ mod tests {
         let view = runner.step(Msg::Level(1.0), 10.1).expect("levels change");
         assert_eq!(view.levels.len(), 32);
         assert!(view.levels[31] > 0.0);
+    }
+
+    fn password_context(flag: Option<bool>) -> TargetContext {
+        TargetContext {
+            password: flag,
+            ..TargetContext::default()
+        }
+    }
+
+    #[test]
+    fn a_start_hands_out_one_capture_with_the_dictation_id() {
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Ready);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        assert_eq!(runner.take_capture(), Some(1));
+        assert_eq!(runner.take_capture(), None);
+    }
+
+    #[test]
+    fn a_context_message_reaches_the_insert_job() {
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Ready);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        let id = runner.take_capture().expect("capture");
+        runner.step(
+            Msg::Context {
+                id,
+                context: password_context(Some(true)),
+            },
+            10.5,
+        );
+        runner.step(rctrl(WM_KEYUP), 11.0);
+        runner.step(
+            Msg::Recognized {
+                id,
+                result: Ok("secret".into()),
+            },
+            12.0,
+        );
+        let job = runner.take_insert().expect("insert job");
+        assert_eq!(job.captured_password, Some(true));
+    }
+
+    #[test]
+    fn a_context_for_an_older_dictation_is_dropped() {
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Ready);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        let id = runner.take_capture().expect("capture");
+        runner.step(
+            Msg::Context {
+                id: id + 100,
+                context: password_context(Some(true)),
+            },
+            10.5,
+        );
+        runner.step(rctrl(WM_KEYUP), 11.0);
+        runner.step(
+            Msg::Recognized {
+                id,
+                result: Ok("text".into()),
+            },
+            12.0,
+        );
+        assert_eq!(runner.take_insert().unwrap().captured_password, None);
+    }
+
+    #[test]
+    fn a_clipboard_only_result_shows_the_ctrl_v_hint() {
+        let mut runner = transcribing();
+        runner.step(
+            Msg::Recognized {
+                id: 1,
+                result: Ok("hello there".into()),
+            },
+            12.0,
+        );
+        let done = runner
+            .step(
+                Msg::Inserted {
+                    id: 1,
+                    result: Ok(InsertOutcome::ClipboardOnly),
+                },
+                12.5,
+            )
+            .expect("view changes");
+        assert_eq!(done.phase, Phase::Done);
+        assert!(done.message.starts_with("Copied (press Ctrl+V to paste)"));
+    }
+
+    #[test]
+    fn an_insert_error_fails_the_view_with_its_message() {
+        let mut runner = transcribing();
+        runner.step(
+            Msg::Recognized {
+                id: 1,
+                result: Ok("hello".into()),
+            },
+            12.0,
+        );
+        let failed = runner
+            .step(
+                Msg::Inserted {
+                    id: 1,
+                    result: Err("Insertion needs Windows".into()),
+                },
+                12.5,
+            )
+            .expect("view changes");
+        assert_eq!(failed.phase, Phase::Failed);
+        assert_eq!(failed.message, "Insertion needs Windows");
     }
 }

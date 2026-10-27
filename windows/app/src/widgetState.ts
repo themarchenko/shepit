@@ -1,6 +1,6 @@
 // Mirrors WidgetState in src-tauri/src/widget.rs (the `widget-state` event payload).
 export type WidgetPhase = "idle" | "listening" | "processing" | "done" | "failed";
-export type WidgetStage = "loading" | "transcribing";
+export type WidgetStage = "loading" | "transcribing" | "inserting";
 
 export interface WidgetState {
   phase: WidgetPhase;
