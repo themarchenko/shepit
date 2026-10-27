@@ -775,6 +775,20 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   longest 0.50 s.
 - Device checks open: see PLAN-windows task 12.
 
+## 2026-10-27: pipeline rule changes
+
+Both approved by the maintainer after the Windows run.
+
+- Reviewers get the Write tool, limited by `.claude/hooks/reviewer-write-guard.sh` (wired in their
+  agent frontmatter) to `docs/_working/` of the repo or a sibling worktree. They wrote reports
+  through Bash heredocs before, and `bash-guard` blocked the whole heredoc whenever the report
+  quoted a command it watches; twice the manager had to save the report by hand. Code edits stay
+  impossible for them: no Edit tool, and the hook refuses any other path.
+- `scripts/agent/ship.sh` waits for GitHub to report the PR as MERGEABLE, merges, and only then
+  removes the worktree and the local branch. Before, it removed the worktree first, so a merge
+  refused for a conflict (#19 after #18) left the branch without a worktree. The remote branch is
+  deleted by the repo setting `deleteBranchOnMerge`, not by `--delete-branch`.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

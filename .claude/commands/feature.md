@@ -72,7 +72,8 @@ the file is empty after the restore. This runs once per branch, in the implement
 - Merge the findings into one severity-ordered punch list. Triage it yourself: drop findings that
   are wrong, decide disputed ones.
 - Hand the list to the implementer to fix and re-run the gate. Repeat until the reviewers pass.
-  Reviewers never edit; they only name.
+  Reviewers never edit code; they only name. Each saves its punch list under `docs/_working/` (a
+  hook blocks any other path) and returns the verdict and the path.
 
 ## 7. Validate
 
