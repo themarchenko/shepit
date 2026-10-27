@@ -32,6 +32,10 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore`. One dictation: reco
 
 The reset only fires if the state is still done or failed (:242-245).
 
+Windows only: a recording that is digital silence (every sample zero, which is what a blocked microphone gives) fails with
+"Microphone: no sound, check Windows microphone privacy settings" before the speech check runs. Quiet but non-zero audio still
+fails with "Nothing recognized". macOS has no such case, because a denied permission is reported when the recorder starts.
+
 ## Speech presence
 
 Fixture: none (float input). The Rust port is `speech_seconds` in `windows/core/src/speech.rs:65`; its tests are a port of `SpeechPresenceTests` with a seeded generator in place of `Float.random`. Reference algorithm, Audio/SpeechPresence.swift:7-24:

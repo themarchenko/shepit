@@ -54,3 +54,30 @@ Consequences the port must keep:
 - Tap twice within 0.45 s: hands-free. The first tap starts and cancels a recording, the second starts a new one that `double_tap` makes hands-free. A tap while hands-free recording stops it.
 - `startRecording` is ignored unless the state is idle, done or failed (DictationSession.swift:67-70).
 - Cancel stops the recorder, clears the live preview, cancels processing and returns to idle without inserting anything (DictationSession.swift:120-127).
+
+## Windows
+
+Code: `windows/core/src/keys.rs`, `windows/app/src-tauri/src/{hook,controller}.rs`. Fixture:
+`windows/core/tests/fixtures/hotkey-candidates-windows.json` (Windows only, like the widget layout fixture).
+
+Candidate keys. The default is `rightCtrl`.
+
+| Choice id | Label | Virtual key | Note |
+|---|---|---|---|
+| `rightCtrl` | Right Ctrl | 0xA3, or 0x11 with the extended flag | Default |
+| `rightAlt` | Right Alt | 0xA5, or 0x12 with the extended flag | Can be AltGr on some layouts, so Settings shows a note |
+| `f13` to `f24` | F13 to F24 | 0x7C to 0x87 | Nothing types and nothing acts on them |
+
+Left Ctrl is not allowed: with Right Ctrl as the key, it is one of the two defences against Shepit's own paste keys.
+Shift, Win, Caps Lock, Apps, Scroll Lock and F1 to F12 act on their own, and Pause cannot be held. The list can be widened later.
+
+The picker (Settings, and "No Right Ctrl? Change key" in the tour):
+
+- The keyboard hook never swallows a key, so the key still does its own job. That is why only keys that do nothing are candidates.
+- While picking, the first candidate key-down is the pick. Esc cancels. After 15 s without a candidate the pick times out.
+  Key-ups, injected keys and every other key are ignored, and they never leave the hook, so the privacy rule that letters are not seen still holds.
+- Picking also ends when the window is closed or loses focus. The page reports the result with the `hotkey-pick` event.
+- While picking, keys go to the picker and not to dictation.
+- A change takes effect at once, without a restart: the controller makes a new key filter and gesture, so a half-finished gesture is dropped (as on macOS), and the hook is told the new key.
+  The message to the controller is never dropped, even when its queue is full.
+- Esc in the tour closes the tour. It is ignored while a key is being picked, for 400 ms after a pick ends, and when it is a key repeat.

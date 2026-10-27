@@ -77,6 +77,9 @@ Paths below are relative to `apple/` where they point at code.
 | Parakeet script filter | macOS passes a language hint that filters decoder candidates by script, only for a hard language lock (Speech/ParakeetEngine.swift:34-37). Windows has no such filter. |
 | Insertion | Done on Windows (PLAN-windows task 6, dictation.md step 8). Needs device checks. |
 | Formatting, recordings store, history, live preview | Windows lags: PLAN-windows tasks 9, 10 and 12. After recognition the Windows app inserts the raw transcript. |
+| Settings panes and the tour | macOS: General, Appearance, Polishing, Dictionary, About, and a 5-step tour with permissions and polishing. Windows (task 8): General, Appearance, About and a 4-step tour (welcome, microphone, look, try it). No language lock, polishing, dictionary, history, live preview, What's new, update card or launch at login yet. The microphone step explains Windows privacy settings and notes that apps running as administrator get the text copied, not pasted. |
+| Dictation key picker | Windows only: records the next key through the keyboard hook, from a fixed candidate list (hotkey.md, Windows). macOS offers three fixed choices. |
+| Tray | Windows: a left click opens Settings and a right click shows the menu. |
 | Text insertion, permissions, executable search paths, widget rendering | Per platform. |
 | Agent transport | Claude Code is driven through its stream-json mode, Codex through `app-server`. A port matches timings and output cleanup (polishing.md), not the transport. |
 | Reply cleanup is written twice (Formatting/ClaudeCodeWorker.swift:218-225 and CodexFormatter.swift:117-127) | Kept as is; the spec describes one rule. |

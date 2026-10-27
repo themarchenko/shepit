@@ -76,6 +76,9 @@ windows/
    drag across monitors. See DECISIONS 2026-10-27: Windows widget.
 8. **Settings and onboarding**. Same panes and defaults as the spec; microphone permission guidance
    for Windows privacy settings.
+   Status 2026-10-27: code done (General, Appearance and About panes, key picker with live change, microphone
+   test with Windows guidance, 4-step tour, tray left click). Device checks open. See DECISIONS 2026-10-27:
+   Windows settings and tour.
 9. **Polishing**. Claude Code and Codex workers, same prompts and protocol. Done: worker tests with a
    fake CLI. Device check: with a signed-in Claude Code.
 10. **History and dictionary learning**.
