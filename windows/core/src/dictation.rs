@@ -180,6 +180,19 @@ pub struct View {
     pub stage: Option<Stage>,
     /// Download fraction while the model downloads and a dictation waits for it.
     pub progress: Option<f32>,
+    /// The app the text goes to (`TargetContext::app_name`), once the context has arrived.
+    pub target: Option<String>,
+}
+
+/// Input from the widget itself (WidgetController.swift:51-53).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WidgetInput {
+    /// Toggles hands-free.
+    Click,
+    /// Push-to-talk starts.
+    HoldBegan,
+    /// Push-to-talk stops.
+    HoldEnded,
 }
 
 pub struct Controller<R: Recorder> {
@@ -253,13 +266,9 @@ impl<R: Recorder> Controller<R> {
         };
         match action_for(&self.state, event) {
             Action::None => {}
-            Action::Start => self.start(at),
+            Action::Start => self.start(at, false),
             Action::Stop => {
-                let samples = self.stop_recorder();
-                // Too short to be speech: dropped silently (DictationSession.swift:49).
-                if is_long_enough(samples.len()) {
-                    self.begin_processing(samples, at);
-                }
+                self.stop_and_process(at);
             }
             Action::Cancel => self.cancel(),
             Action::MakeHandsFree => self.state = State::Recording { hands_free: true },
@@ -390,7 +399,7 @@ impl<R: Recorder> Controller<R> {
         }
     }
 
-    fn start(&mut self, at: f64) {
+    fn start(&mut self, at: f64, hands_free: bool) {
         self.pending_insert = None;
         self.live = None;
         self.capture = None;
@@ -401,7 +410,7 @@ impl<R: Recorder> Controller<R> {
                 let id = self.alloc_id();
                 self.live = Some(id);
                 self.capture = Some(id);
-                self.state = State::Recording { hands_free: false };
+                self.state = State::Recording { hands_free };
             }
             Err(e) => self.fail(format!("Microphone: {e}"), at),
         }
@@ -491,6 +500,35 @@ impl<R: Recorder> Controller<R> {
             levels: self.history.levels().to_vec(),
             stage,
             progress,
+            target: self.context.as_ref().and_then(|c| c.app_name.clone()),
+        }
+    }
+
+    /// Input from the widget. A click toggles hands-free, a hold is push-to-talk
+    /// (DictationSession.swift:129-136). Busy states ignore both, like a hotkey press.
+    pub fn on_widget(&mut self, input: WidgetInput, at: f64) {
+        match (input, &self.state) {
+            (WidgetInput::Click, State::Recording { hands_free: false }) => {
+                self.state = State::Recording { hands_free: true };
+            }
+            (WidgetInput::Click, State::Recording { hands_free: true }) => {
+                self.stop_and_process(at)
+            }
+            (WidgetInput::Click, s) if !s.is_busy() => self.start(at, true),
+            (WidgetInput::HoldBegan, State::Recording { .. }) => {}
+            (WidgetInput::HoldBegan, s) if !s.is_busy() => self.start(at, false),
+            (WidgetInput::HoldEnded, State::Recording { hands_free: false }) => {
+                self.stop_and_process(at);
+            }
+            _ => {}
+        }
+    }
+
+    fn stop_and_process(&mut self, at: f64) {
+        let samples = self.stop_recorder();
+        // Too short to be speech: dropped silently (DictationSession.swift:49).
+        if is_long_enough(samples.len()) {
+            self.begin_processing(samples, at);
         }
     }
 }
@@ -1315,5 +1353,216 @@ mod tests {
         assert_eq!(c.view().phase, Phase::Done);
         c.poll(22.5);
         assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    // Widget input (WidgetController.swift:51-53, DictationSession.swift:66-72, 129-136).
+
+    fn failed_controller() -> (Controller<FakeRecorder>, Rc<Shared>) {
+        let (mut c, shared) = setup_ready();
+        *shared.start_error.borrow_mut() = Some(CaptureError::NoDevice);
+        press(&mut c, 0.0);
+        assert_eq!(c.view().phase, Phase::Failed);
+        *shared.start_error.borrow_mut() = None;
+        (c, shared)
+    }
+
+    fn done_controller() -> (Controller<FakeRecorder>, Rc<Shared>) {
+        let (mut c, shared) = setup_ready();
+        let id = transcribe(&mut c, 0.0);
+        c.on_recognized(id, Ok("hello there".into()), 2.0);
+        c.take_insert().expect("insert job");
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 2.5);
+        assert_eq!(c.view().phase, Phase::Done);
+        (c, shared)
+    }
+
+    fn assert_listening(c: &Controller<FakeRecorder>, hands_free: bool) {
+        let v = c.view();
+        assert_eq!((v.phase, v.hands_free), (Phase::Listening, hands_free));
+    }
+
+    #[test]
+    fn a_widget_click_while_idle_starts_a_hands_free_recording() {
+        let (mut c, shared) = setup_ready();
+        c.on_widget(WidgetInput::Click, 0.0);
+        assert_listening(&c, true);
+        assert_eq!(shared.starts.get(), 1);
+        assert!(
+            c.take_capture().is_some(),
+            "the context capture is requested"
+        );
+    }
+
+    #[test]
+    fn a_widget_click_after_done_starts_a_hands_free_recording() {
+        let (mut c, shared) = done_controller();
+        c.on_widget(WidgetInput::Click, 3.0);
+        assert_listening(&c, true);
+        assert_eq!(shared.starts.get(), 2);
+    }
+
+    #[test]
+    fn a_widget_click_after_a_failure_starts_a_hands_free_recording() {
+        let (mut c, shared) = failed_controller();
+        c.on_widget(WidgetInput::Click, 1.0);
+        assert_listening(&c, true);
+        assert_eq!(shared.starts.get(), 2);
+    }
+
+    #[test]
+    fn a_widget_click_while_push_to_talk_makes_it_hands_free_without_restarting() {
+        let (mut c, shared) = setup_ready();
+        press(&mut c, 0.0);
+        assert_listening(&c, false);
+        c.on_widget(WidgetInput::Click, 0.5);
+        assert_listening(&c, true);
+        assert_eq!((shared.starts.get(), shared.stops.get()), (1, 0));
+    }
+
+    #[test]
+    fn a_widget_click_while_hands_free_stops_and_hands_over_the_audio() {
+        let (mut c, shared) = setup_ready();
+        c.on_widget(WidgetInput::Click, 0.0);
+        c.on_widget(WidgetInput::Click, 1.0);
+        assert_eq!(c.view().phase, Phase::Processing);
+        assert_eq!(shared.stops.get(), 1);
+        assert_eq!(c.take_job().map(|j| j.samples.len()), Some(16_000));
+    }
+
+    #[test]
+    fn a_widget_hold_is_push_to_talk() {
+        let (mut c, shared) = setup_ready();
+        c.on_widget(WidgetInput::HoldBegan, 0.0);
+        assert_listening(&c, false);
+        c.on_widget(WidgetInput::HoldEnded, 1.0);
+        assert_eq!(c.view().phase, Phase::Processing);
+        assert_eq!((shared.starts.get(), shared.stops.get()), (1, 1));
+        assert!(c.take_job().is_some());
+    }
+
+    #[test]
+    fn a_widget_hold_can_start_after_done_and_after_a_failure() {
+        let (mut c, _) = done_controller();
+        c.on_widget(WidgetInput::HoldBegan, 3.0);
+        assert_listening(&c, false);
+        let (mut c, _) = failed_controller();
+        c.on_widget(WidgetInput::HoldBegan, 1.0);
+        assert_listening(&c, false);
+    }
+
+    #[test]
+    fn a_hold_end_without_a_recording_does_nothing() {
+        let (mut c, shared) = setup_ready();
+        c.on_widget(WidgetInput::HoldEnded, 1.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+        assert_eq!(shared.stops.get(), 0);
+    }
+
+    #[test]
+    fn a_hold_begin_during_a_recording_does_not_restart_it() {
+        let (mut c, shared) = setup_ready();
+        c.on_widget(WidgetInput::Click, 0.0);
+        c.on_widget(WidgetInput::HoldBegan, 0.5);
+        assert_listening(&c, true);
+        assert_eq!(shared.starts.get(), 1);
+    }
+
+    #[test]
+    fn widget_input_is_ignored_while_the_model_loads() {
+        let (mut c, shared) = setup();
+        dictate(&mut c, 0.0);
+        assert_eq!(c.view().stage, Some(Stage::Loading));
+        for input in [
+            WidgetInput::Click,
+            WidgetInput::HoldBegan,
+            WidgetInput::HoldEnded,
+        ] {
+            c.on_widget(input, 5.0);
+            assert_eq!(c.view().stage, Some(Stage::Loading), "{input:?}");
+        }
+        assert_eq!(shared.starts.get(), 1);
+    }
+
+    #[test]
+    fn widget_input_is_ignored_while_transcribing_and_inserting() {
+        let (mut c, shared) = setup_ready();
+        let id = transcribe(&mut c, 0.0);
+        assert_eq!(c.view().stage, Some(Stage::Transcribing));
+        for input in [
+            WidgetInput::Click,
+            WidgetInput::HoldBegan,
+            WidgetInput::HoldEnded,
+        ] {
+            c.on_widget(input, 5.0);
+            assert_eq!(c.view().stage, Some(Stage::Transcribing), "{input:?}");
+        }
+        c.on_recognized(id, Ok("hello there".into()), 6.0);
+        for input in [
+            WidgetInput::Click,
+            WidgetInput::HoldBegan,
+            WidgetInput::HoldEnded,
+        ] {
+            c.on_widget(input, 7.0);
+            assert_eq!(c.view().stage, Some(Stage::Inserting), "{input:?}");
+        }
+        assert_eq!(shared.starts.get(), 1);
+    }
+
+    #[test]
+    fn the_view_target_is_the_app_name_once_the_context_arrives() {
+        let (mut c, _) = setup_ready();
+        c.on_widget(WidgetInput::Click, 0.0);
+        let id = c.take_capture().expect("capture id");
+        assert_eq!(c.view().target, None);
+        c.on_context(
+            id,
+            TargetContext {
+                app_name: Some("Notepad".into()),
+                ..TargetContext::default()
+            },
+        );
+        assert_eq!(c.view().target.as_deref(), Some("Notepad"));
+    }
+
+    #[test]
+    fn a_context_without_an_app_name_leaves_the_target_empty() {
+        let (mut c, _) = setup_ready();
+        c.on_widget(WidgetInput::Click, 0.0);
+        let id = c.take_capture().expect("capture id");
+        c.on_context(id, TargetContext::default());
+        assert_eq!(c.view().target, None);
+    }
+
+    #[test]
+    fn a_stale_context_does_not_set_the_target() {
+        let (mut c, _) = setup_ready();
+        c.on_widget(WidgetInput::Click, 0.0);
+        let id = c.take_capture().expect("capture id");
+        c.on_context(
+            id + 100,
+            TargetContext {
+                app_name: Some("Old".into()),
+                ..TargetContext::default()
+            },
+        );
+        assert_eq!(c.view().target, None);
+    }
+
+    #[test]
+    fn the_target_is_cleared_when_the_next_dictation_starts() {
+        let (mut c, _) = setup_ready();
+        press(&mut c, 0.0);
+        let id = c.take_capture().expect("capture id");
+        c.on_context(
+            id,
+            TargetContext {
+                app_name: Some("Notepad".into()),
+                ..TargetContext::default()
+            },
+        );
+        release(&mut c, 0.1);
+        assert_eq!(c.view().phase, Phase::Idle);
+        c.on_widget(WidgetInput::Click, 5.0);
+        assert_eq!(c.view().target, None);
     }
 }

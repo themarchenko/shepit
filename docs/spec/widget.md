@@ -54,6 +54,7 @@ Shape sizes in points, from macOS/Shepit/Widget/WidgetModel.swift:78-129 (width 
 | done | 44 x 32 | 560 x 42 | 410 x 94 |
 | failed | 44 x 32 | 270 x 42 | 254 x 36 |
 
+- Windows only: the hovered idle shapes are 300 x 28 (flowPill), 360 x 30 (captionBar) and 280 x 30 (island), and the idle island is 128 x 26. The hint names "Right Ctrl" in Segoe UI, wider than the macOS key label, and 262, 330 and 252 clip it; the idle island has to fit the mic icon and the keycap inside the same 14 pt padding as macOS, which 96 does not. The widths are estimates until a device check.
 - flowPill shows a caption above the pill while listening with text, and in processing, done and failed (WidgetModel.swift:96-102). Caption maximum width 440 (:85). With a caption the flowPill panel grows by 42 pt in height (8 pt gap plus 34 pt caption) and its width is at least 464 (440 + 24) (:137-140).
 - The panel is sized to the shape plus a shadow margin of 28 x 26 on each side (:84, 132-147).
 - Default position: centred horizontally on the primary display's work area, the idle pill's bottom edge 34 pt above the work area bottom (8 pt panel clamp margin plus the 26 pt shadow margin), and the panel clamped inside the work area with an 8 pt margin (WidgetController.swift:27, 196-213). Windows scales these points by the monitor scale factor.
@@ -66,6 +67,18 @@ Shape sizes in points, from macOS/Shepit/Widget/WidgetModel.swift:78-129 (width 
 
 macOS does not show this caption. Both platforms word the other stages the same way (`Loading model`, `Transcribing`; WidgetModel.swift:21-22).
 
+## Windows notes
+
+Windows only, where it differs from the macOS behaviour above.
+
+- Anchor units: `widgetAnchor` is the bottom centre of the window in physical pixels of the virtual screen, y down. Logical points have no single meaning on a desktop with mixed scaling. The default is the centre of the primary work area, 8 px times the scale above its bottom edge. The anchor is clamped to the work area of the monitor that holds it, with an 8 pt margin. If no monitor holds it (a display was unplugged), the widget goes back to the default.
+- No blur: the glass is `rgba(0, 0, 0, glassOpacity)` with the hairline and shadow, but no backdrop blur. A WebView2 `backdrop-filter` cannot sample the desktop behind the window, and Acrylic or Mica would also fill the shadow margin of the window. Confirmed by the user on 2026-10-27, reversible.
+- Captions are one line. Live and processing words keep the newest end and fade the clipped start. Done and failed text keep the start and end in an ellipsis, so "Copied (press Ctrl+V to paste)" stays readable. The island body keeps two lines.
+- The right-click menu (modes, language, history, settings) is not there yet. Right click does nothing. Known gap: the items need the settings pane and history, which come with tasks 8 and 10. The tray has "Show widget" and "Reset widget position".
+- The island step bar still shows "Transcribe, Format, Insert". Windows has no formatting stage until task 9, so the second step is never active: loading and transcribing fill the first, inserting fills the third.
+- Known gap: there is no screens-changed handling. A monitor that is unplugged while the widget sits on it is noticed at the next size change or drag, not at once.
+- Live text is empty until task 12. The layout already reads the flag.
+
 ## Appearance settings
 
 Source: Settings/AppSettings.swift:101-103, 163-164, 170, 183-194.
@@ -75,7 +88,7 @@ Source: Settings/AppSettings.swift:101-103, 163-164, 170, 183-194.
 | `glassOpacity` | 0.7 | Opacity of the dark glass, range 0.5 to 0.9 |
 | `fadeWhenIdle` | true | Fade the idle widget |
 | `widgetVisible` | true | Show the widget |
-| `widgetAnchor` | unset | `{x, y}`: middle of the bottom edge, global screen coordinates. One anchor for all displays. |
+| `widgetAnchor` | unset | `{x, y}`: middle of the bottom edge, global screen coordinates. One anchor for all displays. Windows: physical pixels, see Windows notes. |
 
 ## Live preview
 

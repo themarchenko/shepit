@@ -7,23 +7,27 @@ mod insert;
 mod insert_win;
 mod recognizer;
 mod recorder;
+mod settings_store;
 mod tray;
 mod widget;
+mod widget_host;
 
 use controller::{log_line, Msg, Runner};
 use insert::Request;
 use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
-use shepit_core::dictation::{Job, ModelStatus, Phase, View};
+use shepit_core::dictation::{Job, ModelStatus, Phase};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use settings_store::SettingsStore;
+use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
+use tauri::{AppHandle, Manager, State};
+use widget_host::WidgetHost;
 
 /// Looked up later to change the tooltip while the model downloads.
 const TRAY_ID: &str = "main";
@@ -42,55 +46,97 @@ fn platform_desktop() -> impl insert::Desktop {
     insert::NullDesktop
 }
 
+// `widget_ready` is async so it runs off the main thread: the host asks the main thread for monitor
+// data and would wait on itself otherwise.
+
+#[tauri::command]
+async fn widget_ready(host: State<'_, WidgetHost>) -> Result<(), String> {
+    host.ready();
+    Ok(())
+}
+
+// Sync on purpose: Tauri runs sync commands on the main thread in the order the IPC messages arrive,
+// and these only queue the event, so a click's down can never be handled after its up.
+#[tauri::command]
+fn widget_hover(host: State<'_, WidgetHost>, hovering: bool) {
+    host.push_hover(hovering);
+}
+
+#[tauri::command]
+fn widget_pointer(host: State<'_, WidgetHost>, kind: String) -> Result<(), String> {
+    host.push_pointer(&kind)
+}
+
 fn main() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            widget_ready,
+            widget_hover,
+            widget_pointer
+        ])
         // A second launch must not open a second widget; it just exits.
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
         .setup(|app| {
+            // Bounded so a stalled controller cannot grow memory; senders drop on full.
+            let (tx, rx) = mpsc::sync_channel::<Msg>(256);
+            let store = SettingsStore::new(app.path().app_config_dir()?);
+            let host = WidgetHost::new(app.handle().clone(), tx.clone(), store);
+            app.manage(host.clone());
+
             let settings = MenuItemBuilder::with_id("settings", "Settings\u{2026}")
                 .enabled(false)
                 .build(app)?;
+            let show_widget = CheckMenuItemBuilder::with_id("toggle-widget", "Show widget")
+                .checked(host.visible())
+                .build(app)?;
+            let reset_widget =
+                MenuItemBuilder::with_id("reset-widget", "Reset widget position").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit Shepit").build(app)?;
             let menu = MenuBuilder::new(app)
                 .item(&settings)
                 .separator()
+                .item(&show_widget)
+                .item(&reset_widget)
+                .separator()
                 .item(&quit)
                 .build()?;
 
+            let checkbox = show_widget.clone();
             let mut tray = TrayIconBuilder::with_id(TRAY_ID)
                 .tooltip("Shepit")
                 .menu(&menu)
-                .on_menu_event(|app, event| {
-                    if tray::action_for(event.id().as_ref()) == tray::MenuAction::Quit {
-                        app.exit(0);
-                    }
-                });
+                .on_menu_event(
+                    move |app, event| match tray::action_for(event.id().as_ref()) {
+                        tray::MenuAction::Quit => app.exit(0),
+                        // On a thread: the handler runs on the main thread, and the host waits on the
+                        // main thread for monitor data while it holds its lock.
+                        tray::MenuAction::ToggleWidget => {
+                            let host = app.state::<WidgetHost>().inner().clone();
+                            let checkbox = checkbox.clone();
+                            std::thread::spawn(move || {
+                                let visible = host.toggle_visible();
+                                // The click already flipped the check; set it to the real state.
+                                let _ = checkbox.set_checked(visible);
+                            });
+                        }
+                        tray::MenuAction::ResetWidget => {
+                            let host = app.state::<WidgetHost>().inner().clone();
+                            std::thread::spawn(move || host.reset_position());
+                        }
+                        tray::MenuAction::None => {}
+                    },
+                );
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
 
-            if let Some(window) = app.get_webview_window("widget") {
-                if let Some(monitor) = app.primary_monitor()? {
-                    let area = monitor.work_area();
-                    let size = window.outer_size()?;
-                    let (x, y) = widget::default_position(
-                        (
-                            area.position.x,
-                            area.position.y,
-                            area.size.width as i32,
-                            area.size.height as i32,
-                        ),
-                        (size.width as i32, size.height as i32),
-                        monitor.scale_factor(),
-                    );
-                    window.set_position(PhysicalPosition::new(x, y))?;
-                }
-                window.show()?;
+            // Off the main thread for the same reason as the tray handlers.
+            {
+                let host = host.clone();
+                std::thread::spawn(move || host.start());
             }
 
-            // Bounded so a stalled controller cannot grow memory; senders drop on full.
-            let (tx, rx) = mpsc::sync_channel::<Msg>(256);
             hook::start(tx.clone(), shepit_core::keys::VK_RCONTROL);
             // One recognizer for the whole run: it outlives controller restarts, so the model is
             // loaded once. It preloads (and downloads) at launch.
@@ -156,7 +202,7 @@ fn run_controller(
         eprintln!("controller thread panicked, restarting");
         job_id_base += JOB_ID_STRIDE;
         wanted.store(0, Ordering::SeqCst);
-        apply_view(&app, &widget::idle_view(), true);
+        app.state::<WidgetHost>().view(widget::idle_view());
     }
 }
 
@@ -175,7 +221,6 @@ fn controller_loop(
     let known = *model.lock().unwrap_or_else(|e| e.into_inner());
     let mut runner = Runner::new(CpalRecorder::new(tx.clone()), first_job_id, known);
     let mut tooltip = String::from("Shepit");
-    let mut last_view: Option<View> = None;
     let mut listening_since: Option<Instant> = None;
     loop {
         let msg = match rx.recv_timeout(Duration::from_millis(100)) {
@@ -249,11 +294,7 @@ fn controller_loop(
             }
             (_, None) => {}
         }
-        let resize = last_view
-            .as_ref()
-            .is_none_or(|old| widget::needs_resize(old, &view));
-        apply_view(app, &view, resize);
-        last_view = Some(view);
+        app.state::<WidgetHost>().view(view);
     }
 }
 
@@ -267,40 +308,4 @@ fn set_tooltip(app: &AppHandle, current: &mut String, text: String) {
         }
     }
     *current = text;
-}
-
-/// Re-seats the widget when `resize` is set, then sends it the state.
-fn apply_view(app: &AppHandle, view: &View, resize: bool) {
-    if resize {
-        if let Some(window) = app.get_webview_window("widget") {
-            if let Err(err) = place(&window, view) {
-                eprintln!("could not place the widget: {err}");
-            }
-        }
-    }
-    let state = widget::WidgetState::from_view(view);
-    if let Err(err) = app.emit_to("widget", "widget-state", state) {
-        eprintln!("could not send the widget state: {err}");
-    }
-}
-
-fn place(window: &WebviewWindow, view: &View) -> tauri::Result<()> {
-    let (w, h) = widget::window_size(view);
-    window.set_size(LogicalSize::new(w, h))?;
-    if let Some(monitor) = window.primary_monitor()? {
-        let scale = monitor.scale_factor();
-        let area = monitor.work_area();
-        let (x, y) = widget::default_position(
-            (
-                area.position.x,
-                area.position.y,
-                area.size.width as i32,
-                area.size.height as i32,
-            ),
-            ((w * scale).round() as i32, (h * scale).round() as i32),
-            scale,
-        );
-        window.set_position(PhysicalPosition::new(x, y))?;
-    }
-    Ok(())
 }

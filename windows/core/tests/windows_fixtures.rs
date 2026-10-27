@@ -3,7 +3,9 @@
 mod support;
 
 use serde::Deserialize;
+use shepit_core::dictation::Phase;
 use shepit_core::profile::{exe_tables, resolve_exe_profile};
+use shepit_core::widget::{layout_for, LayoutInput, Style};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -81,6 +83,107 @@ fn every_terminal_has_a_case_with_and_without_a_claude_title() {
             };
             assert!(titled(true), "{name}: no claude-title case");
             assert!(titled(false), "{name}: no plain-title case");
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LayoutCase {
+    style: String,
+    phase: String,
+    hands_free: bool,
+    hovering: bool,
+    has_live: bool,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct ShapeOut {
+    width: f64,
+    height: f64,
+    radius: f64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct WindowOut {
+    width: f64,
+    height: f64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct LayoutOut {
+    shape: ShapeOut,
+    caption: bool,
+    window: WindowOut,
+}
+
+type LayoutFixture = support::Envelope<LayoutCase, LayoutOut>;
+
+fn layout_fixture() -> LayoutFixture {
+    support::load_from(&windows_fixture("widget-layout-windows.json"), 24).unwrap()
+}
+
+fn phase_from(id: &str) -> Phase {
+    match id {
+        "idle" => Phase::Idle,
+        "listening" => Phase::Listening,
+        "processing" => Phase::Processing,
+        "done" => Phase::Done,
+        "failed" => Phase::Failed,
+        other => panic!("unknown phase {other}"),
+    }
+}
+
+fn layout_of(input: &LayoutCase) -> LayoutOut {
+    let layout = layout_for(&LayoutInput {
+        style: Style::from_id(&input.style).unwrap_or_else(|| panic!("style {}", input.style)),
+        phase: phase_from(&input.phase),
+        hands_free: input.hands_free,
+        hovering: input.hovering,
+        has_live: input.has_live,
+    });
+    LayoutOut {
+        shape: ShapeOut {
+            width: layout.shape.width,
+            height: layout.shape.height,
+            radius: layout.shape.radius,
+        },
+        caption: layout.caption,
+        window: WindowOut {
+            width: layout.window.width,
+            height: layout.window.height,
+        },
+    }
+}
+
+#[test]
+fn widget_layout_windows_matches_fixture() {
+    let f = layout_fixture();
+    let failing: Vec<&str> = f
+        .cases
+        .iter()
+        .filter(|c| layout_of(&c.input) != c.expected)
+        .map(|c| c.name.as_str())
+        .collect();
+    assert!(failing.is_empty(), "failing cases: {failing:?}");
+}
+
+#[test]
+fn the_layout_fixture_covers_every_style_and_state() {
+    let f = layout_fixture();
+    for style in ["flowPill", "captionBar", "island"] {
+        for state in [
+            "idle",
+            "idle-hover",
+            "ptt",
+            "hands-free",
+            "listening-live",
+            "processing",
+            "done",
+            "failed",
+        ] {
+            let name = format!("{style}/{state}");
+            assert!(f.cases.iter().any(|c| c.name == name), "no case {name}");
         }
     }
 }

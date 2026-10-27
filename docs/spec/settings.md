@@ -36,4 +36,11 @@ Notes:
 - Hotkey display strings (AppSettings.swift:8-14): `Right Option (⌥)`, `Right Command (⌘)`, `Fn / Globe (needs "Press Fn key to: Do Nothing" in System Settings)`. Short key-cap labels (:16-23): `Right ⌥`, `Right ⌘`, `Fn`. The Fn choice needs the system's own Fn action turned off (:12). Platform-specific.
 - The legacy `widgetPositions` key is removed on launch (:150, 180). Platform-specific.
 - Settings changes take effect without a restart: hotkey, engine preload, agent replacement, live preview and fast-path limit (macOS/Shepit/App/AppDelegate.swift:159-215, see polishing.md).
+- Windows file: `app_config_dir()/settings.json` (Tauri), a flat JSON object with the key names above. Only the
+  widget keys are read so far (`widgetStyle`, `glassOpacity`, `fadeWhenIdle`, `widgetVisible`,
+  `widgetAnchor`). Each key falls back to its default on its own, so one bad value does not reset the rest.
+  `glassOpacity` is clamped to 0.5-0.9 on read (macOS does not clamp on load). Keys the app does not know are
+  kept when it writes. Writes go to `settings.json.tmp` and are renamed over the file. If the file cannot be
+  parsed, defaults are used, and the first write copies the bad file to `settings.json.bak` once before it
+  replaces it.
 - Speaker notes go into the system prompt (polishing.md).
