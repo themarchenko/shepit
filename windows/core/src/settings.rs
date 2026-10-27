@@ -27,7 +27,10 @@ const KEY_FAST_PATH: &str = "fastPathMaxWords";
 const KEY_PROMPT_MIN: &str = "promptModeMinWords";
 const KEY_NOTES: &str = "speakerNotes";
 const KEY_DICTIONARY: &str = "dictionary";
-const KNOWN_KEYS: [&str; 16] = [
+const KEY_CHECK_UPDATES: &str = "checkForUpdates";
+const KEY_SKIPPED_UPDATE: &str = "skippedUpdate";
+const KEY_LAST_UPDATE_CHECK: &str = "lastUpdateCheck";
+const KNOWN_KEYS: [&str; 19] = [
     KEY_STYLE,
     KEY_OPACITY,
     KEY_FADE,
@@ -44,6 +47,9 @@ const KNOWN_KEYS: [&str; 16] = [
     KEY_PROMPT_MIN,
     KEY_NOTES,
     KEY_DICTIONARY,
+    KEY_CHECK_UPDATES,
+    KEY_SKIPPED_UPDATE,
+    KEY_LAST_UPDATE_CHECK,
 ];
 
 /// macOS does not clamp (AppSettings.swift:163); the Windows widget needs the glass readable
@@ -140,6 +146,12 @@ pub struct Settings {
     pub speaker_notes: String,
     /// Read-only here (task 10 edits it). A value holding a non-string reads as empty.
     pub dictionary: Vec<String>,
+    /// Persisted as `checkForUpdates`: the daily look at GitHub.
+    pub check_for_updates: bool,
+    /// Persisted as `skippedUpdate`: the version the user chose to skip, or empty.
+    pub skipped_update: String,
+    /// Persisted as `lastUpdateCheck`: Unix seconds of the last successful check.
+    pub last_update_check: Option<u64>,
     /// Keys this version does not know, written back unchanged.
     pub extra: Map<String, Value>,
 }
@@ -163,6 +175,9 @@ impl Default for Settings {
             prompt_mode_min_words: 40,
             speaker_notes: DEFAULT_SPEAKER_NOTES.to_string(),
             dictionary: Vec::new(),
+            check_for_updates: true,
+            skipped_update: String::new(),
+            last_update_check: None,
             extra: Map::new(),
         }
     }
@@ -264,6 +279,16 @@ impl Settings {
                         .collect::<Option<Vec<_>>>()
                 })
                 .unwrap_or(d.dictionary),
+            check_for_updates: map
+                .get(KEY_CHECK_UPDATES)
+                .and_then(Value::as_bool)
+                .unwrap_or(d.check_for_updates),
+            skipped_update: map
+                .get(KEY_SKIPPED_UPDATE)
+                .and_then(Value::as_str)
+                .map_or(d.skipped_update, str::to_string),
+            // as_u64 rejects negatives, floats and strings, so they fall back to "never".
+            last_update_check: map.get(KEY_LAST_UPDATE_CHECK).and_then(Value::as_u64),
             extra: map
                 .into_iter()
                 .filter(|(k, _)| !KNOWN_KEYS.contains(&k.as_str()))
@@ -312,6 +337,22 @@ impl Settings {
         );
         map.insert(KEY_NOTES.into(), Value::from(self.speaker_notes.as_str()));
         map.insert(KEY_DICTIONARY.into(), Value::from(self.dictionary.clone()));
+        map.insert(
+            KEY_CHECK_UPDATES.into(),
+            Value::from(self.check_for_updates),
+        );
+        map.insert(
+            KEY_SKIPPED_UPDATE.into(),
+            Value::from(self.skipped_update.as_str()),
+        );
+        match self.last_update_check {
+            Some(t) => {
+                map.insert(KEY_LAST_UPDATE_CHECK.into(), Value::from(t));
+            }
+            None => {
+                map.remove(KEY_LAST_UPDATE_CHECK);
+            }
+        }
         match self.widget_anchor {
             Some(p) => {
                 let mut anchor = Map::new();
@@ -343,11 +384,18 @@ pub struct Changes {
     /// `defaultMode`, `fastPathMaxWords`, `promptModeMinWords` or `dictionary`. Applies from the
     /// next dictation.
     pub formatting: bool,
+    /// `checkForUpdates`. The skipped version and the last check time flag nothing.
+    pub updates: bool,
 }
 
 impl Changes {
     pub fn any(&self) -> bool {
-        self.look || self.hotkey || self.visible || self.polishing || self.formatting
+        self.look
+            || self.hotkey
+            || self.visible
+            || self.polishing
+            || self.formatting
+            || self.updates
     }
 }
 
@@ -368,6 +416,7 @@ pub fn changes(old: &Settings, new: &Settings) -> Changes {
             || old.fast_path_max_words != new.fast_path_max_words
             || old.prompt_mode_min_words != new.prompt_mode_min_words
             || old.dictionary != new.dictionary,
+        updates: old.check_for_updates != new.check_for_updates,
     }
 }
 
@@ -379,8 +428,9 @@ fn patch_string(value: &Value, key: &str) -> Result<String, String> {
 }
 
 /// Applies a UI edit. The patch is a JSON object with any of `widgetStyle`, `glassOpacity`,
-/// `fadeWhenIdle`, `widgetVisible`, `hotkey` and the polishing keys (not `dictionary`). An unknown key, a wrong type or a bad id rejects
-/// the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
+/// `fadeWhenIdle`, `widgetVisible`, `hotkey`, `checkForUpdates` and the polishing keys (not
+/// `dictionary`, `skippedUpdate` or `lastUpdateCheck`, which only the updater writes). An unknown
+/// key, a wrong type or a bad id rejects the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
 pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String> {
     let Value::Object(map) = patch else {
         return Err("the patch must be an object".into());
@@ -459,6 +509,14 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
             }
             KEY_DICTIONARY => {
                 return Err(format!("{KEY_DICTIONARY}: cannot be patched here"));
+            }
+            KEY_CHECK_UPDATES => {
+                out.check_for_updates = value
+                    .as_bool()
+                    .ok_or_else(|| format!("{KEY_CHECK_UPDATES}: not a boolean"))?;
+            }
+            KEY_SKIPPED_UPDATE | KEY_LAST_UPDATE_CHECK => {
+                return Err(format!("{key}: cannot be patched here"));
             }
             // widgetAnchor and onboardingCompleted have their own commands.
             other => return Err(format!("unknown setting: {other}")),
@@ -1372,5 +1430,161 @@ mod tests {
         let c = changes(&base, &new);
         assert!(c.polishing && c.formatting);
         assert!(!c.look && !c.hotkey && !c.visible);
+    }
+
+    // Update keys (docs/spec/settings.md, updates-install.md).
+
+    #[test]
+    fn the_update_defaults_match_the_spec() {
+        let d = Settings::default();
+        assert!(d.check_for_updates);
+        assert_eq!(d.skipped_update, "");
+        assert_eq!(d.last_update_check, None);
+        assert_eq!(parse("{}"), d);
+    }
+
+    #[test]
+    fn valid_update_values_are_read() {
+        let s = parse(
+            r#"{"checkForUpdates":false,"skippedUpdate":"0.4.0","lastUpdateCheck":1800000000}"#,
+        );
+        assert!(!s.check_for_updates);
+        assert_eq!(s.skipped_update, "0.4.0");
+        assert_eq!(s.last_update_check, Some(1_800_000_000));
+    }
+
+    #[test]
+    fn a_wrong_check_for_updates_falls_back_alone() {
+        for bad in ["\"no\"", "0", "null", "[]"] {
+            let s = parse(&format!(
+                r#"{{"checkForUpdates":{bad},"widgetVisible":false}}"#
+            ));
+            assert!(s.check_for_updates, "{bad}");
+            assert!(!s.widget_visible, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn a_wrong_skipped_update_falls_back_alone() {
+        for bad in ["5", "null", "[]"] {
+            let s = parse(&format!(
+                r#"{{"skippedUpdate":{bad},"widgetVisible":false}}"#
+            ));
+            assert_eq!(s.skipped_update, "", "{bad}");
+            assert!(!s.widget_visible, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn a_wrong_last_update_check_falls_back_alone() {
+        for bad in ["\"1800000000\"", "-5", "1.5", "null", "true", "{}"] {
+            let s = parse(&format!(
+                r#"{{"lastUpdateCheck":{bad},"widgetVisible":false}}"#
+            ));
+            assert_eq!(s.last_update_check, None, "{bad}");
+            assert!(!s.widget_visible, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn the_update_keys_are_written_with_the_spec_names() {
+        let s = Settings {
+            check_for_updates: false,
+            skipped_update: "0.4.0".into(),
+            last_update_check: Some(1_800_000_000),
+            ..Settings::default()
+        };
+        let out = written(&s);
+        assert_eq!(out["checkForUpdates"], false);
+        assert_eq!(out["skippedUpdate"], "0.4.0");
+        assert_eq!(out["lastUpdateCheck"], 1_800_000_000u64);
+        let d = written(&Settings::default());
+        assert_eq!(d["checkForUpdates"], true);
+        assert_eq!(d["skippedUpdate"], "");
+    }
+
+    #[test]
+    fn an_unset_last_update_check_is_not_written() {
+        assert!(written(&Settings::default())
+            .get("lastUpdateCheck")
+            .is_none());
+    }
+
+    #[test]
+    fn the_update_keys_are_not_kept_as_extras() {
+        let s = parse(
+            r#"{"checkForUpdates":false,"skippedUpdate":"1","lastUpdateCheck":5,"engine":"x"}"#,
+        );
+        for key in ["checkForUpdates", "skippedUpdate", "lastUpdateCheck"] {
+            assert!(!s.extra.contains_key(key), "{key}");
+        }
+        assert!(s.extra.contains_key("engine"));
+    }
+
+    #[test]
+    fn write_then_parse_keeps_the_update_settings() {
+        let s = Settings {
+            check_for_updates: false,
+            skipped_update: "0.4.0".into(),
+            last_update_check: Some(1_800_000_000),
+            ..Settings::default()
+        };
+        assert_eq!(parse(&s.to_json()), s);
+    }
+
+    #[test]
+    fn a_patch_sets_check_for_updates() {
+        let s = patch(&Settings::default(), r#"{"checkForUpdates":false}"#).unwrap();
+        assert!(!s.check_for_updates);
+    }
+
+    #[test]
+    fn a_non_boolean_check_for_updates_rejects_the_patch() {
+        for bad in ["\"no\"", "0", "null", "[]"] {
+            let r = patch(
+                &Settings::default(),
+                &format!(r#"{{"checkForUpdates":{bad},"widgetVisible":false}}"#),
+            );
+            assert!(r.is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_skipped_version_and_the_last_check_cannot_be_patched() {
+        let skipped = patch(&Settings::default(), r#"{"skippedUpdate":"0.4.0"}"#);
+        assert!(skipped.unwrap_err().contains("cannot be patched"));
+        let last = patch(&Settings::default(), r#"{"lastUpdateCheck":5}"#);
+        assert!(last.unwrap_err().contains("cannot be patched"));
+    }
+
+    #[test]
+    fn check_for_updates_flags_updates_only() {
+        let base = Settings::default();
+        let new = Settings {
+            check_for_updates: false,
+            ..base.clone()
+        };
+        let c = changes(&base, &new);
+        assert_eq!(
+            c,
+            Changes {
+                updates: true,
+                ..Changes::default()
+            }
+        );
+        assert!(c.any());
+    }
+
+    #[test]
+    fn the_skipped_version_and_the_last_check_flag_nothing() {
+        let base = Settings::default();
+        let new = Settings {
+            skipped_update: "0.4.0".into(),
+            last_update_check: Some(5),
+            ..base.clone()
+        };
+        let c = changes(&base, &new);
+        assert_eq!(c, Changes::default());
+        assert!(!c.any());
     }
 }

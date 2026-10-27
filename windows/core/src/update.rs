@@ -18,6 +18,8 @@ pub enum UpdateState {
     Downloading(String, f64),
     Installing(String),
     Failed(String),
+    /// Version and message: the download or install failed after the user chose to install.
+    InstallFailed(String, String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -224,5 +226,14 @@ mod tests {
         assert!(!is_busy(&UpdateState::UpToDate));
         assert!(!is_busy(&UpdateState::Available("0.4.0".into())));
         assert!(!is_busy(&UpdateState::Failed("x".into())));
+    }
+
+    #[test]
+    fn a_failed_install_is_not_busy() {
+        // The card must accept another click after the install failed.
+        assert!(!is_busy(&UpdateState::InstallFailed(
+            "0.4.0".into(),
+            "disk full".into()
+        )));
     }
 }

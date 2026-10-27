@@ -1,4 +1,5 @@
 use shepit_core::dictation::ModelStatus;
+use shepit_core::update::UpdateState;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MenuAction {
@@ -6,11 +7,15 @@ pub enum MenuAction {
     OpenSettings,
     ToggleWidget,
     ResetWidget,
+    CheckUpdates,
     None,
 }
 
 /// The "Show widget" check item, kept so a change made in Settings can update it.
 pub struct ShowWidgetItem(pub tauri::menu::CheckMenuItem<tauri::Wry>);
+
+/// The "Check for updates…" item, kept so the updater can rename it to "Update to X…".
+pub struct UpdateItem(pub tauri::menu::MenuItem<tauri::Wry>);
 
 pub fn action_for(id: &str) -> MenuAction {
     match id {
@@ -18,7 +23,16 @@ pub fn action_for(id: &str) -> MenuAction {
         "settings" => MenuAction::OpenSettings,
         "toggle-widget" => MenuAction::ToggleWidget,
         "reset-widget" => MenuAction::ResetWidget,
+        "check-updates" => MenuAction::CheckUpdates,
         _ => MenuAction::None,
+    }
+}
+
+/// The tray item next to Settings: offers the release when one is found, else starts a check.
+pub fn update_label(state: &UpdateState) -> String {
+    match state {
+        UpdateState::Available(version) => format!("Update to {version}\u{2026}"),
+        _ => "Check for updates\u{2026}".to_string(),
     }
 }
 
@@ -97,6 +111,38 @@ mod tests {
     fn widget_ids_are_case_sensitive_and_exact() {
         assert_eq!(action_for("Toggle-Widget"), MenuAction::None);
         assert_eq!(action_for("reset_widget"), MenuAction::None);
+    }
+
+    #[test]
+    fn check_updates_id_checks_for_updates() {
+        assert_eq!(action_for("check-updates"), MenuAction::CheckUpdates);
+    }
+
+    #[test]
+    fn check_updates_id_is_case_sensitive_and_exact() {
+        assert_eq!(action_for("Check-Updates"), MenuAction::None);
+        assert_eq!(action_for("check_updates"), MenuAction::None);
+        assert_eq!(action_for("check-updates "), MenuAction::None);
+    }
+
+    #[test]
+    fn the_update_item_asks_to_check_until_a_release_is_found() {
+        for state in [
+            UpdateState::Idle,
+            UpdateState::Checking,
+            UpdateState::UpToDate,
+            UpdateState::Failed("offline".into()),
+        ] {
+            assert_eq!(update_label(&state), "Check for updates…", "{state:?}");
+        }
+    }
+
+    #[test]
+    fn the_update_item_names_the_release_that_is_out() {
+        assert_eq!(
+            update_label(&UpdateState::Available("0.4.0".into())),
+            "Update to 0.4.0…"
+        );
     }
 
     #[test]

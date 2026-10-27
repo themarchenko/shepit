@@ -99,7 +99,10 @@ The script downloads `Shepit-setup.exe` from the latest release, checks its chec
 for your user and starts it. Shepit appears in the notification area next to the clock.
 [install.ps1](install.ps1) is short if you want to read it first.
 
-To update, run the same command again. The app does not update itself on Windows yet.
+Shepit updates itself on Windows too. It checks GitHub once a day and offers the new version in a small
+card at the bottom right of the screen. Install and reopen closes Shepit, runs the installer and opens it again.
+The switch and Check now are in Settings → About, and the tray menu has "Check for updates…". You can
+also run the same command again.
 
 The installer is not code-signed, because a code-signing certificate costs money. If you download
 `Shepit-setup.exe` from the [releases page](https://github.com/themarchenko/shepit/releases/latest)
@@ -132,8 +135,9 @@ icon. A short tour runs on first launch.
   and nothing else. Turn it off in Settings → About.
 - Password fields are detected and nothing is inserted into them.
 - Windows: audio is recognized on your PC and no recordings are kept. Apart from the model download
-  on first use and the installer download, nothing leaves the PC. The Windows app does not check for
-  updates yet; when it does, it will make one request a day to github.com and have a switch for it.
+  on first use and the installer download, nothing leaves the PC. Once a day the Windows app asks
+  github.com for the latest update file. The request carries the user agent `tauri-plugin-updater/2.14.0`
+  and nothing else. Turn it off in Settings → About.
 
 ## Build from source
 

@@ -14,6 +14,8 @@ mod settings_store;
 mod shell;
 mod tray;
 mod ui;
+mod update_card;
+mod updater;
 mod widget;
 mod widget_host;
 
@@ -26,6 +28,7 @@ use shepit_core::cleanup::passthrough_clean;
 use shepit_core::dictation::{Job, ModelStatus, Phase};
 use shepit_core::keys::PickResult;
 use shepit_core::settings::Settings;
+use shepit_core::update::UpdateState;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
@@ -92,13 +95,20 @@ fn main() {
             commands::reset_widget_position,
             commands::widget_demo,
             commands::finish_tour,
-            commands::show_tour
+            commands::show_tour,
+            updater::get_update_status,
+            updater::check_updates_now,
+            updater::show_update_card,
+            updater::update_card_ready,
+            updater::update_action,
+            updater::update_resize
         ])
         // A second launch must not open a second widget. Windows 11 hides new tray icons, so the
         // second launch is also a way to reach Settings.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             open_settings_later(app);
         }))
+        .plugin(updater::plugin())
         .setup(|app| {
             // Bounded so a stalled controller cannot grow memory; senders drop on full.
             let (tx, rx) = mpsc::sync_channel::<Msg>(256);
@@ -116,9 +126,13 @@ fn main() {
                 .build(app)?;
             let reset_widget =
                 MenuItemBuilder::with_id("reset-widget", "Reset widget position").build(app)?;
+            let check_updates =
+                MenuItemBuilder::with_id("check-updates", tray::update_label(&UpdateState::Idle))
+                    .build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit Shepit").build(app)?;
             let menu = MenuBuilder::new(app)
                 .item(&settings)
+                .item(&check_updates)
                 .separator()
                 .item(&show_widget)
                 .item(&reset_widget)
@@ -127,6 +141,7 @@ fn main() {
                 .build()?;
 
             app.manage(tray::ShowWidgetItem(show_widget.clone()));
+            app.manage(tray::UpdateItem(check_updates.clone()));
             let mut tray = TrayIconBuilder::with_id(TRAY_ID)
                 .tooltip("Shepit")
                 .menu(&menu)
@@ -156,6 +171,12 @@ fn main() {
                             std::thread::spawn(move || host.reset_position());
                         }
                         tray::MenuAction::OpenSettings => open_settings_later(app),
+                        // The worker takes it; this handler runs on the main thread and must not wait.
+                        tray::MenuAction::CheckUpdates => {
+                            if let Some(updates) = app.try_state::<updater::Updates>() {
+                                updates.check_from_tray();
+                            }
+                        }
                         tray::MenuAction::None => {}
                     },
                 )
@@ -206,6 +227,7 @@ fn main() {
             // the worker. Spawned after the insert worker; it warms the agent up at launch.
             let polish = polish::start(tx.clone(), host.settings())?;
             app.manage(polish.clone());
+            updater::start(app.handle())?;
             let workers = Workers {
                 jobs: job_tx,
                 polish,

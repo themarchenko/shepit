@@ -90,8 +90,9 @@ windows/
     payload, publishes it to the same GitHub release next to `Shepit.dmg`, `install.ps1`, updater.
     The macOS release flow must keep working unchanged. README gets the Windows install section
     described under Decisions. Device check: install, update to a test version.
-    Status 2026-10-27: workflows, `install.ps1`, release check and docs written; updater wiring and
-    the update card pending; a dry run (Release workflow, Run workflow) and the device checks are open.
+    Status 2026-10-27: workflows, `install.ps1`, release check, updater wiring, update card and docs
+    written; a dry run (Release workflow, Run workflow) and the device checks (card focus and
+    placement, a real update, the `/R` reopen) are open.
     See DECISIONS 2026-10-27: Windows release and updater.
 12. **Live preview**.
 13. **Whisper turbo** [optional]. Second recognizer for Windows through `transcribe-rs`, chosen in

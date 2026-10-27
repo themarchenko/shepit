@@ -490,7 +490,7 @@ fn send_on_thread(tx: SyncSender<Msg>, msg: Msg) {
 
 /// One call moves and resizes the window, so the shape never shows a frame at the old size.
 #[cfg(windows)]
-fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
+pub(crate) fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
     use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER};
     let hwnd = window.hwnd().map_err(|e| e.to_string())?;
     // SAFETY: the handle belongs to the live widget window; the call only reads its arguments.
@@ -510,7 +510,7 @@ fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
 
 /// Two calls, so a frame may show the old size. Only for builds that cannot run on Windows.
 #[cfg(not(windows))]
-fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
+pub(crate) fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
     use tauri::{PhysicalPosition, PhysicalSize};
     window
         .set_size(PhysicalSize::new(frame.width as u32, frame.height as u32))

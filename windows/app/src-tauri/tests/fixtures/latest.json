@@ -1,0 +1,11 @@
+{
+  "version": "0.3.1",
+  "notes": "Fixture release for the updater tests.",
+  "pub_date": "2026-10-27T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRd2JmNFNlMGdFM2VxUkVKenRlaWh6RVh5R0JnOUhHMVZIK010Z0p1UjJiN2w0RG8rVzBZOUVGOWk3REYxa2MyZ1BHdlpqMHdmTE1iRnVrczRweTIwSUI1cmJBSUhyOGdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDk1MzgxCWZpbGU6cGF5bG9hZC5iaW4JdmVyc2lvbjowLjMuMQpMRHN0Q1J6cnFPWFdZdmlCcEJ4WFZ3WW1GQjhWTnlRSDZKM0x1c1RSS1loSjdUL3paWGl3RnllZUpYOFcva0RORHZhY2hjZDB5aGpsa2EzZE80R1hBdz09Cg==",
+      "url": "{base}/payload.bin"
+    }
+  }
+}

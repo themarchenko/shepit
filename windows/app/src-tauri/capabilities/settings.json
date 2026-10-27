@@ -19,6 +19,9 @@
     "allow-widget-demo",
     "allow-finish-tour",
     "allow-show-tour",
-    "allow-detect-agents"
+    "allow-detect-agents",
+    "allow-get-update-status",
+    "allow-check-updates-now",
+    "allow-show-update-card"
   ]
 }

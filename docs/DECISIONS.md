@@ -2,6 +2,20 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-10-27: Windows updater wiring and update card (task 11)
+
+- Update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are fields of core `Settings` in the one task 8 file, not a second store. Every write goes through `settings_store::apply` under one lock, so the updater's `lastUpdateCheck` and the About switch cannot overwrite each other. Only `checkForUpdates` is in the strict patch; the other two are the updater's.
+- Surfaces: Settings > About gets an Updates group (switch, status, Check now or Install…); the tray gets one item after "Settings…". The tray opens the card and then checks, About's Check now opens the card only when a release is found, as on macOS. A tray switch for the daily check was dropped: it existed only because the tray was the one surface, and macOS has no such item.
+- Versions: `tauri-plugin-updater = "=2.14.0"`, the version `release-check` copies, so one `minisign-verify` 0.3.0 resolves. No `tauri-plugin-opener`: release page URLs are built in Rust from a constant and a version of digits and dots.
+- Comparator and timeouts: the plugin's default version comparator is `is_newer(remote, installed)`, so it applies to every updater, also one made from JS. The check times out after 20 s as on macOS; an `Update` has no timeout, so the download has none.
+- Install: `download_and_install` verifies the signature before it starts the installer. On Windows it then exits the process and NSIS reopens the app with `/R`; the app never calls restart. The plugin reports the download finished before it verifies, so the card text says the signature is being checked. The install runs on its own thread so the card and tray keep answering, and the state is claimed under the session lock so a double click starts one install.
+- No webview reaches the plugin: its JS commands (`check` takes proxy, target and headers) are registered by the plugin builder, but no capability grants any `updater:` permission. All calls are Rust in `updater.rs`. `command_scoping.rs` now reads every capability file.
+- Card window: label `update`, 420 logical px wide, bottom right of the primary work area, corner fixed on resize. Not focusable, like the widget, so the dictation target keeps focus; cost: no Enter shortcut. macOS uses a non-activating panel.
+- Card content is computed in Rust (`card_for`) and pinned by a golden JSON that the dev mock also renders. Core gained `UpdateState::InstallFailed(version, message)` for "The update did not install". Labels and the tray use U+2026.
+- Trust is tested, not only configured: `updater_trust.rs` bans overrides in the app sources, and functional tests against a local server show a release signed with another key is refused, the same and older versions are not offered, and a harness with the real key accepts a correct one.
+- Not changed: version order and schedule (core `update.rs`), `tauri.conf.json`, macOS code. No WhatsNew item: that list is macOS-only.
+- Device checks still open (Windows PC): card without stealing focus from Notepad, placement at 100% and 150%, tray item switching to "Update to X…", a real update with the `/R` reopen and no UAC prompt, models kept, Skip through a background check, behind a proxy. The release dry run gates the first tag.
+
 ## 2026-10-27: a secure field skips the polishing agent
 
 - When the captured field is secure (secure event input, or a secure text field in the focused

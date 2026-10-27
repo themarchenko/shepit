@@ -32,7 +32,9 @@ irm https://raw.githubusercontent.com/themarchenko/shepit/main/install.ps1 | iex
 ```
 
 It downloads `Shepit-setup.exe` from the latest release, checks its checksum, installs Shepit for
-your user (no administrator rights) and starts it. Run the same command to update.
+your user (no administrator rights) and starts it.
+Shepit updates itself: once a day it checks for a new version and shows a card. The switch and
+Check now are in Settings → About.
 
 The installer is not code-signed. If you download `Shepit-setup.exe` below in a browser, Windows
 SmartScreen will most likely show "Windows protected your PC": click **More info**, then **Run
