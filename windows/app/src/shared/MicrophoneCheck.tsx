@@ -75,7 +75,12 @@ export default function MicrophoneCheck() {
           No microphone found. Plug one in, or choose a default input device in the Windows sound settings.
         </div>
       )}
-      {check?.result === "failed" && (
+      {check?.result === "failed" && check.detail === "busy" && (
+        <div className="sp-warn" role="status">
+          The microphone is in use right now, by another test or by a dictation. Try again in a moment.
+        </div>
+      )}
+      {check?.result === "failed" && check.detail !== "busy" && (
         <div className="sp-warn" role="status">
           The microphone could not be opened{check.detail ? `: ${check.detail}` : "."}
         </div>

@@ -70,7 +70,7 @@ impl SettingsStore {
 /// The one write path for the settings the UI can change. `edit` makes the new settings from the
 /// current ones (an `Err` changes nothing). Returns the settings now in force and what changed. Then it saves, tells the widget (look and key label),
 /// sets the tray "Show widget" check, tells the open Settings and tour windows with
-/// `settings-changed`, and sends the controller `Msg::Hotkey` with `try_send`.
+/// `settings-changed`, and sends the controller `Msg::Hotkey` reliably (see `WidgetHost::send_reliably`).
 pub fn apply(
     app: &AppHandle,
     edit: impl FnOnce(&Settings) -> Result<Settings, String>,
@@ -107,9 +107,8 @@ fn apply_inner(
         );
     }
     if changes.hotkey && tell_controller {
-        if let Err(err) = host.send(Msg::Hotkey(settings.hotkey)) {
-            eprintln!("could not tell the controller about the new key: {err}");
-        }
+        // Reliable: if this were dropped, the saved key and the one the hook listens for would differ.
+        host.send_reliably(Msg::Hotkey(settings.hotkey));
     }
     Ok((settings, changes))
 }

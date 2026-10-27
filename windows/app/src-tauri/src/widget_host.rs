@@ -15,7 +15,7 @@
 use crate::controller::Msg;
 use crate::settings_store::SettingsStore;
 use crate::widget::{self, clamped_anchor, Presentation, WidgetState};
-use shepit_core::dictation::{View, WidgetInput};
+use shepit_core::dictation::{Phase, View, WidgetInput};
 use shepit_core::settings::{changes, Changes, Settings};
 use shepit_core::widget::{
     default_anchor, resolve_anchor, Fitter, Monitor, Point, PointerGesture, PointerOut, Rect,
@@ -236,6 +236,18 @@ impl WidgetHost {
         self.msgs
             .try_send(msg)
             .map_err(|_| "Shepit is busy, try again".to_string())
+    }
+
+    /// Hands `msg` to the controller whatever the state of its channel: a blocking send on a short-lived
+    /// thread, so neither the caller (the main thread may be waiting on the host lock) nor the lock is
+    /// ever held up. For messages that must not be lost, such as a changed key.
+    pub fn send_reliably(&self, msg: Msg) {
+        send_on_thread(self.msgs.clone(), msg);
+    }
+
+    /// True while a dictation is in progress (anything but idle).
+    pub fn dictating(&self) -> bool {
+        lock(&self.inner).view.phase != Phase::Idle
     }
 
     /// Back to the default spot on the primary monitor; forgets the saved anchor.
@@ -469,6 +481,13 @@ fn monitors(app: &AppHandle) -> Vec<Monitor> {
     out
 }
 
+/// The blocking send of `send_reliably`; a closed channel (the app is quitting) just ends the thread.
+fn send_on_thread(tx: SyncSender<Msg>, msg: Msg) {
+    std::thread::spawn(move || {
+        let _ = tx.send(msg);
+    });
+}
+
 /// One call moves and resizes the window, so the shape never shows a frame at the old size.
 #[cfg(windows)]
 fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
@@ -504,6 +523,20 @@ fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shepit_core::keys::Hotkey;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    #[test]
+    fn a_message_for_a_full_channel_is_still_delivered() {
+        let (tx, rx) = mpsc::sync_channel::<Msg>(1);
+        tx.try_send(Msg::Tick).unwrap();
+        // The channel is full: a try_send would fail here.
+        send_on_thread(tx, Msg::Hotkey(Hotkey::RightAlt));
+        assert!(matches!(rx.recv().unwrap(), Msg::Tick));
+        let got = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(matches!(got, Msg::Hotkey(Hotkey::RightAlt)));
+    }
 
     fn run(events: &[(PointerKind, f64, f64, f64)]) -> Vec<PointerOut> {
         let mut gesture = PointerGesture::new(1.0);

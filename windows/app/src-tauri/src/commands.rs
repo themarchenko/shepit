@@ -169,7 +169,11 @@ pub async fn cancel_hotkey_pick(host: State<'_, WidgetHost>) -> Result<(), Strin
 
 /// Opens the default input for a second, drops what it hears and reports how it went.
 #[tauri::command]
-pub async fn check_microphone() -> Result<MicCheck, String> {
+pub async fn check_microphone(host: State<'_, WidgetHost>) -> Result<MicCheck, String> {
+    // A dictation owns the microphone while it runs.
+    if host.dictating() {
+        return Ok(mic_check(MicOutcome::Failed(crate::mic_check::BUSY.into())));
+    }
     let outcome = tauri::async_runtime::spawn_blocking(crate::mic_check::run)
         .await
         .map_err(|e| e.to_string())?;

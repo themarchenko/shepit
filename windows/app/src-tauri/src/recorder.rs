@@ -9,8 +9,21 @@ use shepit_core::dictation::{classify_error, CaptureError, Recorder};
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 
+/// Where a caller that cannot afford to lose a stream error collects it. The `Msg` channel is bounded
+/// and the audio thread never blocks, so a full channel drops the message; this slot cannot be full.
+pub type ErrorSlot = Arc<Mutex<Option<CaptureError>>>;
+
+/// Keeps the first error: the later ones are usually a result of it.
+pub fn note_error(slot: &ErrorSlot, err: CaptureError) {
+    let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.is_none() {
+        *guard = Some(err);
+    }
+}
+
 pub struct CpalRecorder {
     tx: SyncSender<Msg>,
+    errors: Option<ErrorSlot>,
     active: Option<Active>,
 }
 
@@ -21,7 +34,17 @@ struct Active {
 
 impl CpalRecorder {
     pub fn new(tx: SyncSender<Msg>) -> Self {
-        Self { tx, active: None }
+        Self {
+            tx,
+            errors: None,
+            active: None,
+        }
+    }
+
+    /// Also writes every stream error to `slot`, whatever state the channel is in.
+    pub fn with_error_slot(mut self, slot: ErrorSlot) -> Self {
+        self.errors = Some(slot);
+        self
     }
 }
 
@@ -37,6 +60,7 @@ fn build<T>(
     config: &StreamConfig,
     buffer: Arc<Mutex<CaptureBuffer>>,
     tx: SyncSender<Msg>,
+    errors: Option<ErrorSlot>,
 ) -> Result<Stream, cpal::Error>
 where
     T: SizedSample,
@@ -60,7 +84,11 @@ where
         // The controller turns this into the Failed state with the microphone message.
         move |err| {
             eprintln!("capture stream error: {err}");
-            let _ = error_tx.try_send(Msg::StreamError(classify(&err)));
+            let err = classify(&err);
+            if let Some(slot) = &errors {
+                note_error(slot, err.clone());
+            }
+            let _ = error_tx.try_send(Msg::StreamError(err));
         },
         None,
     )
@@ -80,10 +108,11 @@ impl Recorder for CpalRecorder {
             .map_err(CaptureError::Other)?;
         let buffer = Arc::new(Mutex::new(buffer));
         let tx = self.tx.clone();
+        let errors = self.errors.clone();
         let stream = match supported.sample_format() {
-            SampleFormat::F32 => build::<f32>(&device, &config, buffer.clone(), tx),
-            SampleFormat::I16 => build::<i16>(&device, &config, buffer.clone(), tx),
-            SampleFormat::U16 => build::<u16>(&device, &config, buffer.clone(), tx),
+            SampleFormat::F32 => build::<f32>(&device, &config, buffer.clone(), tx, errors),
+            SampleFormat::I16 => build::<i16>(&device, &config, buffer.clone(), tx, errors),
+            SampleFormat::U16 => build::<u16>(&device, &config, buffer.clone(), tx, errors),
             other => {
                 return Err(CaptureError::Other(format!(
                     "unsupported sample format {other:?}"
@@ -107,5 +136,18 @@ impl Recorder for CpalRecorder {
             Err(poisoned) => poisoned.into_inner(),
         };
         guard.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_first_error_is_kept() {
+        let slot = ErrorSlot::default();
+        note_error(&slot, CaptureError::NoDevice);
+        note_error(&slot, CaptureError::AccessDenied);
+        assert_eq!(*slot.lock().unwrap(), Some(CaptureError::NoDevice));
     }
 }
