@@ -5,7 +5,7 @@ use shepit_core::dictation::{
     CaptureError, Controller, InsertJob, Job, ModelStatus, Recorder, View, WidgetInput,
 };
 use shepit_core::insert::InsertOutcome;
-use shepit_core::keys::RawKey;
+use shepit_core::keys::{Hotkey, HotkeyPicker, PickResult, RawKey};
 use std::time::Instant;
 
 /// What the hook and the recorder callback send to the controller thread.
@@ -37,14 +37,31 @@ pub enum Msg {
     Context { id: u64, context: TargetContext },
     /// A click or hold on the widget.
     Widget(WidgetInput),
+    /// The dictation key changed (a settings write). Drops a half-finished press of the old key.
+    Hotkey(Hotkey),
+    /// Settings starts or cancels the key picker.
+    Pick(PickMsg),
     /// The 100 ms receive timeout: lets the failed state reset.
     Tick,
+}
+
+/// What Settings asks of the key picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PickMsg {
+    /// Divert the keys to the picker until it ends.
+    Start,
+    /// The window closed or lost focus: end the pick as `Cancelled`.
+    Cancel,
 }
 
 /// Owns the dictation controller and reports when the widget view changed.
 pub struct Runner<R: Recorder> {
     controller: Controller<R>,
     last: View,
+    /// Set while keys go to the picker instead of dictation.
+    picker: Option<HotkeyPicker>,
+    /// How the last pick ended, until `take_pick` hands it over.
+    pick: Option<PickResult>,
 }
 
 impl<R: Recorder> Runner<R> {
@@ -55,14 +72,27 @@ impl<R: Recorder> Runner<R> {
         let mut controller = Controller::new(recorder).with_first_job_id(first_job_id);
         controller.on_model(model);
         let last = controller.view();
-        Self { controller, last }
+        Self {
+            controller,
+            last,
+            picker: None,
+            pick: None,
+        }
     }
 
     /// Feeds one message at `now` seconds on a monotonic clock. Returns the new view when it
     /// differs from the one returned last time, else None.
     pub fn step(&mut self, msg: Msg, now: f64) -> Option<View> {
         match msg {
-            Msg::Key(raw) | Msg::KeyAt(raw, _) => self.controller.on_key(raw, now),
+            // While picking, no key reaches dictation: the picker takes the candidates and Esc.
+            Msg::Key(raw) | Msg::KeyAt(raw, _) => match self.picker.as_mut() {
+                Some(picker) => {
+                    if let Some(result) = picker.on_key(raw) {
+                        self.end_pick(result);
+                    }
+                }
+                None => self.controller.on_key(raw, now),
+            },
             Msg::Level(level) => self.controller.on_level(level),
             Msg::StreamError(err) => self.controller.on_stream_error(err, now),
             Msg::Model(status) => self.controller.on_model(status),
@@ -70,7 +100,21 @@ impl<R: Recorder> Runner<R> {
             Msg::Context { id, context } => self.controller.on_context(id, context),
             Msg::Inserted { id, result } => self.controller.on_inserted(id, result, now),
             Msg::Widget(input) => self.controller.on_widget(input, now),
+            Msg::Hotkey(hotkey) => self.controller.set_hotkey(hotkey),
+            Msg::Pick(PickMsg::Start) => {
+                self.pick = None;
+                self.picker = Some(HotkeyPicker::new(now));
+            }
+            Msg::Pick(PickMsg::Cancel) => {
+                if self.picker.is_some() {
+                    self.end_pick(PickResult::Cancelled);
+                }
+            }
             Msg::Tick => self.controller.poll(now),
+        }
+        // Every step checks the clock, so the 15 s limit holds even while keys keep arriving.
+        if let Some(result) = self.picker.as_mut().and_then(|p| p.poll(now)) {
+            self.end_pick(result);
         }
         let view = self.controller.view();
         if view == self.last {
@@ -89,6 +133,29 @@ impl<R: Recorder> Runner<R> {
             Msg::KeyAt(raw, at) => self.step(Msg::Key(raw), secs(at)),
             other => self.step(other, secs(now)),
         }
+    }
+
+    fn end_pick(&mut self, result: PickResult) {
+        self.picker = None;
+        self.pick = Some(result);
+    }
+
+    /// Starts the controller on `hotkey` (the app reads it from settings, or from the hook after a
+    /// controller restart).
+    pub fn with_hotkey(mut self, hotkey: Hotkey) -> Self {
+        self.controller.set_hotkey(hotkey);
+        self
+    }
+
+    /// True while keys go to the picker instead of dictation.
+    pub fn picking(&self) -> bool {
+        self.picker.is_some()
+    }
+
+    /// How the last pick ended, handed over once. Set by a candidate key, Esc, a Cancel message
+    /// or the 15 s timeout (checked on every step, so a Tick is enough).
+    pub fn take_pick(&mut self) -> Option<PickResult> {
+        self.pick.take()
     }
 
     /// The job created by the last stop, handed over once.
@@ -133,7 +200,9 @@ const LOG_TEXT_CHARS: usize = 80;
 mod tests {
     use super::*;
     use shepit_core::dictation::{CaptureError, Phase, Stage};
-    use shepit_core::keys::{LLKHF_EXTENDED, VK_ESCAPE, VK_RCONTROL, WM_KEYDOWN, WM_KEYUP};
+    use shepit_core::keys::{
+        LLKHF_EXTENDED, VK_ESCAPE, VK_RCONTROL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
+    };
 
     struct FakeRecorder;
 
@@ -460,5 +529,239 @@ mod tests {
             .expect("view changes");
         assert_eq!(failed.phase, Phase::Failed);
         assert_eq!(failed.message, "Insertion needs Windows");
+    }
+
+    // The dictation key and the picker.
+
+    fn ready_runner() -> Runner<FakeRecorder> {
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
+        runner.step(Msg::Model(ModelStatus::Ready), 9.0);
+        runner
+    }
+
+    fn key_down(vk: u32, flags: u32) -> Msg {
+        Msg::Key(RawKey {
+            message: WM_KEYDOWN,
+            vk,
+            flags,
+        })
+    }
+
+    fn alt(message: u32) -> Msg {
+        Msg::Key(RawKey {
+            message,
+            vk: 0xA5,
+            flags: LLKHF_EXTENDED,
+        })
+    }
+
+    /// A double tap of Right Ctrl: the recording goes hands-free.
+    fn hands_free_runner() -> Runner<FakeRecorder> {
+        let mut runner = ready_runner();
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        runner.step(rctrl(WM_KEYUP), 10.1);
+        runner.step(rctrl(WM_KEYDOWN), 10.2);
+        let v = runner.step(rctrl(WM_KEYUP), 10.3).expect("view changes");
+        assert!(v.hands_free, "setup: expected a hands-free recording");
+        runner
+    }
+
+    #[test]
+    fn a_hotkey_message_switches_the_key() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Hotkey(Hotkey::RightAlt), 10.0);
+        // The old key does nothing.
+        assert!(runner.step(rctrl(WM_KEYDOWN), 11.0).is_none());
+        assert!(runner.step(rctrl(WM_KEYUP), 11.5).is_none());
+        // The new key records.
+        let down = runner.step(alt(WM_KEYDOWN), 12.0).expect("view changes");
+        assert_eq!(down.phase, Phase::Listening);
+        let up = runner.step(alt(WM_KEYUP), 13.0).expect("view changes");
+        assert_eq!(up.phase, Phase::Processing);
+    }
+
+    #[test]
+    fn a_hotkey_message_drops_a_half_finished_press() {
+        let mut runner = ready_runner();
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        runner.step(esc(), 10.5);
+        runner.step(Msg::Hotkey(Hotkey::RightAlt), 11.0);
+        let down = runner.step(alt(WM_KEYDOWN), 12.0).expect("view changes");
+        assert_eq!(down.phase, Phase::Listening);
+    }
+
+    #[test]
+    fn a_runner_built_with_a_hotkey_starts_on_it() {
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Ready).with_hotkey(Hotkey::F13);
+        assert!(runner.step(rctrl(WM_KEYDOWN), 10.0).is_none());
+        runner.step(rctrl(WM_KEYUP), 10.5);
+        let down = runner.step(key_down(0x7C, 0), 11.0).expect("view changes");
+        assert_eq!(down.phase, Phase::Listening);
+    }
+
+    #[test]
+    fn picking_is_off_until_it_starts() {
+        let mut runner = ready_runner();
+        assert!(!runner.picking());
+        assert_eq!(runner.take_pick(), None);
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        assert!(runner.picking());
+    }
+
+    #[test]
+    fn a_pick_start_changes_no_view() {
+        let mut runner = ready_runner();
+        assert!(runner.step(Msg::Pick(PickMsg::Start), 10.0).is_none());
+    }
+
+    #[test]
+    fn right_ctrl_while_picking_is_picked_and_the_phase_stays_idle() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        let view = runner.step(rctrl(WM_KEYDOWN), 11.0);
+        assert!(view.is_none(), "no recording starts: {view:?}");
+        assert_eq!(
+            runner.take_pick(),
+            Some(PickResult::Picked(Hotkey::RightCtrl))
+        );
+        assert_eq!(runner.take_pick(), None);
+        assert!(!runner.picking());
+        // The release that follows is not a dictation either.
+        assert!(runner.step(rctrl(WM_KEYUP), 11.2).is_none());
+    }
+
+    #[test]
+    fn right_alt_and_function_keys_are_picked() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(alt(WM_SYSKEYDOWN), 11.0);
+        assert_eq!(
+            runner.take_pick(),
+            Some(PickResult::Picked(Hotkey::RightAlt))
+        );
+        runner.step(Msg::Pick(PickMsg::Start), 12.0);
+        runner.step(key_down(0x86, 0), 13.0);
+        assert_eq!(runner.take_pick(), Some(PickResult::Picked(Hotkey::F23)));
+    }
+
+    #[test]
+    fn a_timestamped_hook_event_is_picked_too() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        let raw = RawKey {
+            message: WM_KEYDOWN,
+            vk: 0x7C,
+            flags: 0,
+        };
+        let epoch = Instant::now();
+        runner.step_at(Msg::KeyAt(raw, Instant::now()), epoch, Instant::now());
+        assert_eq!(runner.take_pick(), Some(PickResult::Picked(Hotkey::F13)));
+    }
+
+    #[test]
+    fn other_keys_while_picking_are_ignored_and_the_pick_goes_on() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(key_down(0x41, 0), 10.5);
+        runner.step(key_down(0xA2, 0), 10.6);
+        assert_eq!(runner.take_pick(), None);
+        assert!(runner.picking());
+    }
+
+    #[test]
+    fn picking_does_not_change_the_key_by_itself() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(alt(WM_KEYDOWN), 11.0);
+        runner.step(alt(WM_KEYUP), 11.1);
+        assert_eq!(
+            runner.take_pick(),
+            Some(PickResult::Picked(Hotkey::RightAlt))
+        );
+        // The app applies the result with Msg::Hotkey; until then Right Ctrl still records.
+        let down = runner.step(rctrl(WM_KEYDOWN), 12.0).expect("view changes");
+        assert_eq!(down.phase, Phase::Listening);
+    }
+
+    #[test]
+    fn esc_while_picking_cancels_the_pick_and_leaves_a_hands_free_recording_running() {
+        let mut runner = hands_free_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 11.0);
+        let view = runner.step(esc(), 12.0);
+        assert!(view.is_none(), "the recording must not change: {view:?}");
+        assert_eq!(runner.take_pick(), Some(PickResult::Cancelled));
+        assert!(!runner.picking());
+        // Still listening: a later Esc, outside the picker, ends it.
+        let cancelled = runner.step(esc(), 13.0).expect("view changes");
+        assert_eq!(cancelled.phase, Phase::Idle);
+    }
+
+    #[test]
+    fn a_cancel_message_ends_the_pick_as_cancelled() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(Msg::Pick(PickMsg::Cancel), 11.0);
+        assert_eq!(runner.take_pick(), Some(PickResult::Cancelled));
+        assert!(!runner.picking());
+    }
+
+    #[test]
+    fn a_cancel_message_without_a_pick_gives_nothing() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Cancel), 10.0);
+        assert_eq!(runner.take_pick(), None);
+    }
+
+    #[test]
+    fn picking_times_out_on_a_tick_after_15_seconds() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(Msg::Tick, 24.9);
+        assert_eq!(runner.take_pick(), None);
+        assert!(runner.picking());
+        runner.step(Msg::Tick, 25.0);
+        assert_eq!(runner.take_pick(), Some(PickResult::TimedOut));
+        assert!(!runner.picking());
+    }
+
+    #[test]
+    fn keys_go_back_to_dictation_after_a_pick() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(rctrl(WM_KEYDOWN), 11.0);
+        runner.step(rctrl(WM_KEYUP), 11.5);
+        assert!(runner.take_pick().is_some());
+        let down = runner.step(rctrl(WM_KEYDOWN), 12.0).expect("view changes");
+        assert_eq!(down.phase, Phase::Listening);
+    }
+
+    #[test]
+    fn keys_go_back_to_dictation_after_a_cancel_and_after_a_timeout() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(esc(), 11.0);
+        assert!(runner.take_pick().is_some());
+        let down = runner.step(rctrl(WM_KEYDOWN), 12.0).expect("view changes");
+        assert_eq!(down.phase, Phase::Listening);
+        runner.step(rctrl(WM_KEYUP), 12.1);
+        runner.step(esc(), 12.5);
+
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(Msg::Tick, 26.0);
+        assert!(runner.take_pick().is_some());
+        let down = runner.step(rctrl(WM_KEYDOWN), 27.0).expect("view changes");
+        assert_eq!(down.phase, Phase::Listening);
+    }
+
+    #[test]
+    fn a_second_pick_can_follow_the_first() {
+        let mut runner = ready_runner();
+        runner.step(Msg::Pick(PickMsg::Start), 10.0);
+        runner.step(key_down(0x7C, 0), 11.0);
+        assert!(runner.take_pick().is_some());
+        runner.step(Msg::Pick(PickMsg::Start), 20.0);
+        runner.step(key_down(0x7D, 0), 21.0);
+        assert_eq!(runner.take_pick(), Some(PickResult::Picked(Hotkey::F14)));
     }
 }

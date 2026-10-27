@@ -16,7 +16,7 @@ use crate::controller::Msg;
 use crate::settings_store::SettingsStore;
 use crate::widget::{self, clamped_anchor, Presentation, WidgetState};
 use shepit_core::dictation::{View, WidgetInput};
-use shepit_core::settings::Settings;
+use shepit_core::settings::{changes, Changes, Settings};
 use shepit_core::widget::{
     default_anchor, resolve_anchor, Fitter, Monitor, Point, PointerGesture, PointerOut, Rect,
     Shrink, Size, HOLD_SECS, SHRINK_DELAY_SECS,
@@ -192,14 +192,50 @@ impl WidgetHost {
         self.spawn_shrink(later);
     }
 
-    /// Flips "Show widget", saves it and returns the new value.
-    pub fn toggle_visible(&self) -> bool {
-        let mut inner = lock(&self.inner);
-        let visible = !inner.settings.widget_visible;
-        inner.settings.widget_visible = visible;
-        inner.save();
-        inner.post_visibility(visible);
-        visible
+    /// A copy of the settings as they are now.
+    pub fn settings(&self) -> Settings {
+        lock(&self.inner).settings.clone()
+    }
+
+    /// Replaces the settings with what `edit` makes of the current ones, under the lock, so a
+    /// drag that saves the anchor at the same moment is not overwritten. Saves, then refreshes the
+    /// widget: the look and key label when they changed, show or hide when `widgetVisible` did.
+    /// `edit` must not call back into the host.
+    pub fn update(
+        &self,
+        edit: impl FnOnce(&Settings) -> Result<Settings, String>,
+    ) -> Result<(Settings, Changes), String> {
+        let (new, changed, later) = {
+            let mut inner = lock(&self.inner);
+            let new = edit(&inner.settings)?;
+            let changed = changes(&inner.settings, &new);
+            let differs = new != inner.settings;
+            inner.settings = new.clone();
+            if differs {
+                inner.save();
+            }
+            let mut later = None;
+            if changed.look || changed.hotkey {
+                inner.presentation = Presentation {
+                    hovering: inner.presentation.hovering,
+                    ..presentation_of(&new)
+                };
+                later = inner.present();
+            }
+            if changed.visible {
+                inner.post_visibility(new.widget_visible);
+            }
+            (new, changed, later)
+        };
+        self.spawn_shrink(later);
+        Ok((new, changed))
+    }
+
+    /// Queues `msg` for the controller. Never blocks: a full channel is an error.
+    pub fn send(&self, msg: Msg) -> Result<(), String> {
+        self.msgs
+            .try_send(msg)
+            .map_err(|_| "Shepit is busy, try again".to_string())
     }
 
     /// Back to the default spot on the primary monitor; forgets the saved anchor.
@@ -283,6 +319,7 @@ fn presentation_of(settings: &Settings) -> Presentation {
         glass_opacity: settings.glass_opacity,
         fade_when_idle: settings.fade_when_idle,
         hovering: false,
+        hotkey: settings.hotkey,
     }
 }
 
@@ -513,5 +550,22 @@ mod tests {
         ]);
         assert_eq!(out[1], PointerOut::Dragged { dx: 20.0, dy: 0.0 });
         assert_eq!(out[2], PointerOut::DragEnded);
+    }
+
+    #[test]
+    fn the_presentation_carries_the_look_and_the_hotkey() {
+        let settings = Settings {
+            widget_style: shepit_core::widget::Style::Island,
+            glass_opacity: 0.55,
+            fade_when_idle: false,
+            hotkey: shepit_core::keys::Hotkey::F19,
+            ..Settings::default()
+        };
+        let p = presentation_of(&settings);
+        assert_eq!(p.style, shepit_core::widget::Style::Island);
+        assert_eq!(p.glass_opacity, 0.55);
+        assert!(!p.fade_when_idle);
+        assert!(!p.hovering);
+        assert_eq!(p.hotkey, shepit_core::keys::Hotkey::F19);
     }
 }

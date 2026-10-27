@@ -50,7 +50,7 @@ mod imp {
         unsafe { CallNextHookEx(None, code, wparam, lparam) }
     }
 
-    pub fn start(tx: SyncSender<Msg>, _hotkey_vk: u32) {
+    pub fn start(tx: SyncSender<Msg>) {
         if SENDER.set(tx).is_err() {
             eprintln!("keyboard hook already started");
             return;
@@ -81,16 +81,18 @@ mod imp {
     }
 }
 
-#[cfg(windows)]
-pub use imp::start;
-
-/// The hook exists only on Windows; elsewhere the app runs without a hotkey.
-#[cfg(not(windows))]
-pub fn start(_tx: SyncSender<Msg>, _hotkey_vk: u32) {}
+/// Starts the hook on `hotkey` (from the settings).
+pub fn start(tx: SyncSender<Msg>, hotkey: shepit_core::keys::Hotkey) {
+    set_hotkey(hotkey);
+    #[cfg(windows)]
+    imp::start(tx);
+    // The hook exists only on Windows; elsewhere the app runs without a hotkey.
+    #[cfg(not(windows))]
+    let _ = tx;
+}
 
 /// The hotkey the hook proc filters on. Only the controller thread writes it; the proc reads it.
 /// Lives outside `imp` so every host compiles and tests it.
-#[allow(dead_code)]
 pub fn hotkey() -> shepit_core::keys::Hotkey {
     shepit_core::keys::Hotkey::ALL
         .get(HOTKEY.load(Ordering::Relaxed) as usize)
@@ -98,7 +100,6 @@ pub fn hotkey() -> shepit_core::keys::Hotkey {
         .unwrap_or_default()
 }
 
-#[allow(dead_code)]
 pub fn set_hotkey(hotkey: shepit_core::keys::Hotkey) {
     let index = shepit_core::keys::Hotkey::ALL
         .iter()
@@ -108,12 +109,10 @@ pub fn set_hotkey(hotkey: shepit_core::keys::Hotkey) {
 }
 
 /// While true the proc also lets every candidate key out, for the picker.
-#[allow(dead_code)]
 pub fn picking() -> bool {
     PICKING.load(Ordering::Relaxed)
 }
 
-#[allow(dead_code)]
 pub fn set_picking(picking: bool) {
     PICKING.store(picking, Ordering::Relaxed);
 }

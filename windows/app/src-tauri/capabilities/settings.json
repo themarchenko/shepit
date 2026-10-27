@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "Lets the Settings and tour windows listen for events and drag the title-less tour.",
+  "windows": ["settings", "tour"],
+  "permissions": ["core:event:default", "core:window:allow-start-dragging"]
+}

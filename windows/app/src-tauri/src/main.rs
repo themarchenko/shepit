@@ -1,14 +1,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod commands;
 mod controller;
 mod hook;
 mod insert;
 #[cfg(windows)]
 mod insert_win;
+mod mic_check;
 mod recognizer;
 mod recorder;
 mod settings_store;
+mod shell;
 mod tray;
+mod ui;
 mod widget;
 mod widget_host;
 
@@ -17,6 +21,8 @@ use insert::Request;
 use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
 use shepit_core::dictation::{Job, ModelStatus, Phase};
+use shepit_core::keys::PickResult;
+use shepit_core::settings::Settings;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
@@ -25,7 +31,7 @@ use std::time::{Duration, Instant};
 
 use settings_store::SettingsStore;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, State};
 use widget_host::WidgetHost;
 
@@ -72,10 +78,23 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             widget_ready,
             widget_hover,
-            widget_pointer
+            widget_pointer,
+            commands::get_settings,
+            commands::update_settings,
+            commands::start_hotkey_pick,
+            commands::cancel_hotkey_pick,
+            commands::check_microphone,
+            commands::open_microphone_privacy,
+            commands::reset_widget_position,
+            commands::widget_demo,
+            commands::finish_tour,
+            commands::show_tour
         ])
-        // A second launch must not open a second widget; it just exits.
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        // A second launch must not open a second widget. Windows 11 hides new tray icons, so the
+        // second launch is also a way to reach Settings.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            open_settings_later(app);
+        }))
         .setup(|app| {
             // Bounded so a stalled controller cannot grow memory; senders drop on full.
             let (tx, rx) = mpsc::sync_channel::<Msg>(256);
@@ -83,9 +102,11 @@ fn main() {
             let host = WidgetHost::new(app.handle().clone(), tx.clone(), store);
             app.manage(host.clone());
 
-            let settings = MenuItemBuilder::with_id("settings", "Settings\u{2026}")
-                .enabled(false)
-                .build(app)?;
+            // The recognizer's latest state: written by the controller thread, read by the commands.
+            let model = Arc::new(Mutex::new(ModelStatus::Loading));
+            app.manage(model.clone());
+
+            let settings = MenuItemBuilder::with_id("settings", "Settings\u{2026}").build(app)?;
             let show_widget = CheckMenuItemBuilder::with_id("toggle-widget", "Show widget")
                 .checked(host.visible())
                 .build(app)?;
@@ -101,7 +122,7 @@ fn main() {
                 .item(&quit)
                 .build()?;
 
-            let checkbox = show_widget.clone();
+            app.manage(tray::ShowWidgetItem(show_widget.clone()));
             let mut tray = TrayIconBuilder::with_id(TRAY_ID)
                 .tooltip("Shepit")
                 .menu(&menu)
@@ -111,21 +132,36 @@ fn main() {
                         // On a thread: the handler runs on the main thread, and the host waits on the
                         // main thread for monitor data while it holds its lock.
                         tray::MenuAction::ToggleWidget => {
-                            let host = app.state::<WidgetHost>().inner().clone();
-                            let checkbox = checkbox.clone();
+                            let app = app.clone();
                             std::thread::spawn(move || {
-                                let visible = host.toggle_visible();
-                                // The click already flipped the check; set it to the real state.
-                                let _ = checkbox.set_checked(visible);
+                                let result = settings_store::apply(&app, |current| {
+                                    Ok(Settings {
+                                        widget_visible: !current.widget_visible,
+                                        ..current.clone()
+                                    })
+                                });
+                                if let Err(err) = result {
+                                    eprintln!("could not toggle the widget: {err}");
+                                }
                             });
                         }
                         tray::MenuAction::ResetWidget => {
                             let host = app.state::<WidgetHost>().inner().clone();
                             std::thread::spawn(move || host.reset_position());
                         }
+                        tray::MenuAction::OpenSettings => open_settings_later(app),
                         tray::MenuAction::None => {}
                     },
-                );
+                )
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::DoubleClick {
+                        button: MouseButton::Left,
+                        ..
+                    } = event
+                    {
+                        open_settings_later(tray.app_handle());
+                    }
+                });
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
@@ -137,7 +173,7 @@ fn main() {
                 std::thread::spawn(move || host.start());
             }
 
-            hook::start(tx.clone(), shepit_core::keys::VK_RCONTROL);
+            hook::start(tx.clone(), host.settings().hotkey);
             // One recognizer for the whole run: it outlives controller restarts, so the model is
             // loaded once. It preloads (and downloads) at launch.
             let (job_tx, job_rx) = mpsc::channel::<Job>();
@@ -162,7 +198,8 @@ fn main() {
             // The recorder is built inside the thread: a cpal Stream may not be Send.
             std::thread::Builder::new()
                 .name("controller".into())
-                .spawn(move || run_controller(handle, tx, rx, job_tx, insert_tx, wanted))?;
+                .spawn(move || run_controller(handle, tx, rx, job_tx, insert_tx, wanted, model))?;
+            ui::show_tour_on_first_run(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -184,11 +221,11 @@ fn run_controller(
     jobs: Sender<Job>,
     inserts: Sender<Request>,
     wanted: Arc<AtomicU64>,
+    // Outlives the loop below: filled from every Model message before the controller sees it.
+    model: Arc<Mutex<ModelStatus>>,
 ) {
     let workers = Workers { jobs, inserts };
     let mut job_id_base: u64 = 0;
-    // Outlives the loop below: filled from every Model message before the controller sees it.
-    let model = Arc::new(Mutex::new(ModelStatus::Loading));
     loop {
         // Ids start at 1; 0 means "no job wanted".
         let first_job_id = job_id_base + 1;
@@ -219,7 +256,15 @@ fn controller_loop(
 ) {
     let epoch = Instant::now();
     let known = *model.lock().unwrap_or_else(|e| e.into_inner());
-    let mut runner = Runner::new(CpalRecorder::new(tx.clone()), first_job_id, known);
+    // After a restart the hook still holds the key in force, so the new controller starts on it. A
+    // pick that was running died with the old controller: the hook stops diverting and Settings
+    // is told.
+    let mut runner =
+        Runner::new(CpalRecorder::new(tx.clone()), first_job_id, known).with_hotkey(hook::hotkey());
+    if hook::picking() {
+        hook::set_picking(false);
+        emit_pick(app, PickResult::Cancelled);
+    }
     let mut tooltip = String::from("Shepit");
     let mut listening_since: Option<Instant> = None;
     loop {
@@ -230,6 +275,7 @@ fn controller_loop(
         };
         if let Msg::Model(status) = &msg {
             *model.lock().unwrap_or_else(|e| e.into_inner()) = *status;
+            ui::emit_to_windows(app, "model-status", commands::model_payload(*status));
             set_tooltip(app, &mut tooltip, tray::tooltip_for(*status));
         }
         if cfg!(debug_assertions) {
@@ -237,6 +283,10 @@ fn controller_loop(
                 println!("{}", shepit_core::context::presence_flags_line(context));
             }
         }
+        let new_key = match &msg {
+            Msg::Hotkey(hotkey) => Some(*hotkey),
+            _ => None,
+        };
         // A tick after every message keeps the failed reset on time while keys keep arriving.
         let now = Instant::now();
         let mut changed = [
@@ -246,6 +296,15 @@ fn controller_loop(
         .into_iter()
         .flatten()
         .last();
+        // Only this thread writes the hook state, and the key changes after the runner has dropped
+        // the old press.
+        if let Some(hotkey) = new_key {
+            hook::set_hotkey(hotkey);
+        }
+        hook::set_picking(runner.picking());
+        if let Some(result) = runner.take_pick() {
+            finish_pick(app, &mut runner, result, epoch);
+        }
         // The wanted id goes first: the worker skips a job it has not started once Esc cleared it.
         wanted.store(runner.wanted(), Ordering::SeqCst);
         if let Some(job) = runner.take_job() {
@@ -296,6 +355,47 @@ fn controller_loop(
         }
         app.state::<WidgetHost>().view(view);
     }
+}
+
+/// A pick ended. A chosen key is saved and switched here, on this thread: sending `Msg::Hotkey` to
+/// our own bounded channel would block this thread forever once the channel is full.
+fn finish_pick(
+    app: &AppHandle,
+    runner: &mut Runner<CpalRecorder>,
+    result: PickResult,
+    epoch: Instant,
+) {
+    if let PickResult::Picked(hotkey) = result {
+        let saved = settings_store::apply_on_controller(app, |current| {
+            Ok(Settings {
+                hotkey,
+                ..current.clone()
+            })
+        });
+        match saved {
+            Ok(_) => {
+                runner.step_at(Msg::Hotkey(hotkey), epoch, Instant::now());
+                hook::set_hotkey(hotkey);
+            }
+            Err(err) => eprintln!("could not save the picked key: {err}"),
+        }
+    }
+    emit_pick(app, result);
+}
+
+fn emit_pick(app: &AppHandle, result: PickResult) {
+    ui::emit_to_windows(app, "hotkey-pick", commands::pick_payload(result));
+}
+
+/// Opens Settings from a handler that runs on the main thread: building a window waits for the main
+/// thread, so it happens on a thread of its own.
+fn open_settings_later(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Err(err) = ui::open_settings(&app) {
+            eprintln!("could not open Settings: {err}");
+        }
+    });
 }
 
 fn set_tooltip(app: &AppHandle, current: &mut String, text: String) {

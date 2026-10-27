@@ -3,14 +3,19 @@ use shepit_core::dictation::ModelStatus;
 #[derive(Debug, PartialEq, Eq)]
 pub enum MenuAction {
     Quit,
+    OpenSettings,
     ToggleWidget,
     ResetWidget,
     None,
 }
 
+/// The "Show widget" check item, kept so a change made in Settings can update it.
+pub struct ShowWidgetItem(pub tauri::menu::CheckMenuItem<tauri::Wry>);
+
 pub fn action_for(id: &str) -> MenuAction {
     match id {
         "quit" => MenuAction::Quit,
+        "settings" => MenuAction::OpenSettings,
         "toggle-widget" => MenuAction::ToggleWidget,
         "reset-widget" => MenuAction::ResetWidget,
         _ => MenuAction::None,
@@ -58,8 +63,19 @@ mod tests {
     }
 
     #[test]
+    fn settings_id_opens_settings() {
+        assert_eq!(action_for("settings"), MenuAction::OpenSettings);
+    }
+
+    #[test]
+    fn settings_id_is_case_sensitive_and_exact() {
+        assert_eq!(action_for("Settings"), MenuAction::None);
+        assert_eq!(action_for("settings "), MenuAction::None);
+    }
+
+    #[test]
     fn other_id_is_none() {
-        assert_eq!(action_for("settings"), MenuAction::None);
+        assert_eq!(action_for("bogus"), MenuAction::None);
     }
 
     #[test]
