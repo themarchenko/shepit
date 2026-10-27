@@ -279,9 +279,16 @@ impl Settings {
                         .collect::<Option<Vec<_>>>()
                 })
                 .unwrap_or(d.dictionary),
-            check_for_updates: d.check_for_updates,
-            skipped_update: d.skipped_update,
-            last_update_check: d.last_update_check,
+            check_for_updates: map
+                .get(KEY_CHECK_UPDATES)
+                .and_then(Value::as_bool)
+                .unwrap_or(d.check_for_updates),
+            skipped_update: map
+                .get(KEY_SKIPPED_UPDATE)
+                .and_then(Value::as_str)
+                .map_or(d.skipped_update, str::to_string),
+            // as_u64 rejects negatives, floats and strings, so they fall back to "never".
+            last_update_check: map.get(KEY_LAST_UPDATE_CHECK).and_then(Value::as_u64),
             extra: map
                 .into_iter()
                 .filter(|(k, _)| !KNOWN_KEYS.contains(&k.as_str()))
@@ -330,6 +337,22 @@ impl Settings {
         );
         map.insert(KEY_NOTES.into(), Value::from(self.speaker_notes.as_str()));
         map.insert(KEY_DICTIONARY.into(), Value::from(self.dictionary.clone()));
+        map.insert(
+            KEY_CHECK_UPDATES.into(),
+            Value::from(self.check_for_updates),
+        );
+        map.insert(
+            KEY_SKIPPED_UPDATE.into(),
+            Value::from(self.skipped_update.as_str()),
+        );
+        match self.last_update_check {
+            Some(t) => {
+                map.insert(KEY_LAST_UPDATE_CHECK.into(), Value::from(t));
+            }
+            None => {
+                map.remove(KEY_LAST_UPDATE_CHECK);
+            }
+        }
         match self.widget_anchor {
             Some(p) => {
                 let mut anchor = Map::new();
@@ -388,7 +411,7 @@ pub fn changes(old: &Settings, new: &Settings) -> Changes {
             || old.fast_path_max_words != new.fast_path_max_words
             || old.prompt_mode_min_words != new.prompt_mode_min_words
             || old.dictionary != new.dictionary,
-        updates: false,
+        updates: old.check_for_updates != new.check_for_updates,
     }
 }
 
@@ -400,8 +423,9 @@ fn patch_string(value: &Value, key: &str) -> Result<String, String> {
 }
 
 /// Applies a UI edit. The patch is a JSON object with any of `widgetStyle`, `glassOpacity`,
-/// `fadeWhenIdle`, `widgetVisible`, `hotkey` and the polishing keys (not `dictionary`). An unknown key, a wrong type or a bad id rejects
-/// the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
+/// `fadeWhenIdle`, `widgetVisible`, `hotkey`, `checkForUpdates` and the polishing keys (not
+/// `dictionary`, `skippedUpdate` or `lastUpdateCheck`, which only the updater writes). An unknown
+/// key, a wrong type or a bad id rejects the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
 pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String> {
     let Value::Object(map) = patch else {
         return Err("the patch must be an object".into());
@@ -480,6 +504,14 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
             }
             KEY_DICTIONARY => {
                 return Err(format!("{KEY_DICTIONARY}: cannot be patched here"));
+            }
+            KEY_CHECK_UPDATES => {
+                out.check_for_updates = value
+                    .as_bool()
+                    .ok_or_else(|| format!("{KEY_CHECK_UPDATES}: not a boolean"))?;
+            }
+            KEY_SKIPPED_UPDATE | KEY_LAST_UPDATE_CHECK => {
+                return Err(format!("{key}: cannot be patched here"));
             }
             // widgetAnchor and onboardingCompleted have their own commands.
             other => return Err(format!("unknown setting: {other}")),
