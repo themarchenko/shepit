@@ -66,6 +66,8 @@ windows/
 6. **Insertion and context**. Paste with clipboard restore, password fields skipped, app name,
    window title and selection captured. Device check: Notepad, a browser, Windows Terminal, a
    password field.
+   Status: code done (clipboard paste and restore, password refusal, context capture, exe profiles);
+   device checks still open. See DECISIONS 2026-10-27: Windows insertion and context.
 7. **Widget**. The three styles in the black glass, live text, position kept. Device check: looks
    and animations at 100% and 150% scaling.
 8. **Settings and onboarding**. Same panes and defaults as the spec; microphone permission guidance

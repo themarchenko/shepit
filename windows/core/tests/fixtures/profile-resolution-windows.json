@@ -1,0 +1,558 @@
+{
+  "version": 1,
+  "description": "resolve_exe_profile: Windows exe file name, window title and url in, profile id out. Windows only: the Swift core has no exe identity, so this is not under shared/. Table: docs/spec/profiles-modes.md, Windows app identifiers.",
+  "cases": [
+    {
+      "name": "Exe/windowsterminal.exe",
+      "input": {
+        "exe": "windowsterminal.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/openconsole.exe",
+      "input": {
+        "exe": "openconsole.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/conhost.exe",
+      "input": {
+        "exe": "conhost.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/cmd.exe",
+      "input": {
+        "exe": "cmd.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/powershell.exe",
+      "input": {
+        "exe": "powershell.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/pwsh.exe",
+      "input": {
+        "exe": "pwsh.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/wezterm-gui.exe",
+      "input": {
+        "exe": "wezterm-gui.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/alacritty.exe",
+      "input": {
+        "exe": "alacritty.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Exe/claude.exe",
+      "input": {
+        "exe": "claude.exe"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Exe/chatgpt.exe",
+      "input": {
+        "exe": "chatgpt.exe"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Exe/codex.exe",
+      "input": {
+        "exe": "codex.exe"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Exe/code.exe",
+      "input": {
+        "exe": "code.exe"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "Exe/cursor.exe",
+      "input": {
+        "exe": "cursor.exe"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "Exe/zed.exe",
+      "input": {
+        "exe": "zed.exe"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "Exe/telegram.exe",
+      "input": {
+        "exe": "telegram.exe"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "Exe/slack.exe",
+      "input": {
+        "exe": "slack.exe"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "Exe/discord.exe",
+      "input": {
+        "exe": "discord.exe"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "Exe/whatsapp.exe",
+      "input": {
+        "exe": "whatsapp.exe"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "Exe/messenger.exe",
+      "input": {
+        "exe": "messenger.exe"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "Exe/outlook.exe",
+      "input": {
+        "exe": "outlook.exe"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "Exe/olk.exe",
+      "input": {
+        "exe": "olk.exe"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "Exe/superhuman.exe",
+      "input": {
+        "exe": "superhuman.exe"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "Exe/notepad.exe",
+      "input": {
+        "exe": "notepad.exe"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "Exe/winword.exe",
+      "input": {
+        "exe": "winword.exe"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "Exe/obsidian.exe",
+      "input": {
+        "exe": "obsidian.exe"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "Exe/notion.exe",
+      "input": {
+        "exe": "notion.exe"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "Exe/onenote.exe",
+      "input": {
+        "exe": "onenote.exe"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "TerminalClaudeTitle/windowsterminal.exe",
+      "input": {
+        "exe": "windowsterminal.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/windowsterminal.exe",
+      "input": {
+        "exe": "windowsterminal.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "TerminalClaudeTitle/openconsole.exe",
+      "input": {
+        "exe": "openconsole.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/openconsole.exe",
+      "input": {
+        "exe": "openconsole.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "TerminalClaudeTitle/conhost.exe",
+      "input": {
+        "exe": "conhost.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/conhost.exe",
+      "input": {
+        "exe": "conhost.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "TerminalClaudeTitle/cmd.exe",
+      "input": {
+        "exe": "cmd.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/cmd.exe",
+      "input": {
+        "exe": "cmd.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "TerminalClaudeTitle/powershell.exe",
+      "input": {
+        "exe": "powershell.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/powershell.exe",
+      "input": {
+        "exe": "powershell.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "TerminalClaudeTitle/pwsh.exe",
+      "input": {
+        "exe": "pwsh.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/pwsh.exe",
+      "input": {
+        "exe": "pwsh.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "TerminalClaudeTitle/wezterm-gui.exe",
+      "input": {
+        "exe": "wezterm-gui.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/wezterm-gui.exe",
+      "input": {
+        "exe": "wezterm-gui.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "TerminalClaudeTitle/alacritty.exe",
+      "input": {
+        "exe": "alacritty.exe",
+        "window_title": "✳ Claude Code - shepit"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "TerminalPlainTitle/alacritty.exe",
+      "input": {
+        "exe": "alacritty.exe",
+        "window_title": "PS C:\\Users\\dev>"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Uppercase/WindowsTerminal.exe",
+      "input": {
+        "exe": "WindowsTerminal.exe"
+      },
+      "expected": "terminal"
+    },
+    {
+      "name": "Uppercase/CODE.EXE",
+      "input": {
+        "exe": "CODE.EXE"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "Uppercase/Slack.exe",
+      "input": {
+        "exe": "Slack.exe"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "Uppercase/NOTEPAD.EXE",
+      "input": {
+        "exe": "NOTEPAD.EXE"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "Uppercase/Chatgpt.exe",
+      "input": {
+        "exe": "Chatgpt.exe"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "Uppercase/OUTLOOK.exe",
+      "input": {
+        "exe": "OUTLOOK.exe"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "UppercaseClaudeTitle/PWSH.EXE",
+      "input": {
+        "exe": "PWSH.EXE",
+        "window_title": "CLAUDE"
+      },
+      "expected": "claude-code-terminal"
+    },
+    {
+      "name": "NonTerminalClaudeTitle/notepad.exe",
+      "input": {
+        "exe": "notepad.exe",
+        "window_title": "claude notes"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "NonTerminalClaudeTitle/code.exe",
+      "input": {
+        "exe": "code.exe",
+        "window_title": "claude - Visual Studio Code"
+      },
+      "expected": "code-editor"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/claude.ai",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://claude.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/chatgpt.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://chatgpt.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/chat.openai.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://chat.openai.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/gemini.google.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://gemini.google.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/perplexity.ai",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://perplexity.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/copilot.microsoft.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://copilot.microsoft.com/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/mail.google.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://mail.google.com/"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/outlook.live.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://outlook.live.com/"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/outlook.office.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://outlook.office.com/"
+      },
+      "expected": "mail"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/docs.google.com",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://docs.google.com/"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/notion.so",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://notion.so/"
+      },
+      "expected": "notes"
+    },
+    {
+      "name": "BrowserHost/msedge.exe/www.claude.ai",
+      "input": {
+        "exe": "msedge.exe",
+        "url": "https://www.claude.ai/new"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/firefox.exe/subdomain",
+      "input": {
+        "exe": "firefox.exe",
+        "url": "https://app.claude.ai/"
+      },
+      "expected": "ai-chat"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/mailSubdomain",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://sub.mail.google.com/"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "BrowserHost/chrome.exe/lookalike",
+      "input": {
+        "exe": "chrome.exe",
+        "url": "https://notclaude.ai/"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "BrowserNoUrl/chrome.exe",
+      "input": {
+        "exe": "chrome.exe"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "AppWinsOverUrl/slack.exe",
+      "input": {
+        "exe": "slack.exe",
+        "url": "https://claude.ai/"
+      },
+      "expected": "messenger"
+    },
+    {
+      "name": "MacBundleId/com.apple.Terminal",
+      "input": {
+        "exe": "com.apple.Terminal",
+        "window_title": "claude"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "MacBundleId/com.microsoft.VSCode",
+      "input": {
+        "exe": "com.microsoft.VSCode"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "Unknown/calc.exe",
+      "input": {
+        "exe": "calc.exe"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "Unknown/ApplicationFrameHost.exe",
+      "input": {
+        "exe": "ApplicationFrameHost.exe"
+      },
+      "expected": "generic"
+    },
+    {
+      "name": "Missing/NoExe",
+      "input": {},
+      "expected": "generic"
+    }
+  ]
+}

@@ -64,6 +64,18 @@ The dictionary part takes at most the first 120 entries. At most 5 examples; the
 
 The target context fields are bundle id, app name, window title, URL, text before the caret, selected text, editable focus and secure input (Context/TargetContext.swift:4-12).
 
+Windows field mapping (windows/core/src/context.rs, windows/app/src-tauri/src/insert_win.rs; formatting itself is Windows task 9):
+
+| Field | Windows source |
+|---|---|
+| `bundle_id` | exe file name of the foreground process (`QueryFullProcessImageNameW`); `ApplicationFrameHost.exe` resolves to its `Windows.UI.Core.CoreWindow` child process |
+| `app` | `FileDescription` from the exe version info, else the exe name without `.exe` |
+| `window_title` | `GetWindowTextW`, up to 1024 UTF-16 units |
+| `text_before_caret`, `selected_text` | UI Automation on the focused element: `TextPattern2` caret, else the start of the `TextPattern` selection, else `ValuePattern`; 1 s connection and transaction timeouts |
+| `url` | not captured on either platform (macOS never sets it, ContextProbe.swift:18-48) |
+
+Limits are in graphemes: the last 500 before the caret; the field value is read only under 50000 (`MAX_VALUE_GRAPHEMES`, context.rs:8); the selection is dropped when empty or at 10000 or more (`MAX_SELECTION_GRAPHEMES`, :9), as in ContextProbe.swift:35-44. The 200 and 2000 character cuts apply when the prompt is built. Text is read only when the password flag was read and is false (`may_read_text`, context.rs:44); a password field or an unreadable flag yields no text. The `TextPattern` path gives at most 1000 characters before the caret, so the 50000 limit only bites on the `ValuePattern` path.
+
 ## Reply handling
 
 - The reply is trimmed; if it then starts with a code fence, every ```` ```json ```` and ```` ``` ```` in it is removed. The candidate is the text from the first `{` to the last `}`, and the first `{` must come before the last `}` (Formatting/Formatter.swift:75-79). The JSON must have a string `text`. `language` and `new_terms` are optional (PromptBuilder.swift:83-88; Formatting/Formatter.swift:73-80). If the first parse fails, the same object text is tried again with every raw newline and tab replaced by `\n` and `\t`, because replies sometimes hold raw line breaks inside strings (Formatting/Formatter.swift:75-93; the retry is at :86-92). No JSON object or no `text` after that: the dictation counts as a failure and falls back to local text (local-cleanup.md).

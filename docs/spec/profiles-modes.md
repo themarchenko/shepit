@@ -62,3 +62,20 @@ Missing bundle id is treated as empty, missing window title as empty (:115-116).
 | document hosts | 2 | :112 |
 
 The fixture `shared/fixtures/profile-resolution.json` holds every bundle id and every host above, one case each, and is the canonical list. Add an entry to the code and to the fixture together; a port with a truncated set fails. Platform-specific: bundle ids are macOS identifiers. A port keeps the host rules and the order, and needs its own app identifiers (README, open points).
+
+### Windows app identifiers
+
+Fixture: `windows/core/tests/fixtures/profile-resolution-windows.json` (74 cases, run by `windows/core/tests/windows_fixtures.rs`). It is Windows only because the Swift core has no exe identity, so it is not under `shared/`. Source: `resolve_exe_profile`, windows/core/src/profile.rs:264. The shared `profile-resolution.json` still runs through `resolve_profile` (macOS bundle ids fall to the host rules or `generic`).
+
+The identity is the lowercase exe file name of the foreground process (`ApplicationFrameHost.exe` is mapped to the process of its `Windows.UI.Core.CoreWindow` child). Matching ignores case. Order, title rule and host rules are the ones above.
+
+| Profile | Exe names (profile.rs) |
+|---|---|
+| terminal / claude-code-terminal (title contains "claude") | `windowsterminal.exe`, `openconsole.exe`, `conhost.exe`, `cmd.exe`, `powershell.exe`, `pwsh.exe`, `wezterm-gui.exe`, `alacritty.exe` (:234) |
+| ai-chat | `claude.exe`, `chatgpt.exe`, `codex.exe` (:244) |
+| code-editor | `code.exe`, `cursor.exe`, `zed.exe` (:245) |
+| messenger | `telegram.exe`, `slack.exe`, `discord.exe`, `whatsapp.exe`, `messenger.exe` (:246) |
+| mail | `outlook.exe`, `olk.exe`, `superhuman.exe` (:253) |
+| notes | `notepad.exe`, `winword.exe`, `obsidian.exe`, `notion.exe`, `onenote.exe` (:254) |
+
+Store-app exe names (ChatGPT, WhatsApp, new Outlook, Messenger) are guesses until checked in Task Manager: needs device check.

@@ -60,6 +60,7 @@ impl WidgetState {
             stage: view.stage.map(|s| match s {
                 Stage::Loading => "loading",
                 Stage::Transcribing => "transcribing",
+                Stage::Inserting => "inserting",
             }),
             progress: view.progress,
         }
@@ -314,5 +315,12 @@ mod tests {
             default_position((100, 50, 60, 70), (96, 60), 1.0),
             (108, 58)
         );
+    }
+
+    #[test]
+    fn the_inserting_stage_reaches_the_payload() {
+        let mut v = view(Phase::Processing, false, "");
+        v.stage = Some(Stage::Inserting);
+        assert_eq!(WidgetState::from_view(&v).stage, Some("inserting"));
     }
 }

@@ -3,7 +3,9 @@
 //! 218-221. The controller owns no engine: it hands out a `Job` and takes the result back. No paste.
 
 use crate::audio::{is_long_enough, smooth_level, LevelHistory};
+use crate::context::TargetContext;
 use crate::gesture::{HotkeyGesture, Output};
+use crate::insert::{clipboard_only_message, InsertOutcome};
 use crate::keys::{KeyEvent, KeyFilter, RawKey};
 use crate::speech::{done_preview, has_enough_speech, is_junk};
 
@@ -67,6 +69,8 @@ pub enum State {
     /// Waiting for the model to download or load (DictationSession.swift:11).
     LoadingModel,
     Transcribing,
+    /// Pasting the accepted text (DictationSession.swift:9). Busy like transcribing.
+    Inserting,
     Done {
         preview: String,
     },
@@ -78,7 +82,10 @@ pub enum State {
 impl State {
     /// DictationSession.swift:23-28, without the formatting and inserting states Windows lacks.
     fn is_busy(&self) -> bool {
-        matches!(self, State::LoadingModel | State::Transcribing)
+        matches!(
+            self,
+            State::LoadingModel | State::Transcribing | State::Inserting
+        )
     }
 }
 
@@ -97,6 +104,15 @@ pub enum ModelStatus {
 pub struct Job {
     pub id: u64,
     pub samples: Vec<f32>,
+}
+
+/// The accepted text, handed to the insert worker. `captured_password` is the flag read when
+/// recording started (`None` when unreadable or when the context never arrived).
+#[derive(Debug, Clone, PartialEq)]
+pub struct InsertJob {
+    pub id: u64,
+    pub text: String,
+    pub captured_password: Option<bool>,
 }
 
 /// Gesture and key outputs that reach the session.
@@ -149,6 +165,7 @@ pub enum Phase {
 pub enum Stage {
     Loading,
     Transcribing,
+    Inserting,
 }
 
 /// What the widget shows. `levels` always has 32 entries, oldest first.
@@ -177,7 +194,13 @@ pub struct Controller<R: Recorder> {
     /// The job whose result is still wanted; cleared by Esc so a late result is dropped.
     current_job: Option<u64>,
     pending_job: Option<Job>,
-    result: Option<String>,
+    /// The live dictation: set when a recording opens, carried by the capture, the job and the
+    /// insert; cleared by Esc so late answers are dropped.
+    live: Option<u64>,
+    capture: Option<u64>,
+    context: Option<TargetContext>,
+    pending_insert: Option<InsertJob>,
+    insert_preview: String,
     smoothed: f32,
     history: LevelHistory,
 }
@@ -195,7 +218,11 @@ impl<R: Recorder> Controller<R> {
             next_job_id: 1,
             current_job: None,
             pending_job: None,
-            result: None,
+            live: None,
+            capture: None,
+            context: None,
+            pending_insert: None,
+            insert_preview: String::new(),
             smoothed: 0.0,
             history: LevelHistory::new(),
         }
@@ -248,6 +275,9 @@ impl<R: Recorder> Controller<R> {
         self.state = State::Idle;
         self.current_job = None;
         self.pending_job = None;
+        self.live = None;
+        self.capture = None;
+        self.pending_insert = None;
     }
 
     /// The speech gate, then a job for the recognizer (DictationSession.swift:176-190).
@@ -256,8 +286,8 @@ impl<R: Recorder> Controller<R> {
             self.fail(NOTHING_RECOGNIZED.to_string(), at);
             return;
         }
-        let id = self.next_job_id;
-        self.next_job_id += 1;
+        // The dictation id doubles as the job id; a start that never opened has none to reuse.
+        let id = self.live.unwrap_or_else(|| self.alloc_id());
         self.current_job = Some(id);
         self.pending_job = Some(Job { id, samples });
         self.state = if self.model == ModelStatus::Ready {
@@ -292,11 +322,13 @@ impl<R: Recorder> Controller<R> {
                 self.fail(NOTHING_RECOGNIZED.to_string(), at)
             }
             Ok(text) => {
-                self.state = State::Done {
-                    preview: done_preview(&text),
-                };
-                self.done_at = at;
-                self.result = Some(text);
+                self.insert_preview = done_preview(&text);
+                self.pending_insert = Some(InsertJob {
+                    id,
+                    text,
+                    captured_password: self.context.as_ref().and_then(|c| c.password),
+                });
+                self.state = State::Inserting;
             }
             Err(message) => self.fail(message, at),
         }
@@ -312,18 +344,73 @@ impl<R: Recorder> Controller<R> {
         self.current_job
     }
 
-    /// The accepted transcript, handed over once.
-    pub fn take_result(&mut self) -> Option<String> {
-        self.result.take()
+    /// The dictation id of the latest start, handed over once: the app captures the target context
+    /// for it on a worker. Only a start whose recorder opened gives one.
+    pub fn take_capture(&mut self) -> Option<u64> {
+        self.capture.take()
+    }
+
+    /// The captured context for dictation `id`. Dropped unless `id` is the live dictation.
+    pub fn on_context(&mut self, id: u64, context: TargetContext) {
+        if self.live == Some(id) {
+            self.context = Some(context);
+        }
+    }
+
+    /// The context stored for the live dictation, if it has arrived.
+    pub fn context(&self) -> Option<&TargetContext> {
+        self.context.as_ref()
+    }
+
+    /// The accepted transcript as an insert job, handed over once. Replaces `take_result`.
+    pub fn take_insert(&mut self) -> Option<InsertJob> {
+        self.pending_insert.take()
+    }
+
+    /// The insert worker finished dictation `id`. An id that is not the live one is dropped. Ok
+    /// shows Done (clipboard-only with the Ctrl+V hint); Err fails with its message.
+    pub fn on_inserted(&mut self, id: u64, result: Result<InsertOutcome, String>, at: f64) {
+        if self.live != Some(id) || self.state != State::Inserting {
+            return;
+        }
+        match result {
+            Ok(InsertOutcome::Pasted) => {
+                self.state = State::Done {
+                    preview: self.insert_preview.clone(),
+                };
+                self.done_at = at;
+            }
+            Ok(InsertOutcome::ClipboardOnly) => {
+                self.state = State::Done {
+                    preview: clipboard_only_message(&self.insert_preview),
+                };
+                self.done_at = at;
+            }
+            Err(message) => self.fail(message, at),
+        }
     }
 
     fn start(&mut self, at: f64) {
-        self.result = None;
+        self.pending_insert = None;
+        self.live = None;
+        self.capture = None;
+        self.context = None;
         self.clear_levels();
         match self.recorder.start() {
-            Ok(()) => self.state = State::Recording { hands_free: false },
+            Ok(()) => {
+                let id = self.alloc_id();
+                self.live = Some(id);
+                self.capture = Some(id);
+                self.state = State::Recording { hands_free: false };
+            }
             Err(e) => self.fail(format!("Microphone: {e}"), at),
         }
+    }
+
+    fn alloc_id(&mut self) -> u64 {
+        let id = self.next_job_id;
+        self.next_job_id += 1;
+        id
     }
 
     fn stop_recorder(&mut self) -> Vec<f32> {
@@ -383,6 +470,12 @@ impl<R: Recorder> Controller<R> {
                 false,
                 String::new(),
                 Some(Stage::Transcribing),
+            ),
+            State::Inserting => (
+                Phase::Processing,
+                false,
+                String::new(),
+                Some(Stage::Inserting),
             ),
             State::Done { preview } => (Phase::Done, false, preview.clone(), None),
             State::Failed { message } => (Phase::Failed, false, message.clone(), None),
@@ -784,7 +877,7 @@ mod tests {
 
     #[test]
     fn press_began_is_ignored_while_busy_and_starts_from_done() {
-        for s in [State::LoadingModel, State::Transcribing] {
+        for s in [State::LoadingModel, State::Transcribing, State::Inserting] {
             assert_eq!(action_for(&s, Event::PressBegan), Action::None);
         }
         let done = State::Done {
@@ -797,6 +890,7 @@ mod tests {
     fn esc_cancels_while_busy_and_is_ignored_in_done_and_failed() {
         assert_eq!(action_for(&State::LoadingModel, Event::Esc), Action::Cancel);
         assert_eq!(action_for(&State::Transcribing, Event::Esc), Action::Cancel);
+        assert_eq!(action_for(&State::Inserting, Event::Esc), Action::Cancel);
         let done = State::Done {
             preview: "x".into(),
         };
@@ -864,13 +958,21 @@ mod tests {
         let id = transcribe(&mut c, 0.0);
         c.on_recognized(id, Ok("hello there".into()), 10.0);
         let v = c.view();
+        // Accepted text goes through Inserting; Done starts when the worker reports back.
+        assert_eq!(
+            (v.phase, v.stage),
+            (Phase::Processing, Some(Stage::Inserting))
+        );
+        let job = c.take_insert().expect("insert job");
+        assert_eq!((job.id, job.text.as_str()), (id, "hello there"));
+        assert_eq!(c.take_insert(), None);
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 10.5);
+        let v = c.view();
         assert_eq!((v.phase, v.message.as_str()), (Phase::Done, "hello there"));
-        c.poll(12.49);
+        c.poll(12.99);
         assert_eq!(c.view().phase, Phase::Done);
-        c.poll(12.5);
+        c.poll(13.0);
         assert_eq!(c.view().phase, Phase::Idle);
-        assert_eq!(c.take_result().as_deref(), Some("hello there"));
-        assert_eq!(c.take_result(), None);
     }
 
     #[test]
@@ -885,7 +987,7 @@ mod tests {
                 (Phase::Failed, "Nothing recognized"),
                 "{text:?}"
             );
-            assert_eq!(c.take_result(), None);
+            assert_eq!(c.take_insert(), None);
         }
     }
 
@@ -911,7 +1013,7 @@ mod tests {
         assert_eq!(c.current_job(), None);
         c.on_recognized(id, Ok("late words".into()), 3.0);
         assert_eq!(c.view().phase, Phase::Idle);
-        assert_eq!(c.take_result(), None);
+        assert_eq!(c.take_insert(), None);
     }
 
     #[test]
@@ -944,6 +1046,8 @@ mod tests {
         assert_eq!(c.view().phase, Phase::Processing);
         assert_eq!(c.current_job(), Some(new));
         c.on_recognized(new, Ok("fresh".into()), 6.0);
+        assert_eq!(c.take_insert().map(|j| j.text), Some("fresh".to_string()));
+        c.on_inserted(new, Ok(InsertOutcome::Pasted), 6.5);
         assert_eq!(c.view().message, "fresh");
     }
 
@@ -961,6 +1065,7 @@ mod tests {
         let (mut c, shared) = setup_ready();
         let id = transcribe(&mut c, 0.0);
         c.on_recognized(id, Ok("hello".into()), 2.0);
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 2.5);
         press(&mut c, 3.0);
         assert_eq!(c.view().phase, Phase::Listening);
         assert_eq!(shared.starts.get(), 2);
@@ -993,5 +1098,222 @@ mod tests {
         let id = c.current_job().unwrap();
         c.on_recognized(id, Err("x".into()), 3.0);
         transcribe(c, 10.0)
+    }
+
+    // Insertion.
+
+    fn start_dictation(c: &mut Controller<FakeRecorder>, at: f64) -> u64 {
+        press(c, at);
+        let id = c.take_capture().expect("capture id");
+        release(c, at + 1.0);
+        id
+    }
+
+    fn inserting(c: &mut Controller<FakeRecorder>, text: &str) -> u64 {
+        let id = start_dictation(c, 0.0);
+        let job = c.take_job().expect("job");
+        assert_eq!(job.id, id);
+        c.on_recognized(id, Ok(text.into()), 2.0);
+        id
+    }
+
+    #[test]
+    fn inserting_is_busy_and_shows_the_inserting_stage() {
+        let (mut c, shared) = setup_ready();
+        inserting(&mut c, "hello");
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.stage),
+            (Phase::Processing, Some(Stage::Inserting))
+        );
+        press(&mut c, 3.0);
+        assert_eq!(shared.starts.get(), 1);
+        assert_eq!(c.view().stage, Some(Stage::Inserting));
+    }
+
+    #[test]
+    fn each_start_gives_one_capture_with_the_dictation_id() {
+        let (mut c, _s) = setup_ready();
+        assert_eq!(c.take_capture(), None);
+        press(&mut c, 0.0);
+        let id = c.take_capture().expect("capture");
+        assert_eq!(c.take_capture(), None);
+        release(&mut c, 1.0);
+        assert_eq!(c.take_job().map(|j| j.id), Some(id));
+    }
+
+    #[test]
+    fn a_failed_start_gives_no_capture() {
+        let (mut c, shared) = setup_ready();
+        *shared.start_error.borrow_mut() = Some(CaptureError::NoDevice);
+        press(&mut c, 0.0);
+        assert_eq!(c.take_capture(), None);
+    }
+
+    #[test]
+    fn a_second_start_gets_a_new_dictation_id() {
+        let (mut c, _s) = setup_ready();
+        let first = start_dictation(&mut c, 0.0);
+        let job = c.take_job().unwrap();
+        c.on_recognized(job.id, Err("x".into()), 2.0);
+        let second = start_dictation(&mut c, 10.0);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn the_context_is_stored_for_the_live_dictation() {
+        let (mut c, _s) = setup_ready();
+        press(&mut c, 0.0);
+        let id = c.take_capture().unwrap();
+        assert_eq!(c.context(), None);
+        let ctx = TargetContext {
+            app_id: Some("notepad.exe".into()),
+            ..TargetContext::default()
+        };
+        c.on_context(id, ctx.clone());
+        assert_eq!(c.context(), Some(&ctx));
+    }
+
+    #[test]
+    fn a_context_for_a_stale_id_is_dropped() {
+        let (mut c, _s) = setup_ready();
+        press(&mut c, 0.0);
+        let old = c.take_capture().unwrap();
+        release(&mut c, 0.1);
+        press(&mut c, 1.0);
+        let new = c.take_capture().unwrap();
+        assert_ne!(old, new);
+        c.on_context(
+            old,
+            TargetContext {
+                app_id: Some("old.exe".into()),
+                ..Default::default()
+            },
+        );
+        assert_eq!(c.context(), None);
+        c.on_context(
+            new,
+            TargetContext {
+                app_id: Some("new.exe".into()),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            c.context().and_then(|x| x.app_id.as_deref()),
+            Some("new.exe")
+        );
+    }
+
+    #[test]
+    fn a_context_after_esc_is_dropped() {
+        let (mut c, _s) = setup_ready();
+        press(&mut c, 0.0);
+        let id = c.take_capture().unwrap();
+        esc(&mut c, 0.5);
+        c.on_context(id, TargetContext::default());
+        assert_eq!(c.context(), None);
+    }
+
+    #[test]
+    fn the_insert_job_carries_the_captured_password_flag() {
+        for flag in [Some(true), Some(false), None] {
+            let (mut c, _s) = setup_ready();
+            press(&mut c, 0.0);
+            let id = c.take_capture().unwrap();
+            c.on_context(
+                id,
+                TargetContext {
+                    password: flag,
+                    ..Default::default()
+                },
+            );
+            release(&mut c, 1.0);
+            c.take_job().unwrap();
+            c.on_recognized(id, Ok("hello".into()), 2.0);
+            let job = c.take_insert().unwrap();
+            assert_eq!((job.id, job.captured_password), (id, flag), "{flag:?}");
+        }
+    }
+
+    #[test]
+    fn without_a_context_the_captured_flag_is_unknown() {
+        let (mut c, _s) = setup_ready();
+        inserting(&mut c, "hello");
+        assert_eq!(c.take_insert().unwrap().captured_password, None);
+    }
+
+    #[test]
+    fn esc_while_inserting_goes_idle_and_the_late_outcome_is_ignored() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting(&mut c, "hello");
+        esc(&mut c, 2.5);
+        assert_eq!(c.view().phase, Phase::Idle);
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+        c.on_inserted(id, Err("late".into()), 3.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn esc_while_inserting_drops_an_insert_job_not_yet_taken() {
+        let (mut c, _s) = setup_ready();
+        inserting(&mut c, "hello");
+        esc(&mut c, 2.5);
+        assert_eq!(c.take_insert(), None);
+    }
+
+    #[test]
+    fn an_outcome_for_another_id_is_ignored() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting(&mut c, "hello");
+        c.on_inserted(id + 1, Ok(InsertOutcome::Pasted), 3.0);
+        assert_eq!(c.view().stage, Some(Stage::Inserting));
+    }
+
+    #[test]
+    fn an_insert_error_fails_with_its_message_and_resets_after_four_seconds() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting(&mut c, "hello");
+        c.on_inserted(
+            id,
+            Err("A password field is active; nothing was inserted".into()),
+            3.0,
+        );
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.message.as_str()),
+            (
+                Phase::Failed,
+                "A password field is active; nothing was inserted"
+            )
+        );
+        c.poll(6.9);
+        assert_eq!(c.view().phase, Phase::Failed);
+        c.poll(7.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn clipboard_only_shows_the_ctrl_v_hint_before_the_preview() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting(&mut c, "line one\nline two");
+        c.on_inserted(id, Ok(InsertOutcome::ClipboardOnly), 3.0);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Done);
+        assert_eq!(
+            v.message,
+            "Copied (press Ctrl+V to paste): line one line two"
+        );
+    }
+
+    #[test]
+    fn done_after_insertion_resets_two_and_a_half_seconds_after_the_outcome() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting(&mut c, "hello");
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 20.0);
+        c.poll(22.4);
+        assert_eq!(c.view().phase, Phase::Done);
+        c.poll(22.5);
+        assert_eq!(c.view().phase, Phase::Idle);
     }
 }

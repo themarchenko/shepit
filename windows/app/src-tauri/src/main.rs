@@ -2,12 +2,16 @@
 
 mod controller;
 mod hook;
+mod insert;
+#[cfg(windows)]
+mod insert_win;
 mod recognizer;
 mod recorder;
 mod tray;
 mod widget;
 
 use controller::{log_line, Msg, Runner};
+use insert::Request;
 use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
 use shepit_core::dictation::{Job, ModelStatus, Phase, View};
@@ -27,6 +31,16 @@ const TRAY_ID: &str = "main";
 /// Added to the job id base per controller restart, so a result from the old controller can never
 /// match a job of the new one.
 const JOB_ID_STRIDE: u64 = 1 << 32;
+
+#[cfg(windows)]
+fn platform_desktop() -> impl insert::Desktop {
+    insert_win::WinDesktop::new()
+}
+
+#[cfg(not(windows))]
+fn platform_desktop() -> impl insert::Desktop {
+    insert::NullDesktop
+}
 
 fn main() {
     tauri::Builder::default()
@@ -88,15 +102,31 @@ fn main() {
                     .name("recognizer".into())
                     .spawn(move || recognizer::run(ParakeetEngine::new(), job_rx, wanted, tx))?;
             }
+            // One worker for the target context and the paste: both need the same COM and
+            // clipboard-owner state, which belongs to a single thread. The desktop is built inside
+            // the thread because the owner window and COM apartment live there.
+            let (insert_tx, insert_rx) = mpsc::channel::<Request>();
+            {
+                let tx = tx.clone();
+                std::thread::Builder::new()
+                    .name("insert".into())
+                    .spawn(move || insert::run(platform_desktop(), insert_rx, tx))?;
+            }
             let handle = app.handle().clone();
             // The recorder is built inside the thread: a cpal Stream may not be Send.
             std::thread::Builder::new()
                 .name("controller".into())
-                .spawn(move || run_controller(handle, tx, rx, job_tx, wanted))?;
+                .spawn(move || run_controller(handle, tx, rx, job_tx, insert_tx, wanted))?;
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running Shepit");
+}
+
+/// Where the controller sends work: the recognizer and the insert worker.
+struct Workers {
+    jobs: Sender<Job>,
+    inserts: Sender<Request>,
 }
 
 /// Runs the controller loop and restarts it with a fresh controller if it panics, so the hotkey
@@ -106,8 +136,10 @@ fn run_controller(
     tx: SyncSender<Msg>,
     rx: Receiver<Msg>,
     jobs: Sender<Job>,
+    inserts: Sender<Request>,
     wanted: Arc<AtomicU64>,
 ) {
+    let workers = Workers { jobs, inserts };
     let mut job_id_base: u64 = 0;
     // Outlives the loop below: filled from every Model message before the controller sees it.
     let model = Arc::new(Mutex::new(ModelStatus::Loading));
@@ -115,7 +147,7 @@ fn run_controller(
         // Ids start at 1; 0 means "no job wanted".
         let first_job_id = job_id_base + 1;
         let result = catch_unwind(AssertUnwindSafe(|| {
-            controller_loop(&app, &tx, &rx, &jobs, &wanted, first_job_id, &model)
+            controller_loop(&app, &tx, &rx, &workers, &wanted, first_job_id, &model)
         }));
         if result.is_ok() {
             return;
@@ -134,7 +166,7 @@ fn controller_loop(
     app: &AppHandle,
     tx: &SyncSender<Msg>,
     rx: &Receiver<Msg>,
-    jobs: &Sender<Job>,
+    workers: &Workers,
     wanted: &AtomicU64,
     first_job_id: u64,
     model: &Mutex<ModelStatus>,
@@ -155,6 +187,11 @@ fn controller_loop(
             *model.lock().unwrap_or_else(|e| e.into_inner()) = *status;
             set_tooltip(app, &mut tooltip, tray::tooltip_for(*status));
         }
+        if cfg!(debug_assertions) {
+            if let Msg::Context { context, .. } = &msg {
+                println!("{}", shepit_core::context::presence_flags_line(context));
+            }
+        }
         // A tick after every message keeps the failed reset on time while keys keep arriving.
         let now = Instant::now();
         let mut changed = [
@@ -168,7 +205,7 @@ fn controller_loop(
         wanted.store(runner.wanted(), Ordering::SeqCst);
         if let Some(job) = runner.take_job() {
             let id = job.id;
-            if jobs.send(job).is_err() {
+            if workers.jobs.send(job).is_err() {
                 let fed = runner.step_at(
                     Msg::Recognized {
                         id,
@@ -181,9 +218,25 @@ fn controller_loop(
                 wanted.store(runner.wanted(), Ordering::SeqCst);
             }
         }
-        if let Some(text) = runner.take_result() {
-            if let Some(line) = log_line(&text, cfg!(debug_assertions)) {
+        if let Some(id) = runner.take_capture() {
+            // No worker means no context; recording and insertion carry on without it.
+            let _ = workers.inserts.send(Request::Capture { id });
+        }
+        if let Some(job) = runner.take_insert() {
+            if let Some(line) = log_line(&job.text, cfg!(debug_assertions)) {
                 println!("{line}");
+            }
+            let id = job.id;
+            if workers.inserts.send(Request::Insert(job)).is_err() {
+                let fed = runner.step_at(
+                    Msg::Inserted {
+                        id,
+                        result: Err("Insertion is not running".into()),
+                    },
+                    epoch,
+                    Instant::now(),
+                );
+                changed = fed.or(changed);
             }
         }
         let Some(view) = changed else { continue };

@@ -5,7 +5,8 @@ import { BAR_COUNT, IDLE_STATE, WIDGET_EVENT, type WidgetState } from "./widgetS
 // WidgetModel.swift:21-22 words the stages the same way.
 function processingLabel({ stage, progress }: WidgetState): string {
   if (progress !== null) return `Downloading model ${Math.round(progress * 100)}%`;
-  return stage === "loading" ? "Loading model" : "Transcribing";
+  if (stage === "loading") return "Loading model";
+  return stage === "inserting" ? "Inserting" : "Transcribing";
 }
 
 export default function Widget() {
