@@ -1,2 +1,4 @@
 # Signed test payloads must keep their exact bytes; a Windows checkout would turn LF into CRLF.
 windows/release-check/tests/fixtures/** -text
+# The prompt tests compare the golden byte for byte against an LF-only builder; keep it LF on Windows.
+shared/prompts/** text eol=lf
