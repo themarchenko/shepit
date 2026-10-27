@@ -26,6 +26,18 @@ final class UpdateTests: XCTestCase {
         """
         XCTAssertThrowsError(try ReleaseFeed.parse(Data(json.utf8)))
     }
+
+    func testInsecureDiskImageURLIsRejected() {
+        let json = """
+        {"tag_name": "v0.3.0", "html_url": "https://github.com/themarchenko/shepit/releases/tag/v0.3.0",
+         "assets": [{"name": "Shepit.dmg", "browser_download_url": "http://example.com/Shepit.dmg", "size": 1}]}
+        """
+        XCTAssertThrowsError(try ReleaseFeed.parse(Data(json.utf8))) { error in
+            guard case ReleaseFeed.FeedError.insecureDiskImage = error else {
+                return XCTFail("expected insecureDiskImage, got \(error)")
+            }
+        }
+    }
 }
 
 /// Installs real disk images over a scratch copy of the app. Needs prepared files, so it only runs when

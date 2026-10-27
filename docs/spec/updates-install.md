@@ -29,7 +29,7 @@ Source: ReleaseFeed.swift:40-86. Swift-only, no fixture.
 
 - Latest release: GitHub API `releases/latest` of `themarchenko/shepit`. Drafts and pre-releases do not appear there. Timeout 20 s. Accept `application/vnd.github+json`; User-Agent `Shepit/<version>`.
 - Status other than 200 is an error. 403 and 429 read as rate limiting.
-- Version = tag with leading "v" removed. The release must have an asset named `Shepit.dmg`, else the release is rejected.
+- Version = tag with leading "v" removed. The release must have an asset named `Shepit.dmg`, else the release is rejected. The asset's `browser_download_url` must use https, else the release is rejected (`insecureDiskImage`; defence in depth, the signature check stays the boundary).
 
 ## Installing an update (macOS)
 
@@ -45,7 +45,7 @@ Source: UpdateInstaller.swift:44-106. Swift-only.
 - No downloaded build is installed or launched unless it passes the signature check. There is no fallback and no override: any failure throws and the old app stays (UpdateInstaller.swift:65, 98, 102-115).
 - The requirement is the designated requirement of the running app (`target` defaults to `Bundle.main.bundleURL`, :43; :103-107). Every release therefore must be signed with the same release certificate as the one installed, or the update is refused.
 - The check is strict and covers nested code and all architectures: `kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode` (:110-112).
-- The download is HTTPS from GitHub (the asset URL from the release feed) into a fresh temp directory named with a UUID, removed afterwards (:47-52); the asset URL is the release's `browser_download_url` on GitHub, and the code does not itself check the scheme.
+- The download is HTTPS from GitHub (the asset URL from the release feed) into a fresh temp directory named with a UUID, removed afterwards (:47-52); the asset URL is the release's `browser_download_url` on GitHub, and the feed parser rejects a non-https scheme.
 - The quarantine flag is removed on the staged copy only (:63). The signature and identity check follows (:65) and nothing from the download is executed in between: it is only mounted read-only and copied.
 - There is no size or checksum check. `expectedSize` only drives progress (:52).
 - Platform-specific, Windows: the updater must verify the update's signature against a key pinned in the installed app before it installs anything, and refuse with no fallback when the check fails.
