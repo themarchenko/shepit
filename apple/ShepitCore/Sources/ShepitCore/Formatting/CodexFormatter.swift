@@ -585,7 +585,8 @@ final class CodexAppServerProcess: @unchecked Sendable {
             try? write(CodexProtocol.reply(toRequest: method, id: id))
         case .notification(let method, let params):
             if method == "error" || method == "warning" || method == "configWarning" {
-                Log.formatter.notice("codex \(method, privacy: .public): \(String(describing: params), privacy: .public)")
+                // Params are server text and may echo the turn, so they stay private.
+                Log.formatter.notice("codex \(method, privacy: .public): \(String(describing: params), privacy: .private)")
             }
             guard let threadID = params["threadId"] as? String else { return }
             let (turn, outcome): (ActiveTurn?, CodexTurnCollector.Outcome?) = lock.withLock {
