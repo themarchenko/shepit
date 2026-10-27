@@ -10,8 +10,8 @@ English, let go, and the text appears where your cursor is: in Terminal, a chat,
 Speech recognition runs on your Mac. If you already use Claude Code or Codex, Shepit can hand the
 recognized text to it to fix punctuation, names and code terms before inserting it.
 
-There is also a Windows version. It is newer: it records, recognizes on the PC and pastes the text.
-Live preview is macOS only for now.
+There is also a Windows version with the same widget, live preview, polishing, dictionary, history
+and updates. It recognizes with Parakeet only; Whisper is macOS only for now.
 
 ## Features
 
