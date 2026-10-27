@@ -28,6 +28,8 @@ pub enum Msg {
         id: u64,
         result: Result<String, String>,
     },
+    /// How long the recognizer took on dictation `id`, in ms. Sent just before its `Recognized`.
+    SttMs { id: u64, ms: u64 },
     /// The polish worker finished dictation `id` with the final `text`. Dropped unless `id` is the
     /// dictation being formatted.
     Formatted { id: u64, text: String },
@@ -100,6 +102,7 @@ impl<R: Recorder> Runner<R> {
             Msg::StreamError(err) => self.controller.on_stream_error(err, now),
             Msg::Model(status) => self.controller.on_model(status),
             Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
+            Msg::SttMs { id, ms } => self.controller.on_stt_ms(id, ms),
             Msg::Formatted { id, text } => self.controller.on_formatted(id, text, now),
             Msg::Context { id, context } => self.controller.on_context(id, context),
             Msg::Inserted { id, result } => self.controller.on_inserted(id, result, now),

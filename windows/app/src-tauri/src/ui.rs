@@ -17,6 +17,11 @@ use tauri::{
 
 pub const SETTINGS: &str = "settings";
 pub const TOUR: &str = "tour";
+/// The History window (HistoryView.swift:42,65-68).
+pub const HISTORY: &str = "";
+pub const HISTORY_TITLE: &str = "";
+pub const HISTORY_SIZE: (f64, f64) = (0.0, 0.0);
+pub const HISTORY_MIN_SIZE: (f64, f64) = (0.0, 0.0);
 
 /// The tour opens this long after setup (AppDelegate.swift:59-65), once the tray and the widget
 /// are up.
@@ -149,4 +154,27 @@ pub fn show_tour_on_first_run(app: &AppHandle) {
             eprintln!("could not open the tour: {err}");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_history_window_is_labelled_titled_and_sized_like_macos() {
+        assert_eq!(HISTORY, "history");
+        assert_eq!(HISTORY_TITLE, "Shepit History");
+        assert_eq!(HISTORY_SIZE, (760.0, 520.0));
+        assert_eq!(HISTORY_MIN_SIZE, (620.0, 420.0));
+    }
+
+    #[test]
+    fn the_windows_have_distinct_labels() {
+        let labels = [SETTINGS, TOUR, HISTORY];
+        for (i, a) in labels.iter().enumerate() {
+            for b in &labels[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
 }

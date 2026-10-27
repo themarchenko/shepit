@@ -2,6 +2,8 @@
 
 mod commands;
 mod controller;
+mod history_store;
+mod history_worker;
 mod hook;
 mod insert;
 #[cfg(windows)]
@@ -10,6 +12,7 @@ mod mic_check;
 mod polish;
 mod recognizer;
 mod recorder;
+mod recordings;
 mod settings_store;
 mod shell;
 mod tray;
@@ -171,6 +174,8 @@ fn main() {
                             std::thread::spawn(move || host.reset_position());
                         }
                         tray::MenuAction::OpenSettings => open_settings_later(app),
+                        // Not wired yet: ui::open_history comes with the history work.
+                        tray::MenuAction::OpenHistory => {}
                         // The worker takes it; this handler runs on the main thread and must not wait.
                         tray::MenuAction::CheckUpdates => {
                             if let Some(updates) = app.try_state::<updater::Updates>() {
