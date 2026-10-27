@@ -12,6 +12,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::Arc;
+use std::time::Instant;
 
 pub trait Engine {
     /// Makes the engine ready: download what is missing (reporting a 0..=1 fraction), then load.
@@ -52,9 +53,14 @@ pub fn run<E: Engine>(
                 }
             }
         }
-        // A panic in the model code must not take the thread down with a job half done.
+        // A panic in the model code must not take the thread down with a job half done. The time
+        // covers `transcribe` only (DictationSession.swift:171-180) and goes first, so the
+        // controller has it when the result arrives.
+        let started = Instant::now();
         let result = catch_unwind(AssertUnwindSafe(|| engine.transcribe(&job.samples)))
             .unwrap_or_else(|_| Err(format!("Transcription failed: {CRASHED}")));
+        let ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let _ = tx.send(Msg::SttMs { id: job.id, ms });
         let _ = tx.send(Msg::Recognized { id: job.id, result });
     }
 }

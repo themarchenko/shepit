@@ -2,7 +2,7 @@
 //! needs no window lives in pure functions here so it runs in tests on any host.
 
 use crate::controller::{Msg, PickMsg};
-use crate::history_store::HistoryStore;
+use crate::history_store::{DataDir, HistoryStore, RECENT_LIMIT};
 use crate::polish;
 use crate::settings_store;
 use crate::ui;
@@ -99,8 +99,7 @@ pub fn settings_payload(settings: &Settings, model: ModelStatus, version: &str) 
         prompt_mode_min_words: settings.prompt_mode_min_words,
         speaker_notes: settings.speaker_notes.clone(),
         check_for_updates: settings.check_for_updates,
-        // Stub until the history work lands.
-        dictionary: Vec::new(),
+        dictionary: settings.dictionary.clone(),
     }
 }
 
@@ -135,11 +134,46 @@ pub struct HistoryPayload {
 
 /// `store` is `None` when the database could not be opened at launch.
 pub fn history_payload(store: Option<&HistoryStore>) -> HistoryPayload {
-    let _ = store;
+    let Some(store) = store else {
+        return unavailable();
+    };
+    let loaded = store
+        .recent(RECENT_LIMIT)
+        .and_then(|rows| store.count().map(|total| (rows, total)));
+    match loaded {
+        Ok((rows, total)) => HistoryPayload {
+            items: rows
+                .into_iter()
+                .map(|r| HistoryItem {
+                    id: r.id,
+                    created_at_ms: r.created_at_ms,
+                    app_name: r.app_name,
+                    app_id: r.bundle_id,
+                    profile: r.profile,
+                    mode: r.mode,
+                    formatter_source: r.formatter_source,
+                    stt_ms: r.stt_ms,
+                    llm_ms: r.llm_ms,
+                    raw_text: r.raw_text,
+                    formatted_text: r.formatted_text,
+                    status: r.status,
+                })
+                .collect(),
+            total,
+            error: None,
+        },
+        Err(err) => {
+            eprintln!("could not read the history: {err}");
+            unavailable()
+        }
+    }
+}
+
+fn unavailable() -> HistoryPayload {
     HistoryPayload {
         items: Vec::new(),
         total: 0,
-        error: None,
+        error: Some("History is unavailable".to_string()),
     }
 }
 
@@ -149,8 +183,15 @@ pub fn clear_history(
     store: Option<&HistoryStore>,
     recordings: &std::path::Path,
 ) -> Result<(), String> {
-    let _ = (store, recordings);
-    Ok(())
+    let rows = match store {
+        Some(store) => store.clear(),
+        None => Err("History is unavailable".to_string()),
+    };
+    let files = crate::recordings::clear(recordings);
+    rows?;
+    files
+        .map(|_| ())
+        .map_err(|_| "Could not delete the recordings".to_string())
 }
 
 /// The settings with the agent choice moved off a missing agent (SharedControls.swift:81-89).
@@ -318,6 +359,50 @@ pub async fn detect_agents(app: AppHandle) -> Result<AgentsPayload, String> {
         codex,
         settings: payload_of(&app, &settings),
     })
+}
+
+pub type History = Arc<Mutex<Option<HistoryStore>>>;
+
+/// The newest dictations for the History window. Reads on a blocking thread: SQLite waits on disk.
+#[tauri::command]
+pub async fn history_recent(history: State<'_, History>) -> Result<HistoryPayload, String> {
+    let history = history.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        history_payload(history.lock().unwrap_or_else(|e| e.into_inner()).as_ref())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Deletes every row and every recording, then tells the open History window.
+#[tauri::command]
+pub async fn history_clear(
+    app: AppHandle,
+    history: State<'_, History>,
+    dir: State<'_, DataDir>,
+) -> Result<(), String> {
+    let history = history.inner().clone();
+    let recordings = crate::recordings::dir_in(&dir.0);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        clear_history(
+            history.lock().unwrap_or_else(|e| e.into_inner()).as_ref(),
+            &recordings,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    ui::emit_history_changed(&app);
+    result
+}
+
+/// Creates the recordings folder if needed and opens it. The path is computed here, never taken
+/// from the page.
+#[tauri::command]
+pub async fn open_recordings_folder(dir: State<'_, DataDir>) -> Result<(), String> {
+    let folder = crate::recordings::dir_in(&dir.0);
+    crate::recordings::ensure_dir(&folder)
+        .map_err(|_| "Could not create the recordings folder".to_string())?;
+    crate::shell::open_folder(&folder)
 }
 
 /// Marks the tour done and closes it.

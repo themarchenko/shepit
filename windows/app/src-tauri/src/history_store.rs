@@ -3,7 +3,9 @@
 //! user_version` (2); nothing claims either app can open the other's file. Errors carry a kind,
 //! never a path or dictated text.
 
+use rusqlite::{params, Connection};
 use shepit_core::dictation::RecordDraft;
+use shepit_core::history::{grdb_timestamp, parse_grdb_timestamp};
 use std::path::Path;
 
 /// The database file inside the local data directory.
@@ -11,6 +13,9 @@ pub const FILE: &str = "shepit.sqlite";
 
 /// The newest rows the window loads (HistoryView.swift:52).
 pub const RECENT_LIMIT: usize = 200;
+
+/// Where the history lives: the app's local data directory, which does not roam.
+pub struct DataDir(pub std::path::PathBuf);
 
 /// One stored row. `created_at_ms` is Unix time in ms; the file holds it as UTC text.
 #[derive(Debug, Clone, PartialEq)]
@@ -37,15 +42,63 @@ pub struct HistoryRow {
 }
 
 pub struct HistoryStore {
-    _stub: (),
+    db: Connection,
+}
+
+/// The error text: the kind of failure, never a path or dictated text.
+fn kind(err: rusqlite::Error) -> String {
+    match err.sqlite_error_code() {
+        Some(code) => format!("history database error: {code:?}"),
+        None => "history database error".to_string(),
+    }
+}
+
+fn setup(db: &Connection) -> rusqlite::Result<()> {
+    // Deleted rows must not stay readable in free pages. Must run before any delete.
+    db.pragma_update(None, "secure_delete", "ON")?;
+    let version: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if version < 1 {
+        db.execute_batch(
+            "CREATE TABLE IF NOT EXISTS dictations (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               createdAt DATETIME NOT NULL,
+               bundleID TEXT,
+               appName TEXT,
+               windowTitle TEXT,
+               profile TEXT NOT NULL,
+               mode TEXT NOT NULL,
+               engine TEXT NOT NULL,
+               rawText TEXT NOT NULL,
+               formattedText TEXT NOT NULL,
+               finalText TEXT,
+               language TEXT,
+               audioSeconds DOUBLE NOT NULL,
+               sttMs INTEGER NOT NULL,
+               llmMs INTEGER NOT NULL,
+               formatterSource TEXT NOT NULL,
+               insertMethod TEXT NOT NULL,
+               status TEXT NOT NULL
+             );
+             PRAGMA user_version = 1;",
+        )?;
+    }
+    if version < 2 {
+        db.execute_batch(
+            "ALTER TABLE dictations ADD COLUMN audioFile TEXT;
+             PRAGMA user_version = 2;",
+        )?;
+    }
+    Ok(())
 }
 
 impl HistoryStore {
     /// Opens (and creates) `dir/shepit.sqlite`, migrates it to user_version 2 and turns
     /// `secure_delete` on.
     pub fn open(dir: &Path) -> Result<Self, String> {
-        let _ = dir;
-        todo!("HistoryStore::open")
+        std::fs::create_dir_all(dir).map_err(|_| "history folder could not be created")?;
+        let db = Connection::open(dir.join(FILE)).map_err(kind)?;
+        setup(&db).map_err(kind)?;
+        Ok(Self { db })
     }
 
     /// Inserts one row stamped `created_at_ms`. `finalText` stays NULL.
@@ -55,28 +108,97 @@ impl HistoryStore {
         draft: &RecordDraft,
         audio_file: Option<&str>,
     ) -> Result<i64, String> {
-        let _ = (created_at_ms, draft, audio_file);
-        todo!("HistoryStore::save")
+        self.db
+            .execute(
+                "INSERT INTO dictations (createdAt, bundleID, appName, windowTitle, profile, mode,
+                   engine, rawText, formattedText, finalText, language, audioSeconds, sttMs, llmMs,
+                   formatterSource, insertMethod, status, audioFile)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL, ?10, ?11, ?12, ?13, ?14, ?15,
+                   ?16, ?17)",
+                params![
+                    grdb_timestamp(created_at_ms),
+                    draft.app_id,
+                    draft.app_name,
+                    draft.window_title,
+                    draft.profile,
+                    draft.mode,
+                    draft.engine,
+                    draft.raw_text,
+                    draft.formatted_text,
+                    draft.language,
+                    draft.audio_seconds,
+                    i64::try_from(draft.stt_ms).unwrap_or(i64::MAX),
+                    i64::try_from(draft.llm_ms).unwrap_or(i64::MAX),
+                    draft.formatter_source,
+                    draft.insert_method,
+                    draft.status,
+                    audio_file,
+                ],
+            )
+            .map_err(kind)?;
+        Ok(self.db.last_insert_rowid())
     }
 
     /// The newest `limit` rows, newest first.
     pub fn recent(&self, limit: usize) -> Result<Vec<HistoryRow>, String> {
-        let _ = limit;
-        todo!("HistoryStore::recent")
+        let mut stmt = self
+            .db
+            .prepare(
+                "SELECT id, createdAt, bundleID, appName, windowTitle, profile, mode, engine,
+                   rawText, formattedText, finalText, language, audioSeconds, sttMs, llmMs,
+                   formatterSource, insertMethod, status, audioFile
+                 FROM dictations ORDER BY createdAt DESC, id DESC LIMIT ?1",
+            )
+            .map_err(kind)?;
+        let rows = stmt
+            .query_map([i64::try_from(limit).unwrap_or(i64::MAX)], |r| {
+                let created: String = r.get(1)?;
+                Ok(HistoryRow {
+                    id: r.get(0)?,
+                    created_at_ms: parse_grdb_timestamp(&created).unwrap_or(0),
+                    bundle_id: r.get(2)?,
+                    app_name: r.get(3)?,
+                    window_title: r.get(4)?,
+                    profile: r.get(5)?,
+                    mode: r.get(6)?,
+                    engine: r.get(7)?,
+                    raw_text: r.get(8)?,
+                    formatted_text: r.get(9)?,
+                    final_text: r.get(10)?,
+                    language: r.get(11)?,
+                    audio_seconds: r.get(12)?,
+                    stt_ms: r.get(13)?,
+                    llm_ms: r.get(14)?,
+                    formatter_source: r.get(15)?,
+                    insert_method: r.get(16)?,
+                    status: r.get(17)?,
+                    audio_file: r.get(18)?,
+                })
+            })
+            .map_err(kind)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(kind)
     }
 
     pub fn count(&self) -> Result<i64, String> {
-        todo!("HistoryStore::count")
+        self.db
+            .query_row("SELECT COUNT(*) FROM dictations", [], |r| r.get(0))
+            .map_err(kind)
     }
 
     /// Deletes every row, then VACUUMs so the text does not stay in free pages.
     pub fn clear(&self) -> Result<(), String> {
-        todo!("HistoryStore::clear")
+        self.db
+            .execute_batch("DELETE FROM dictations; VACUUM;")
+            .map_err(kind)
     }
 
-    /// True when this connection overwrites deleted content.
+    /// True when this connection overwrites deleted content. Tests check it; `open` sets it.
+    #[cfg(test)]
     pub fn secure_delete(&self) -> bool {
-        todo!("HistoryStore::secure_delete")
+        self.db
+            .query_row("PRAGMA secure_delete", [], |r| r.get::<_, i64>(0))
+            .map(|v| v != 0)
+            .unwrap_or(false)
     }
 }
 

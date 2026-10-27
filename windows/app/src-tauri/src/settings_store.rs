@@ -125,8 +125,32 @@ fn apply_inner(
 /// settings and the added terms. `learn` runs this inside `apply`, so a term typed in the pane a
 /// moment ago is part of "now".
 pub fn learned(current: &Settings, reported: &[String]) -> (Settings, Vec<String>) {
-    let _ = reported;
-    (current.clone(), Vec::new())
+    let added = shepit_core::dictionary::new_entries(reported, &current.dictionary);
+    if added.is_empty() {
+        return (current.clone(), added);
+    }
+    let mut next = current.clone();
+    next.dictionary.extend(added.iter().cloned());
+    (next, added)
+}
+
+/// Adds the terms the polishing agent reported to the dictionary through `apply`, so the open
+/// Dictionary pane hears `settings-changed`. Returns the terms that were new. Runs on the
+/// controller thread.
+pub fn learn(app: &AppHandle, reported: &[String]) -> Vec<String> {
+    let mut added = Vec::new();
+    let result = apply_on_controller(app, |current| {
+        let (next, new) = learned(current, reported);
+        added = new;
+        Ok(next)
+    });
+    match result {
+        Ok(_) => added,
+        Err(err) => {
+            eprintln!("could not save learned terms: {err}");
+            Vec::new()
+        }
+    }
 }
 
 #[cfg(test)]

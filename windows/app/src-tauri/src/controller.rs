@@ -2,7 +2,8 @@
 
 use shepit_core::context::TargetContext;
 use shepit_core::dictation::{
-    CaptureError, Controller, FormatJob, InsertJob, Job, ModelStatus, Recorder, View, WidgetInput,
+    CaptureError, Controller, Finished, FormatJob, FormatMeta, InsertJob, Job, ModelStatus,
+    Recorder, View, WidgetInput,
 };
 use shepit_core::insert::InsertOutcome;
 use shepit_core::keys::{Hotkey, HotkeyPicker, PickResult, RawKey};
@@ -33,6 +34,13 @@ pub enum Msg {
     /// The polish worker finished dictation `id` with the final `text`. Dropped unless `id` is the
     /// dictation being formatted.
     Formatted { id: u64, text: String },
+    /// `Formatted` with what the history keeps: profile, mode, source, language, learned terms
+    /// and the agent time.
+    FormattedWith {
+        id: u64,
+        text: String,
+        meta: FormatMeta,
+    },
     /// The insert worker finished dictation `id`.
     Inserted {
         id: u64,
@@ -104,6 +112,9 @@ impl<R: Recorder> Runner<R> {
             Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
             Msg::SttMs { id, ms } => self.controller.on_stt_ms(id, ms),
             Msg::Formatted { id, text } => self.controller.on_formatted(id, text, now),
+            Msg::FormattedWith { id, text, meta } => {
+                self.controller.on_formatted_with(id, text, meta, now)
+            }
             Msg::Context { id, context } => self.controller.on_context(id, context),
             Msg::Inserted { id, result } => self.controller.on_inserted(id, result, now),
             Msg::Widget(input) => self.controller.on_widget(input, now),
@@ -163,6 +174,16 @@ impl<R: Recorder> Runner<R> {
     /// or the 15 s timeout (checked on every step, so a Tick is enough).
     pub fn take_pick(&mut self) -> Option<PickResult> {
         self.pick.take()
+    }
+
+    /// How the last dictation ended, for the history thread; handed over once.
+    pub fn take_finished(&mut self) -> Option<Finished> {
+        self.controller.take_finished()
+    }
+
+    /// The terms the agent reported for the live dictation, handed over once.
+    pub fn take_new_terms(&mut self) -> Vec<String> {
+        self.controller.take_new_terms()
     }
 
     /// The job created by the last stop, handed over once.

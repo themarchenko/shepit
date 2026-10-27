@@ -1,6 +1,9 @@
 //! The recordings folder: the last 200 dictations as 16 kHz mono 16-bit WAV files, named by UTC
 //! time (RecordingStore.swift). Only `.wav` files are ever touched.
 
+use shepit_core::audio::wav_16k_mono;
+use shepit_core::history::{recording_file_name, to_prune};
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -11,27 +14,51 @@ pub fn dir_in(base: &Path) -> PathBuf {
 
 /// Creates the folder if it is missing.
 pub fn ensure_dir(dir: &Path) -> io::Result<()> {
-    let _ = dir;
-    todo!("recordings::ensure_dir")
+    fs::create_dir_all(dir)
 }
 
 /// Writes the WAV for a dictation that ended at `now_ms` and returns its file name. Creates the
 /// folder; the file appears whole or not at all.
 pub fn save(dir: &Path, now_ms: i64, samples: &[f32]) -> io::Result<String> {
-    let _ = (dir, now_ms, samples);
-    todo!("recordings::save")
+    ensure_dir(dir)?;
+    let name = recording_file_name(now_ms);
+    let tmp = dir.join(format!("{name}.tmp"));
+    // A rename is atomic, so a crash never leaves a half-written .wav for prune or the user.
+    fs::write(&tmp, wav_16k_mono(samples))?;
+    fs::rename(&tmp, dir.join(&name)).inspect_err(|_| {
+        let _ = fs::remove_file(&tmp);
+    })?;
+    Ok(name)
+}
+
+fn wav_names(dir: &Path) -> io::Result<Vec<String>> {
+    match fs::read_dir(dir) {
+        Ok(entries) => Ok(entries
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .collect()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(err) => Err(err),
+    }
 }
 
 /// Deletes the oldest `.wav` files beyond `keep`, in name order. A missing folder is fine.
 pub fn prune(dir: &Path, keep: usize) -> io::Result<()> {
-    let _ = (dir, keep);
-    todo!("recordings::prune")
+    for name in to_prune(&wav_names(dir)?, keep) {
+        let _ = fs::remove_file(dir.join(name));
+    }
+    Ok(())
 }
 
 /// Deletes every `.wav` file and returns how many. Other files stay. A missing folder gives 0.
 pub fn clear(dir: &Path) -> io::Result<usize> {
-    let _ = dir;
-    todo!("recordings::clear")
+    let names = wav_names(dir)?;
+    let mut removed = 0;
+    for name in names.into_iter().filter(|n| n.ends_with(".wav")) {
+        if fs::remove_file(dir.join(name)).is_ok() {
+            removed += 1;
+        }
+    }
+    Ok(removed)
 }
 
 #[cfg(test)]

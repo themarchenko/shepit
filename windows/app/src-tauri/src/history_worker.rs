@@ -3,8 +3,12 @@
 //! gets the WAV, and an error is logged by kind only.
 
 use crate::history_store::HistoryStore;
+use crate::recordings;
 use shepit_core::dictation::Finished;
 use std::path::Path;
+
+/// The recordings kept (RecordingStore.swift:7).
+const KEEP_RECORDINGS: usize = 200;
 
 /// Handles one finished dictation at `now_ms`. The WAV is written first (when `finished.audio`
 /// is set), then the row with that file name (when `finished.record` is set and the store works).
@@ -16,8 +20,25 @@ pub fn handle(
     recordings: &Path,
     changed: &dyn Fn(),
 ) {
-    let _ = (finished, now_ms, store, recordings, changed);
-    todo!("history_worker::handle")
+    // Errors are logged by kind: a path or a row would put dictated text or the user name in a log.
+    let audio_file = finished.audio.as_deref().and_then(|samples| {
+        let saved = recordings::save(recordings, now_ms, samples);
+        if saved.is_err() {
+            eprintln!("could not save the recording");
+        }
+        let name = saved.ok();
+        if name.is_some() && recordings::prune(recordings, KEEP_RECORDINGS).is_err() {
+            eprintln!("could not prune the recordings");
+        }
+        name
+    });
+    let (Some(draft), Some(store)) = (finished.record.as_ref(), store) else {
+        return;
+    };
+    match store.save(now_ms, draft, audio_file.as_deref()) {
+        Ok(_) => changed(),
+        Err(err) => eprintln!("could not save the history row: {err}"),
+    }
 }
 
 #[cfg(test)]

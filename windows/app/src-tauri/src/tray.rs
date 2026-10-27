@@ -19,11 +19,14 @@ pub struct ShowWidgetItem(pub tauri::menu::CheckMenuItem<tauri::Wry>);
 pub struct UpdateItem(pub tauri::menu::MenuItem<tauri::Wry>);
 
 /// The History item sits right after Settings (StatusItemController.swift:98-100).
-pub const HISTORY_LABEL: &str = "";
+pub const HISTORY_LABEL: &str = "History\u{2026}";
 
-/// The ids of the menu items in order; separators are not listed.
+/// The ids of the menu items in order; separators are not listed. `main.rs` builds the menu in
+/// this order and the tests pin it.
+#[cfg_attr(not(test), allow(dead_code))]
 pub const MENU_IDS: &[&str] = &[
     "settings",
+    "history",
     "check-updates",
     "toggle-widget",
     "reset-widget",
@@ -34,6 +37,7 @@ pub fn action_for(id: &str) -> MenuAction {
     match id {
         "quit" => MenuAction::Quit,
         "settings" => MenuAction::OpenSettings,
+        "history" => MenuAction::OpenHistory,
         "toggle-widget" => MenuAction::ToggleWidget,
         "reset-widget" => MenuAction::ResetWidget,
         "check-updates" => MenuAction::CheckUpdates,

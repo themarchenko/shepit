@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "history",
+  "description": "Lets the History window read the recent dictations, clear them and listen for changes. It gets nothing else.",
+  "windows": [
+    "history"
+  ],
+  "permissions": [
+    "core:event:default",
+    "allow-history-recent",
+    "allow-history-clear"
+  ]
+}

@@ -28,7 +28,7 @@ use polish::PolishHandle;
 use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
 use shepit_core::cleanup::passthrough_clean;
-use shepit_core::dictation::{Job, ModelStatus, Phase};
+use shepit_core::dictation::{Finished, Job, ModelStatus, Phase};
 use shepit_core::keys::PickResult;
 use shepit_core::settings::Settings;
 use shepit_core::update::UpdateState;
@@ -38,6 +38,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use history_store::{DataDir, HistoryStore};
 use settings_store::SettingsStore;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -93,6 +94,9 @@ fn main() {
             commands::start_hotkey_pick,
             commands::cancel_hotkey_pick,
             commands::detect_agents,
+            commands::history_recent,
+            commands::history_clear,
+            commands::open_recordings_folder,
             commands::check_microphone,
             commands::open_microphone_privacy,
             commands::reset_widget_position,
@@ -123,7 +127,23 @@ fn main() {
             let model = Arc::new(Mutex::new(ModelStatus::Loading));
             app.manage(model.clone());
 
+            // Dictated text and audio stay on this machine: the local data folder does not roam.
+            let data_dir = app.path().app_local_data_dir()?;
+            let history: commands::History =
+                Arc::new(Mutex::new(match HistoryStore::open(&data_dir) {
+                    Ok(store) => Some(store),
+                    Err(err) => {
+                        // The kind only, never a path. The window then says it is unavailable.
+                        eprintln!("history unavailable: {err}");
+                        None
+                    }
+                }));
+            app.manage(history.clone());
+            app.manage(DataDir(data_dir.clone()));
+
             let settings = MenuItemBuilder::with_id("settings", "Settings\u{2026}").build(app)?;
+            let history_item =
+                MenuItemBuilder::with_id("history", tray::HISTORY_LABEL).build(app)?;
             let show_widget = CheckMenuItemBuilder::with_id("toggle-widget", "Show widget")
                 .checked(host.visible())
                 .build(app)?;
@@ -135,6 +155,7 @@ fn main() {
             let quit = MenuItemBuilder::with_id("quit", "Quit Shepit").build(app)?;
             let menu = MenuBuilder::new(app)
                 .item(&settings)
+                .item(&history_item)
                 .item(&check_updates)
                 .separator()
                 .item(&show_widget)
@@ -174,8 +195,7 @@ fn main() {
                             std::thread::spawn(move || host.reset_position());
                         }
                         tray::MenuAction::OpenSettings => open_settings_later(app),
-                        // Not wired yet: ui::open_history comes with the history work.
-                        tray::MenuAction::OpenHistory => {}
+                        tray::MenuAction::OpenHistory => open_history_later(app),
                         // The worker takes it; this handler runs on the main thread and must not wait.
                         tray::MenuAction::CheckUpdates => {
                             if let Some(updates) = app.try_state::<updater::Updates>() {
@@ -233,10 +253,20 @@ fn main() {
             let polish = polish::start(tx.clone(), host.settings())?;
             app.manage(polish.clone());
             updater::start(app.handle())?;
+            // One thread for the WAV and the row: disk and SQLite never delay the controller.
+            let (history_tx, history_rx) = mpsc::channel::<Finished>();
+            {
+                let (app, history) = (app.handle().clone(), history.clone());
+                let recordings = recordings::dir_in(&data_dir);
+                std::thread::Builder::new()
+                    .name("history".into())
+                    .spawn(move || run_history(app, history, recordings, history_rx))?;
+            }
             let workers = Workers {
                 jobs: job_tx,
                 polish,
                 inserts: insert_tx,
+                history: history_tx,
             };
             let handle = app.handle().clone();
             // The recorder is built inside the thread: a cpal Stream may not be Send.
@@ -255,6 +285,31 @@ struct Workers {
     jobs: Sender<Job>,
     polish: PolishHandle,
     inserts: Sender<Request>,
+    history: Sender<Finished>,
+}
+
+/// Writes what the controller hands over for each finished dictation. A panic is caught so one bad
+/// item cannot end the thread; nothing from a row is logged.
+fn run_history(
+    app: AppHandle,
+    history: commands::History,
+    recordings: std::path::PathBuf,
+    finished: Receiver<Finished>,
+) {
+    for item in finished {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX));
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            let guard = history.lock().unwrap_or_else(|e| e.into_inner());
+            history_worker::handle(item, now_ms, guard.as_ref(), &recordings, &|| {
+                ui::emit_history_changed(&app)
+            });
+        }));
+        if outcome.is_err() {
+            eprintln!("history thread step panicked");
+        }
+    }
 }
 
 /// Runs the controller loop and restarts it with a fresh controller if it panics, so the hotkey
@@ -405,6 +460,15 @@ fn controller_loop(
                 changed = fed.or(changed);
             }
         }
+        // The row and the WAV go to the history thread; the terms the agent fixed go to the
+        // dictionary through the settings, so an open pane hears about them.
+        if let Some(finished) = runner.take_finished() {
+            let _ = workers.history.send(finished);
+        }
+        let reported = runner.take_new_terms();
+        if !reported.is_empty() {
+            settings_store::learn(app, &reported);
+        }
         let Some(view) = changed else { continue };
         match (view.phase, listening_since) {
             (Phase::Listening, None) => listening_since = Some(now),
@@ -456,6 +520,16 @@ fn open_settings_later(app: &AppHandle) {
     std::thread::spawn(move || {
         if let Err(err) = ui::open_settings(&app) {
             eprintln!("could not open Settings: {err}");
+        }
+    });
+}
+
+/// Opens History from a handler that runs on the main thread, for the same reason.
+fn open_history_later(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if let Err(err) = ui::open_history(&app) {
+            eprintln!("could not open History: {err}");
         }
     });
 }
