@@ -95,9 +95,10 @@ To update, run the same command again. The app does not update itself on Windows
 
 The installer is not code-signed, because a code-signing certificate costs money. If you download
 `Shepit-setup.exe` from the [releases page](https://github.com/themarchenko/shepit/releases/latest)
-in a browser, Windows SmartScreen shows "Windows protected your PC". Click **More info**, then
-**Run anyway**. The PowerShell command above avoids this: files that PowerShell downloads carry no
-Mark of the Web, the flag a browser adds and SmartScreen looks for.
+in a browser, Windows SmartScreen will most likely stop it with "Windows protected your PC". Click
+**More info**, then **Run anyway**. The PowerShell command above should not get that prompt: files
+that PowerShell downloads carry no Mark of the Web, the flag a browser adds and SmartScreen looks for.
+Neither has been checked on a Windows PC yet.
 
 ## Use
 

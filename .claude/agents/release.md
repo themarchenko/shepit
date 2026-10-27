@@ -30,7 +30,7 @@ Steps:
    (`gh release delete dry-run-<run id> --yes`; drafts create no tag). Stop and report if it fails.
 7. After the merge: `git switch main && git pull --ff-only`, then
    `git tag -a vX.Y.Z -m "Shepit X.Y.Z"` and `git push origin vX.Y.Z` (the guard allows pushing
-   exactly one release tag from `main`).
+   exactly one release tag; the release workflow fails unless the tagged commit is on `main`).
 8. Watch the run (`gh run watch`). The macOS job publishes the release; the Windows jobs add their
    files to it afterwards. Check `gh release view vX.Y.Z` lists `Shepit.dmg`, `Shepit-setup.exe`,
    `Shepit-setup.exe.sha256` and `latest.json`. The workflow fails on its own if the macOS app is

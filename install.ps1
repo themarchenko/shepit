@@ -2,10 +2,10 @@
 #
 #   irm https://raw.githubusercontent.com/themarchenko/shepit/main/install.ps1 | iex
 #
-# The installer is not code-signed, so a copy downloaded in a browser makes SmartScreen show "Windows
-# protected your PC". A file PowerShell downloads carries no Mark of the Web, so the app this script
-# installs starts without that prompt. No administrator rights are needed: Shepit installs for the
-# current user.
+# The installer is not code-signed, so a copy downloaded in a browser will most likely make SmartScreen
+# show "Windows protected your PC". A file PowerShell downloads carries no Mark of the Web, so the app
+# this script installs is expected to start without that prompt (not yet checked on a Windows PC). No
+# administrator rights are needed: Shepit installs for the current user.
 #
 # SHEPIT_URL takes another installer, for testing: a URL on another https host or a local path. The
 # checksum is always read from "<SHEPIT_URL>.sha256" and always compared; there is no way to skip it.

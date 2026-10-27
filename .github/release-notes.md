@@ -35,7 +35,8 @@ It downloads `Shepit-setup.exe` from the latest release, checks its checksum, in
 your user (no administrator rights) and starts it. Run the same command to update.
 
 The installer is not code-signed. If you download `Shepit-setup.exe` below in a browser, Windows
-SmartScreen shows "Windows protected your PC": click **More info**, then **Run anyway**. The
-PowerShell command avoids this, because files PowerShell downloads carry no Mark of the Web.
+SmartScreen will most likely show "Windows protected your PC": click **More info**, then **Run
+anyway**. The PowerShell command should not get that prompt, because files PowerShell downloads
+carry no Mark of the Web.
 
 Requires 64-bit Windows 10 or later.
