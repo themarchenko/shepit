@@ -35,8 +35,11 @@ function levels(): number[] {
 
 export function mockFromLocation(): MockConfig | undefined {
   const q = new URLSearchParams(window.location.search);
-  const key = q.get("mock");
-  if (!key) return undefined;
+  const mockParam = q.get("mock");
+  if (!mockParam) return undefined;
+  // "<style>-processing-formatting" is the processing case shown at the formatting stage.
+  const formatting = mockParam.endsWith("-formatting");
+  const key = formatting ? mockParam.slice(0, -"-formatting".length) : mockParam;
 
   const wantsLive = q.get("live") === "1";
   const base = key.replace("-", "/");
@@ -48,7 +51,7 @@ export function mockFromLocation(): MockConfig | undefined {
   const phase = c.input.phase as WidgetPhase;
   const long = q.get("long") === "1";
   const live = phase === "idle" ? { stable: "", unstable: "" } : wantsLive || c.input.hasLive ? (long ? LONG_LIVE : LIVE) : { stable: "", unstable: "" };
-  const stage: WidgetStage | null = phase === "processing" ? "transcribing" : null;
+  const stage: WidgetStage | null = phase === "processing" ? (formatting ? "formatting" : "transcribing") : null;
   const bg = q.get("bg");
   if (bg === "light" || bg === "dark") document.body.style.background = bg === "light" ? "#e9e9e9" : "#1c1c1c";
   const opacity = Number(q.get("opacity"));

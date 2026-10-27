@@ -66,8 +66,9 @@ shot() { # page mock width height scale
 
 SETTINGS="settings-general settings-general-downloading settings-general-picking settings-general-rightalt
 settings-general-mic-silent settings-appearance-flowPill settings-appearance-captionBar
-settings-appearance-island settings-about"
-TOUR="tour-1 tour-2 tour-2-denied tour-3 tour-4 tour-4-downloading"
+settings-appearance-island settings-polishing settings-polishing-none settings-polishing-codex
+settings-about"
+TOUR="tour-1 tour-2 tour-2-denied tour-3 tour-4 tour-5 tour-5-downloading"
 
 for scale in 1 1.5; do
   for name in $SETTINGS; do shot settings "$name" 620 600 "$scale"; done

@@ -18,6 +18,10 @@ export interface ModelInfo {
   percent: number | null;
 }
 
+export type Polishing = "claude" | "codex" | "off";
+export type ClaudeModel = "haiku" | "sonnet";
+export type DictationMode = "raw" | "clean" | "prompt";
+
 export interface SettingsData {
   widgetStyle: WidgetStyle;
   glassOpacity: number;
@@ -26,6 +30,25 @@ export interface SettingsData {
   hotkey: HotkeyInfo;
   model: ModelInfo;
   version: string;
+  // Polishing (docs/spec/settings.md). The dictionary is read-only here and not part of the payload.
+  polishing: Polishing;
+  claudeModel: ClaudeModel;
+  // Empty means "found automatically".
+  claudeExecutable: string;
+  codexExecutable: string;
+  defaultMode: DictationMode;
+  // Rust clamps these to 0-30 and 10-200.
+  fastPathMaxWords: number;
+  promptModeMinWords: number;
+  speakerNotes: string;
+}
+
+// What `detect_agents` returns: the resolved path of each agent that was found (null when missing) and the
+// settings after the fallback rule (a chosen agent that is gone falls back to the other one, or to off).
+export interface AgentsInfo {
+  claude: string | null;
+  codex: string | null;
+  settings: SettingsData;
 }
 
 // The strict patch: `hotkey` is a key id such as "rightCtrl".
@@ -35,6 +58,14 @@ export interface SettingsPatch {
   fadeWhenIdle?: boolean;
   widgetVisible?: boolean;
   hotkey?: string;
+  polishing?: Polishing;
+  claudeModel?: ClaudeModel;
+  claudeExecutable?: string;
+  codexExecutable?: string;
+  defaultMode?: DictationMode;
+  fastPathMaxWords?: number;
+  promptModeMinWords?: number;
+  speakerNotes?: string;
 }
 
 export type MicResult = "ok" | "silent" | "denied" | "noDevice" | "failed";
@@ -82,6 +113,7 @@ export const checkMicrophone = () => backend.invoke<MicCheck>("check_microphone"
 export const openMicrophonePrivacy = () => backend.invoke<void>("open_microphone_privacy");
 export const resetWidgetPosition = () => backend.invoke<void>("reset_widget_position");
 export const widgetDemo = (style: WidgetStyle) => backend.invoke<DemoStep[]>("widget_demo", { style });
+export const detectAgents = () => backend.invoke<AgentsInfo>("detect_agents");
 export const finishTour = () => backend.invoke<void>("finish_tour");
 export const showTour = () => backend.invoke<void>("show_tour");
 

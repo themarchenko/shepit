@@ -5,11 +5,12 @@ import DemoStage from "../shared/DemoStage";
 import HotkeyPicker from "../shared/HotkeyPicker";
 import MicrophoneCheck from "../shared/MicrophoneCheck";
 import ModelStatus from "../shared/ModelStatus";
+import ProviderList from "../shared/ProviderList";
 import StylePicker from "../shared/StylePicker";
 import { useSettings, type PaneProps } from "../shared/useSettings";
 import { useDemo } from "../shared/widgetDemo";
 
-const STEP_COUNT = 4;
+const STEP_COUNT = 5;
 const ESC_AFTER_PICK_MS = 400;
 
 // The window has no title bar. A press on a plain area drags it; this attribute marks those areas.
@@ -88,6 +89,19 @@ function Look({ settings, update }: PaneProps) {
   );
 }
 
+function Polish({ settings, update }: PaneProps) {
+  return (
+    <>
+      <h1 {...DRAG}>Polish the text</h1>
+      <p className="sp-tour-text" {...DRAG}>
+        An AI agent you already use can fix punctuation, names and code terms. It gets the text only, never the
+        audio.
+      </p>
+      <ProviderList settings={settings} update={update} />
+    </>
+  );
+}
+
 function TryIt({ settings }: PaneProps) {
   const box = useRef<HTMLTextAreaElement>(null);
   // A dictation would only wait for the download, so the box stays off until the model is there.
@@ -159,6 +173,7 @@ export default function TourApp() {
   if (step === 0) body = <Welcome {...props} onPickingChange={onPickingChange} />;
   else if (step === 1) body = <Microphone />;
   else if (step === 2) body = <Look {...props} />;
+  else if (step === 3) body = <Polish {...props} />;
   else body = <TryIt {...props} />;
 
   return (

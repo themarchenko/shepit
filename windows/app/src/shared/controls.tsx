@@ -132,3 +132,32 @@ export function PrimaryButton({ className = "", ...rest }: ButtonProps) {
 export function QuietButton({ className = "", ...rest }: ButtonProps) {
   return <Button {...rest} className={`quiet ${className}`} />;
 }
+
+// A number with minus and plus buttons. Rust clamps the value too; the limits here keep the buttons honest.
+export function Stepper({
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  label,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (v: number) => void;
+  label: string;
+}) {
+  return (
+    <div className="sp-stepper" role="group" aria-label={label}>
+      <button type="button" aria-label={`Less: ${label}`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - step))}>
+        -
+      </button>
+      <span aria-live="polite">{value}</span>
+      <button type="button" aria-label={`More: ${label}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + step))}>
+        +
+      </button>
+    </div>
+  );
+}

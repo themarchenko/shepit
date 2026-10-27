@@ -13,9 +13,10 @@ export interface CaptionContent {
   clip: "start" | "end";
 }
 
-// WidgetModel.Stage.label. Windows has no formatting stage.
+// WidgetModel.Stage.label.
 export function stageLabel(stage: WidgetStage | null): string {
   if (stage === "loading") return "Loading model";
+  if (stage === "formatting") return "Formatting";
   return stage === "inserting" ? "Inserting" : "Transcribing";
 }
 
@@ -24,8 +25,10 @@ export function processingLabel(s: Pick<WidgetState, "stage" | "progress">): str
   return stageLabel(s.stage);
 }
 
-// Position among the three steps the user sees: loading and transcribing are the first, inserting the last.
+// Position among the three steps the user sees: loading and transcribing are the first, formatting the
+// second, inserting the last.
 export function stepOf(stage: WidgetStage | null): number {
+  if (stage === "formatting") return 1;
   return stage === "inserting" ? 2 : 0;
 }
 

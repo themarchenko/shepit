@@ -92,5 +92,12 @@ for style in flowPill captionBar island; do
     shot "$style-done-long" "mock=$style-done&long=1&bg=dark" "$w" "$h" "$scale"
   done
 done
+# The formatting stage: the processing case with the second step active.
+for style in flowPill captionBar island; do
+  read -r w h < <(awk -v n="$style/processing" '$1==n {print $2, $3}' <<<"$CASES")
+  for scale in 1 1.5; do
+    shot "$style-processing-formatting" "mock=$style-processing-formatting&bg=dark" "$w" "$h" "$scale"
+  done
+done
 echo "wrote $(ls "$OUT"/*.png | wc -l | tr -d ' ') PNGs to $OUT, $FAILS failed the layout check"
 [ "$FAILS" -eq 0 ]
