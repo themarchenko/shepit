@@ -12,6 +12,7 @@ tauri = { version = "=2.12.5", features = ["tray-icon"] }
 tauri-plugin-single-instance = "=2.5.4"
 shepit-core = { path = "../../core" }
 shepit-engine = { path = "../../engine" }
+shepit-agent = { path = "../../agent" }
 cpal = "=0.18.2"
 serde = { version = "=1.0.229", features = ["derive"] }
 # tauri.conf.json carries a plugins section, and generate_context! expands to serde_json calls;

@@ -7,6 +7,7 @@ mod insert;
 #[cfg(windows)]
 mod insert_win;
 mod mic_check;
+mod polish;
 mod recognizer;
 mod recorder;
 mod settings_store;
@@ -18,8 +19,10 @@ mod widget_host;
 
 use controller::{log_line, Msg, Runner};
 use insert::Request;
+use polish::PolishHandle;
 use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
+use shepit_core::cleanup::passthrough_clean;
 use shepit_core::dictation::{Job, ModelStatus, Phase};
 use shepit_core::keys::PickResult;
 use shepit_core::settings::Settings;
@@ -83,6 +86,7 @@ fn main() {
             commands::update_settings,
             commands::start_hotkey_pick,
             commands::cancel_hotkey_pick,
+            commands::detect_agents,
             commands::check_microphone,
             commands::open_microphone_privacy,
             commands::reset_widget_position,
@@ -198,11 +202,20 @@ fn main() {
                     .name("insert".into())
                     .spawn(move || insert::run(platform_desktop(), insert_rx, tx))?;
             }
+            // Polishing: the dispatcher answers the routes that need no agent, the agent thread owns
+            // the worker. Spawned after the insert worker; it warms the agent up at launch.
+            let polish = polish::start(tx.clone(), host.settings())?;
+            app.manage(polish.clone());
+            let workers = Workers {
+                jobs: job_tx,
+                polish,
+                inserts: insert_tx,
+            };
             let handle = app.handle().clone();
             // The recorder is built inside the thread: a cpal Stream may not be Send.
             std::thread::Builder::new()
                 .name("controller".into())
-                .spawn(move || run_controller(handle, tx, rx, job_tx, insert_tx, wanted, model))?;
+                .spawn(move || run_controller(handle, tx, rx, workers, wanted, model))?;
             ui::show_tour_on_first_run(app.handle());
             Ok(())
         })
@@ -210,9 +223,10 @@ fn main() {
         .expect("error while running Shepit");
 }
 
-/// Where the controller sends work: the recognizer and the insert worker.
+/// Where the controller sends work: the recognizer, the polish dispatcher and the insert worker.
 struct Workers {
     jobs: Sender<Job>,
+    polish: PolishHandle,
     inserts: Sender<Request>,
 }
 
@@ -222,13 +236,11 @@ fn run_controller(
     app: AppHandle,
     tx: SyncSender<Msg>,
     rx: Receiver<Msg>,
-    jobs: Sender<Job>,
-    inserts: Sender<Request>,
+    workers: Workers,
     wanted: Arc<AtomicU64>,
     // Outlives the loop below: filled from every Model message before the controller sees it.
     model: Arc<Mutex<ModelStatus>>,
 ) {
-    let workers = Workers { jobs, inserts };
     let mut job_id_base: u64 = 0;
     loop {
         // Ids start at 1; 0 means "no job wanted".
@@ -243,6 +255,7 @@ fn run_controller(
         eprintln!("controller thread panicked, restarting");
         job_id_base += JOB_ID_STRIDE;
         wanted.store(0, Ordering::SeqCst);
+        workers.polish.want(0);
         app.state::<WidgetHost>().view(widget::idle_view());
     }
 }
@@ -324,6 +337,24 @@ fn controller_loop(
                 );
                 changed = fed.or(changed);
                 wanted.store(runner.wanted(), Ordering::SeqCst);
+            }
+        }
+        // Same order as the recognizer: the id first, so Esc cancels a running agent request and
+        // a job that has not started is skipped.
+        workers.polish.want(runner.formatting());
+        if let Some(job) = runner.take_format() {
+            let (id, heard) = (job.id, job.transcript.clone());
+            if !workers.polish.format(job) {
+                // No dispatcher: insert the transcript as it was heard rather than hang.
+                let fed = runner.step_at(
+                    Msg::Formatted {
+                        id,
+                        text: passthrough_clean(&heard),
+                    },
+                    epoch,
+                    Instant::now(),
+                );
+                changed = fed.or(changed);
             }
         }
         if let Some(id) = runner.take_capture() {
