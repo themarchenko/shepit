@@ -76,6 +76,7 @@ Windows only, where it differs from the macOS behaviour above.
 - Captions are one line. Live and processing words keep the newest end and fade the clipped start. Done and failed text keep the start and end in an ellipsis, so "Copied (press Ctrl+V to paste)" stays readable. The island body keeps two lines.
 - The right-click menu (modes, language, history, settings) is not there yet. Right click does nothing. Known gap: the items need the settings pane and history, which come with tasks 8 and 10. The tray has "Show widget" and "Reset widget position".
 - The island step bar still shows "Transcribe, Format, Insert". Windows has no formatting stage until task 9, so the second step is never active: loading and transcribing fill the first, inserting fills the third.
+- Known gap: there is no screens-changed handling. A monitor that is unplugged while the widget sits on it is noticed at the next size change or drag, not at once.
 - Live text is empty until task 12. The layout already reads the flag.
 
 ## Appearance settings

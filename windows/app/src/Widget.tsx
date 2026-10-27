@@ -41,7 +41,8 @@ export default function Widget({ preset }: { preset?: MockConfig }) {
     preset ? { state: preset.state, startedAt: Date.now() - preset.elapsedSeconds * 1000 } : null,
   );
   const viewRef = useRef<View | null>(view);
-  const pending = useRef<{ cancel: () => void } | null>(null);
+  // The newest state waiting for the window to grow, and the handle that stops the wait.
+  const pending = useRef<{ latest: WidgetState; cancel: () => void } | null>(null);
 
   const apply = useCallback((next: WidgetState) => {
     const prev = viewRef.current;
@@ -53,29 +54,39 @@ export default function Widget({ preset }: { preset?: MockConfig }) {
 
   // The window grows before the shape springs: hold a state until the webview is as big as the payload
   // says the window is. Shrinking needs no wait, the window is still large when the shape gets smaller.
+  // The 100 ms fallback starts when the first state is held and is not restarted by later ones, so a
+  // window that never reaches the payload size cannot starve the widget under fast level updates. When
+  // it fires, or the window grows, the newest state is applied.
   const receive = useCallback(
     (next: WidgetState) => {
-      pending.current?.cancel();
-      pending.current = null;
       if (covers(next.window)) {
+        pending.current?.cancel();
         apply(next);
         return;
       }
-      const done = () => {
-        cancel();
-        apply(next);
+      if (pending.current) {
+        pending.current.latest = next;
+        return;
+      }
+      const release = () => {
+        const held = pending.current;
+        if (!held) return;
+        held.cancel();
+        apply(held.latest);
       };
       const onResize = () => {
-        if (covers(next.window)) done();
+        if (pending.current && covers(pending.current.latest.window)) release();
       };
-      const timer = window.setTimeout(done, GROW_FALLBACK_MS);
-      const cancel = () => {
-        window.clearTimeout(timer);
-        window.removeEventListener("resize", onResize);
-        pending.current = null;
-      };
+      const timer = window.setTimeout(release, GROW_FALLBACK_MS);
       window.addEventListener("resize", onResize);
-      pending.current = { cancel };
+      pending.current = {
+        latest: next,
+        cancel: () => {
+          window.clearTimeout(timer);
+          window.removeEventListener("resize", onResize);
+          pending.current = null;
+        },
+      };
     },
     [apply],
   );
@@ -146,7 +157,6 @@ export default function Widget({ preset }: { preset?: MockConfig }) {
 
   const props = { s: state, elapsed: formatElapsed(now - view.startedAt) };
   const opacity = faded ? FADED_OPACITY : 1;
-  // const opacity = faded ? FADED_OPACITY : 1;
   return (
     <div
       className="stage"
