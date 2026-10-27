@@ -13,7 +13,20 @@ fn read(path: &Path) -> String {
     fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-/// Every src/*.rs with the text before its first `#[cfg(test)]`.
+/// The source without its trailing unit-test module: the text before the last `#[cfg(test)]` that
+/// is followed by `mod tests`. Another `#[cfg(test)]` item earlier in the file hides nothing.
+fn non_test_code(text: &str) -> &str {
+    let mut cut = text.len();
+    for (at, _) in text.match_indices("#[cfg(test)]") {
+        let after = text[at + "#[cfg(test)]".len()..].trim_start();
+        if after.starts_with("mod tests") {
+            cut = at;
+        }
+    }
+    &text[..cut]
+}
+
+/// Every src/*.rs as (file name, code without the test module, whole text).
 fn sources() -> Vec<(String, String, String)> {
     let mut out = Vec::new();
     for entry in fs::read_dir(root().join("src")).unwrap() {
@@ -22,7 +35,7 @@ fn sources() -> Vec<(String, String, String)> {
             continue;
         }
         let text = read(&path);
-        let code = text.split("#[cfg(test)]").next().unwrap().to_string();
+        let code = non_test_code(&text).to_string();
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
         out.push((name, code, text));
     }
@@ -42,6 +55,9 @@ fn the_app_never_overrides_the_updater_trust_in_code() {
     let forbidden = [
         ".pubkey(",
         ".endpoints(",
+        // The bare words too: a rename or a different call shape must not slip past the calls above.
+        "pubkey",
+        "endpoints",
         "dangerous",
         "allow_downgrades",
         "restore_update",
@@ -54,6 +70,15 @@ fn the_app_never_overrides_the_updater_trust_in_code() {
             assert!(!code.contains(word), "{name} uses {word}");
         }
     }
+}
+
+#[test]
+fn a_mid_file_cfg_test_item_does_not_hide_later_code() {
+    let text = "fn a() {}\n#[cfg(test)]\nfn helper() {}\nfn b() { x.pubkey(k); }\n\n#[cfg(test)]\nmod tests {\n    fn t() {}\n}\n";
+    let code = non_test_code(text);
+    assert!(code.contains(".pubkey("), "{code}");
+    assert!(!code.contains("fn t()"), "{code}");
+    assert_eq!(non_test_code("fn a() {}\n"), "fn a() {}\n");
 }
 
 #[test]
