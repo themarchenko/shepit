@@ -508,7 +508,7 @@ fn read_text(element: &IUIAutomationElement, read: &mut FocusRead, start: Instan
             p.DocumentRange()
                 .and_then(|range| range.GetText(DOCUMENT_READ_UNITS as i32))
         };
-        doc.is_ok_and(|text| document_too_long(text.len()))
+        doc.is_ok_and(|text| document_too_long(&text.to_string()))
     });
     if out_of_time(start) {
         return;

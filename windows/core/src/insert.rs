@@ -150,13 +150,17 @@ pub fn within_capture_deadline(elapsed_ms: u64) -> bool {
     elapsed_ms < CAPTURE_DEADLINE_MS
 }
 
-/// The document is read up to this many UTF-16 units; macOS keeps no context from 50000 on
-/// (ContextProbe.swift:35-41), one extra unit tells "exactly 50000" from "longer".
-pub const DOCUMENT_READ_UNITS: usize = 50_001;
+/// How much of the document is read to judge its length. macOS keeps no context from 50000
+/// graphemes on (ContextProbe.swift:35-41); a grapheme is at least one UTF-16 unit, so twice that
+/// many units is enough to count 50000 graphemes in any realistic text.
+pub const DOCUMENT_READ_UNITS: usize = 2 * crate::context::MAX_VALUE_GRAPHEMES;
 
-/// True when a document read of `units_read` units reached the limit, so no context is kept.
-pub fn document_too_long(units_read: usize) -> bool {
-    units_read >= DOCUMENT_READ_UNITS
+/// True when the document text read for the length check means no context is kept: 50000
+/// graphemes or more, as macOS counts them, or a read that hit the unit limit.
+pub fn document_too_long(text: &str) -> bool {
+    use unicode_segmentation::UnicodeSegmentation;
+    text.encode_utf16().count() >= DOCUMENT_READ_UNITS
+        || text.graphemes(true).count() >= crate::context::MAX_VALUE_GRAPHEMES
 }
 
 #[cfg(test)]
@@ -396,9 +400,11 @@ mod tests {
 
     #[test]
     fn a_document_read_that_hits_the_limit_is_too_long() {
-        assert!(!document_too_long(0));
-        assert!(!document_too_long(50_000));
-        assert!(document_too_long(50_001));
-        assert!(document_too_long(60_000));
+        assert!(!document_too_long(""));
+        assert!(!document_too_long(&"a".repeat(49_999)));
+        assert!(document_too_long(&"a".repeat(50_000)));
+        // Cyrillic is two UTF-8 bytes per letter; the limit counts graphemes, not bytes.
+        assert!(!document_too_long(&"я".repeat(49_999)));
+        assert!(document_too_long(&"я".repeat(50_000)));
     }
 }
