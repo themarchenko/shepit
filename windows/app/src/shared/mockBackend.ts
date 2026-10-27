@@ -92,23 +92,31 @@ const SOURCES = ["claude", "codex", "passthrough", "fastPath", "fallback"];
 const LONG_RAW =
   "so basically what I wanted to say is that the deploy pipeline keeps failing on the staging branch because the migration step runs before the database is ready and then the whole job times out after ten minutes and nobody notices until the next morning when the build badge is red and somebody has to dig through the logs to find out what happened";
 
+// Every row is a state the app can produce: raw never reaches the agent (passthrough, no agent time),
+// a fast-path row has no agent time, a fallback row carries the time spent before the agent gave up,
+// and the profile ids are the real ones (windows/core/src/profile.rs).
+const PROFILES = ["generic", "ai-chat", "messenger"];
+
 function historyItem(id: number, createdAtMs: number, n: number): HistoryItem {
   const source = SOURCES[n % SOURCES.length];
   const apps: [string | null, string | null][] = [["Visual Studio Code", "Code.exe"], [null, "slack.exe"], [null, null], ["Notepad", "notepad.exe"]];
   const [appName, appId] = apps[n % apps.length];
   const raw = n === 2 ? LONG_RAW : n % 2 ? "ok so let's meet tomorrow at ten" : "Зустрінемось завтра о десятій";
+  const profile = PROFILES[n % PROFILES.length];
+  const mode = source === "passthrough" && n % 2 === 0 ? "raw" : source === "claude" && profile === "ai-chat" ? "prompt" : "clean";
+  const formatted = n === 2 ? `${LONG_RAW.charAt(0).toUpperCase()}${LONG_RAW.slice(1)}.` : n % 2 ? "OK, so let's meet tomorrow at 10." : "Зустрінемось завтра о десятій.";
   return {
     id,
     createdAtMs,
     appName,
     appId,
-    profile: n % 3 === 0 ? "chat" : "generic",
-    mode: n % 3 === 0 ? "raw" : "clean",
+    profile,
+    mode,
     formatterSource: source,
     sttMs: 180 + n * 7,
-    llmMs: source === "claude" || source === "codex" ? 600 + n * 11 : 0,
+    llmMs: source === "passthrough" || source === "fastPath" ? 0 : 600 + n * 11,
     rawText: raw,
-    formattedText: n === 2 ? `${LONG_RAW.charAt(0).toUpperCase()}${LONG_RAW.slice(1)}.` : n % 2 ? "OK, so let's meet tomorrow at 10." : "Зустрінемось завтра о десятій.",
+    formattedText: mode === "raw" ? raw : formatted,
     status: "inserted",
   };
 }
