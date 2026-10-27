@@ -26,4 +26,11 @@ impl Recognizer {
             .map(|r| r.text.trim().to_string())
             .map_err(|e| format!("Transcription failed: {e}"))
     }
+
+    /// Runs one second of silence through the model and drops the text. The first call after a
+    /// load is slower than the rest (0.90 s against about 0.39 s on the Mac), and a slow first
+    /// preview pass would trip the slow-pass stop before the dictation had any preview.
+    pub fn warm_up(&mut self) -> Result<(), String> {
+        self.transcribe(&[0.0; 16_000]).map(|_| ())
+    }
 }

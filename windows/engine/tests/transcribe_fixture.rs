@@ -41,7 +41,12 @@ fn load_recognizer() -> Recognizer {
     // A restored CI cache is untrusted: re-hash it, drop what does not match, fetch it again.
     verify_installed(&model_dir, &PARAKEET_V3_INT8).unwrap();
     ensure(&model_dir, &PARAKEET_V3_INT8, &UreqFetch, &mut |_, _| {}).unwrap();
-    Recognizer::load(&model_dir).unwrap()
+    let mut recognizer = Recognizer::load(&model_dir).unwrap();
+    // Same as the app: the first call after a load is slower, and the app does it before Ready.
+    let started = Instant::now();
+    recognizer.warm_up().unwrap();
+    println!("warm-up: {:.2} s", started.elapsed().as_secs_f64());
+    recognizer
 }
 
 #[test]
@@ -120,8 +125,14 @@ fn live_preview_follows_the_fixture_clip() {
         "the clip must be long enough to freeze"
     );
 
-    // A preview pass must not change what the final pass says.
+    // A preview pass must not change what the final pass says. This is the first final after
+    // the warm-up.
+    let started = Instant::now();
     let final_before = recognizer.transcribe(&audio).unwrap();
+    println!(
+        "first final after the warm-up: {:.2} s for {audio_secs:.2} s of audio",
+        started.elapsed().as_secs_f64()
+    );
 
     let config = Config {
         slow_pass_secs: f64::INFINITY,

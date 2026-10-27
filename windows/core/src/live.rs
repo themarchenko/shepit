@@ -456,6 +456,20 @@ mod tests {
     }
 
     #[test]
+    fn a_lost_result_leaves_the_pass_in_flight_and_the_text_alone() {
+        let mut p = started();
+        let src = Src::tone(160_000);
+        let req = p.next(1.0, &src).unwrap();
+        p.on_result(req.seq, ok("one two three"), 0.1, 1.1);
+        let before = p.text().full();
+        assert!(p.next(2.0, &src).is_some());
+        // No result for that pass ever arrives (a dropped message).
+        assert!(p.next(5.0, &src).is_none());
+        assert!(p.next(60.0, &src).is_none());
+        assert_eq!(p.text().full(), before);
+    }
+
+    #[test]
     fn a_pass_before_the_rest_is_over_does_not_touch_the_buffer() {
         let mut p = started();
         let src = Src::tone(48_000);

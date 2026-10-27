@@ -114,7 +114,7 @@ Fixtures: `shared/fixtures/live-preview-join.json` for the join rule, `shared/fi
 Windows (windows/core/src/live.rs, windows/app/src-tauri/src/recognizer.rs), where it differs from the table above. Parakeet runs on the CPU there, so the window is smaller and the load is capped:
 
 - Freeze and tail are separate jobs. A freeze job decodes the tail up to the cut; its result is shown only together with the result of the tail job that follows it. After a freeze the tail job is sent at once, without the 1 s minimum.
-- Freeze window: the tail is frozen when it is longer than 6 s (96 000 samples). The cut is the quietest 100 ms frame between 4.0 and 5.5 s of the tail, the macOS ratio. No pass covers more than about 7 s of audio.
+- Freeze window: the tail is frozen when it is longer than 6 s (96 000 samples). The cut is the quietest 100 ms frame between 4.0 and 5.5 s of the tail, the macOS ratio. A tail pass covers at most 6 s (the cap is checked and the audio copied at the same moment, so a few ms more at most) and a freeze pass at most 5.5 s.
 - Cadence: the first pass at 1 s of audio. After a tail pass that took p seconds the next one waits `max(0.15, 0.5 - p, p)`, which keeps the duty at or below 50%. At most one pass is in flight, and each pass reads the newest audio when it starts.
 - Slow-pass stop: if any pass takes more than 1.0 s, the preview stops for the rest of that dictation and keeps its text.
 - One model and one recognizer thread: previews share the thread with the final pass. The model cannot be interrupted, so at release the final waits for at most the pass already running (up to about 0.7 s on CI-class hardware). That pass's result is dropped, and preview text never reaches the inserted text.

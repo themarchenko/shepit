@@ -63,8 +63,9 @@ pub fn run<E: Engine>(
                     Err("Transcription failed: model not ready".to_string())
                 };
                 let secs = started.elapsed().as_secs_f64();
-                // try_send: a stalled controller must not block this thread. A lost preview is
-                // replaced by the next pass.
+                // try_send: a stalled controller must not block this thread. A lost result leaves
+                // the pass in flight in the scheduler, so the preview stops for this dictation and
+                // keeps its text, like the slow-pass stop.
                 let _ = tx.try_send(Msg::Previewed {
                     id: pass.id,
                     seq: pass.seq,
@@ -171,6 +172,12 @@ impl Engine for ParakeetEngine {
                 Recognizer::load(&dir).map_err(strip)?
             }
         };
+        let mut recognizer = recognizer;
+        // Ready is reported after this, so the first dictation does not pay the cold pass. A
+        // failure is not a failed load; the text is not logged because it could hold a transcript.
+        if recognizer.warm_up().is_err() {
+            eprintln!("model warm-up failed, continuing");
+        }
         self.recognizer = Some(recognizer);
         Ok(())
     }
