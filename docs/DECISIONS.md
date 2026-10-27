@@ -498,9 +498,18 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   docs/spec/profiles-modes.md. A `shared/` fixture would need a Swift runner.
 - Privacy: no clipboard data, dictated text or context in logs; only outcome kinds and a line of
   field-presence flags.
-- PARKED for the user: Windows clipboard history and cloud sync would keep the dictated text. Writes are
-  unmarked, like macOS today. Marking the data (exclude-from-history formats) is a one-function change in
-  `put_text`. Decide whether to do it on both platforms.
+- Clipboard history and cloud (decided by the manager, privacy-preserving default, reversible): `put_text`
+  also sets `ExcludeClipboardContentFromMonitorProcessing` (empty marker, written as a zero DWORD),
+  `CanIncludeInClipboardHistory` (DWORD 0) and `CanUploadToCloudClipboard` (DWORD 0) in the same clipboard
+  transaction as the text. The restore does not set them: the user's previous content goes back as it was.
+  The list is `CLIPBOARD_PRIVACY_MARKERS` in `insert.rs` of the core crate. macOS follow-up queued:
+  `org.nspasteboard.TransientType` and `ConcealedType` on the dictated text.
+- Insert fixes after review: a foreground process with a higher integrity level (or one whose token cannot be
+  opened) gets no keys, since UIPI would drop them; the text stays on the clipboard, no restore, widget shows
+  the clipboard-only message (`paste_mode`). Context capture follows macOS on length: the document is read up
+  to 50001 units and 50001 or more gives no text before the caret (macOS cuts at 50000 graphemes, so exactly
+  50000 units differs by one). `capture_context` stops UIA calls after 1500 ms in total. A failed restore logs
+  "clipboard restore failed" only. The saved clipboard bytes are zeroed when the snapshot is dropped.
 - macOS gaps found: context capture is not gated on secure input (spec README.md:64), and macOS skips the
   clipboard restore after Esc (PasteInserter.swift:71).
 - Not verified: all runtime behaviour. Windows CI is the first compile of `insert_win.rs`. Device checks:

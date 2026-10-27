@@ -111,6 +111,54 @@ pub fn clipboard_only_message(preview: &str) -> String {
     format!("Copied (press Ctrl+V to paste): {preview}")
 }
 
+/// Windows mandatory integrity levels (RIDs of the integrity SID): the target is only compared
+/// by these numbers, so the pure decision does not need the Win32 types.
+pub const INTEGRITY_MEDIUM: u32 = 0x2000;
+pub const INTEGRITY_HIGH: u32 = 0x3000;
+
+/// Whether the paste keys may go to the foreground window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PasteMode {
+    SendKeys,
+    /// UIPI drops keys sent to a higher-integrity window, so leave the text on the clipboard.
+    ClipboardOnly,
+}
+
+/// `ours` and `target` are integrity RIDs, `None` when unreadable. A target that cannot be read is
+/// treated as elevated: opening it is exactly what a higher-integrity process refuses.
+pub fn paste_mode(ours: Option<u32>, target: Option<u32>) -> PasteMode {
+    match (ours, target) {
+        (Some(ours), Some(target)) if target <= ours => PasteMode::SendKeys,
+        _ => PasteMode::ClipboardOnly,
+    }
+}
+
+/// Registered clipboard formats that keep the dictated text out of Windows clipboard history,
+/// cloud sync and clipboard monitors: (name, DWORD value, `None` for the empty marker). Written
+/// with the text in the same clipboard transaction, never with the restored content.
+pub const CLIPBOARD_PRIVACY_MARKERS: [(&str, Option<u32>); 3] = [
+    ("ExcludeClipboardContentFromMonitorProcessing", None),
+    ("CanIncludeInClipboardHistory", Some(0)),
+    ("CanUploadToCloudClipboard", Some(0)),
+];
+
+/// capture_context stops making UI Automation calls after this long in total.
+pub const CAPTURE_DEADLINE_MS: u64 = 1500;
+
+/// True while `elapsed_ms` is still inside the capture deadline.
+pub fn within_capture_deadline(elapsed_ms: u64) -> bool {
+    elapsed_ms < CAPTURE_DEADLINE_MS
+}
+
+/// The document is read up to this many UTF-16 units; macOS keeps no context from 50000 on
+/// (ContextProbe.swift:35-41), one extra unit tells "exactly 50000" from "longer".
+pub const DOCUMENT_READ_UNITS: usize = 50_001;
+
+/// True when a document read of `units_read` units reached the limit, so no context is kept.
+pub fn document_too_long(units_read: usize) -> bool {
+    units_read >= DOCUMENT_READ_UNITS
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -290,5 +338,67 @@ mod tests {
             clipboard_only_message("hello there"),
             "Copied (press Ctrl+V to paste): hello there"
         );
+    }
+
+    #[test]
+    fn a_higher_integrity_target_gets_no_keys() {
+        assert_eq!(
+            paste_mode(Some(INTEGRITY_MEDIUM), Some(INTEGRITY_HIGH)),
+            PasteMode::ClipboardOnly
+        );
+    }
+
+    #[test]
+    fn an_equal_or_lower_integrity_target_gets_the_paste() {
+        for target in [INTEGRITY_MEDIUM, 0x1000, 0] {
+            assert_eq!(
+                paste_mode(Some(INTEGRITY_MEDIUM), Some(target)),
+                PasteMode::SendKeys,
+                "{target:#x}"
+            );
+        }
+        assert_eq!(
+            paste_mode(Some(INTEGRITY_HIGH), Some(INTEGRITY_HIGH)),
+            PasteMode::SendKeys
+        );
+    }
+
+    #[test]
+    fn an_unknown_integrity_means_clipboard_only() {
+        for (ours, target) in [
+            (Some(INTEGRITY_MEDIUM), None),
+            (None, Some(INTEGRITY_MEDIUM)),
+            (None, None),
+        ] {
+            assert_eq!(paste_mode(ours, target), PasteMode::ClipboardOnly);
+        }
+    }
+
+    #[test]
+    fn the_privacy_markers_are_the_three_documented_formats() {
+        assert_eq!(
+            CLIPBOARD_PRIVACY_MARKERS,
+            [
+                ("ExcludeClipboardContentFromMonitorProcessing", None),
+                ("CanIncludeInClipboardHistory", Some(0)),
+                ("CanUploadToCloudClipboard", Some(0)),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_capture_deadline_is_1500_ms() {
+        assert!(within_capture_deadline(0));
+        assert!(within_capture_deadline(1499));
+        assert!(!within_capture_deadline(1500));
+        assert!(!within_capture_deadline(9000));
+    }
+
+    #[test]
+    fn a_document_read_that_hits_the_limit_is_too_long() {
+        assert!(!document_too_long(0));
+        assert!(!document_too_long(50_000));
+        assert!(document_too_long(50_001));
+        assert!(document_too_long(60_000));
     }
 }

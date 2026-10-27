@@ -8,10 +8,17 @@ use shepit_core::context::{
     app_name, build_context, exe_file_name, file_description_query, is_editable, is_frame_host,
     may_read_text, AppInfo, FocusRead, TargetContext,
 };
-use shepit_core::insert::{is_restorable_format, paste_keys, CLIPBOARD_BUSY};
+use shepit_core::insert::{
+    document_too_long, is_restorable_format, paste_keys, within_capture_deadline, CLIPBOARD_BUSY,
+    CLIPBOARD_PRIVACY_MARKERS, DOCUMENT_READ_UNITS,
+};
 use std::time::{Duration, Instant};
 use windows::core::{w, BOOL, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM};
+use windows::Win32::Security::{
+    GetSidSubAuthority, GetSidSubAuthorityCount, GetTokenInformation, TokenIntegrityLevel,
+    TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+};
 use windows::Win32::Storage::FileSystem::{
     GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
 };
@@ -20,14 +27,15 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData,
-    GetClipboardSequenceNumber, OpenClipboard, SetClipboardData,
+    GetClipboardSequenceNumber, OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
 };
 use windows::Win32::System::Memory::{
     GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE,
 };
 use windows::Win32::System::Ole::CF_UNICODETEXT;
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+    GetCurrentProcess, OpenProcess, OpenProcessToken, QueryFullProcessImageNameW,
+    PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Accessibility::{
     CUIAutomation8, IUIAutomation6, IUIAutomationElement, IUIAutomationTextPattern,
@@ -312,6 +320,16 @@ impl Desktop for WinDesktop {
             if !set_format(u32::from(CF_UNICODETEXT.0), &bytes) {
                 return Err("Could not put the text on the clipboard".into());
             }
+            // Best effort: the text is already there, a refused marker only costs privacy.
+            for (name, value) in CLIPBOARD_PRIVACY_MARKERS {
+                let wide = wide_nul(name);
+                // SAFETY: wide is a nul-terminated string that outlives the call.
+                let format = unsafe { RegisterClipboardFormatW(PCWSTR::from_raw(wide.as_ptr())) };
+                if format != 0 {
+                    // Windows only looks for the format; a zero DWORD stands for the empty marker.
+                    set_format(format, &value.unwrap_or(0).to_le_bytes());
+                }
+            }
         }
         // Read after the clipboard closed so the number covers our whole write.
         // SAFETY: no preconditions.
@@ -358,6 +376,28 @@ impl Desktop for WinDesktop {
         Ok(())
     }
 
+    fn integrity_levels(&mut self) -> (Option<u32>, Option<u32>) {
+        // SAFETY: the pseudo handle of the current process needs no closing.
+        let ours = integrity_of(unsafe { GetCurrentProcess() });
+        // SAFETY: no preconditions; returns a null handle when no window has focus.
+        let hwnd = unsafe { GetForegroundWindow() };
+        let mut pid = 0u32;
+        if !hwnd.is_invalid() {
+            // SAFETY: pid is a valid out pointer.
+            unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+        }
+        let target = (pid != 0).then(|| {
+            // SAFETY: a plain open with a limited access right; the handle is closed below.
+            let process =
+                unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
+            let level = integrity_of(process);
+            // SAFETY: process was opened above and is not used afterwards.
+            let _ = unsafe { CloseHandle(process) };
+            level
+        });
+        (ours, target.flatten())
+    }
+
     fn probe_password(&mut self) -> Option<bool> {
         let uia = self.uia()?;
         // SAFETY: UIA calls on an object owned by this thread; no pointer arguments.
@@ -368,14 +408,65 @@ impl Desktop for WinDesktop {
     }
 
     fn capture_context(&mut self) -> TargetContext {
+        let start = Instant::now();
         let app = foreground_app();
-        let focus = self.uia().and_then(read_focus);
+        let focus = self.uia().and_then(|uia| read_focus(uia, start));
         build_context(app, focus)
     }
 }
 
-/// Reads the focused element. None when UIA cannot say (unreachable or elevated target).
-fn read_focus(uia: &IUIAutomation6) -> Option<FocusRead> {
+/// True once the capture has used up its overall UIA budget.
+fn out_of_time(start: Instant) -> bool {
+    !within_capture_deadline(start.elapsed().as_millis() as u64)
+}
+
+/// The mandatory integrity level RID of a process, None when its token cannot be read.
+fn integrity_of(process: HANDLE) -> Option<u32> {
+    let mut token = HANDLE::default();
+    // SAFETY: token is a valid out pointer; the handle is closed below.
+    unsafe { OpenProcessToken(process, TOKEN_QUERY, &mut token) }.ok()?;
+    let level = integrity_of_token(token);
+    // SAFETY: token was opened above and is not used afterwards.
+    let _ = unsafe { CloseHandle(token) };
+    level
+}
+
+fn integrity_of_token(token: HANDLE) -> Option<u32> {
+    let mut needed = 0u32;
+    // SAFETY: the size query: a null buffer of length 0 makes the call report the size it needs.
+    let _ = unsafe { GetTokenInformation(token, TokenIntegrityLevel, None, 0, &mut needed) };
+    if (needed as usize) < std::mem::size_of::<TOKEN_MANDATORY_LABEL>() {
+        return None;
+    }
+    // u64 units keep the buffer aligned for the label struct.
+    let mut buf = vec![0u64; (needed as usize).div_ceil(8)];
+    // SAFETY: buf holds at least `needed` writable bytes.
+    unsafe {
+        GetTokenInformation(
+            token,
+            TokenIntegrityLevel,
+            Some(buf.as_mut_ptr().cast()),
+            needed,
+            &mut needed,
+        )
+    }
+    .ok()?;
+    // SAFETY: the call filled buf with a TOKEN_MANDATORY_LABEL whose SID points inside buf. The
+    // last sub-authority of an integrity SID is the level.
+    unsafe {
+        let label = &*buf.as_ptr().cast::<TOKEN_MANDATORY_LABEL>();
+        let sid = label.Label.Sid;
+        let count = *GetSidSubAuthorityCount(sid);
+        if count == 0 {
+            return None;
+        }
+        Some(*GetSidSubAuthority(sid, u32::from(count) - 1))
+    }
+}
+
+/// Reads the focused element. None when UIA cannot say (unreachable or elevated target). Stops
+/// asking once `start` is older than the capture deadline and returns what it has.
+fn read_focus(uia: &IUIAutomation6, start: Instant) -> Option<FocusRead> {
     // SAFETY: UIA calls on objects owned by this thread; the only out pointer is a local.
     let element = unsafe { uia.GetFocusedElement() }.ok()?;
     // SAFETY: as above.
@@ -395,30 +486,58 @@ fn read_focus(uia: &IUIAutomation6) -> Option<FocusRead> {
     if !may_read_text(is_password) {
         return Some(read);
     }
-    read_text(&element, &mut read);
+    read_text(&element, &mut read, start);
     Some(read)
 }
 
-fn read_text(element: &IUIAutomationElement, read: &mut FocusRead) {
+fn read_text(element: &IUIAutomationElement, read: &mut FocusRead, start: Instant) {
     let mut before = None;
+    if out_of_time(start) {
+        return;
+    }
     // SAFETY: UIA calls on objects owned by this thread; the only out pointer is a local.
-    let caret_range = unsafe {
+    let text_pattern = unsafe {
         element
-            .GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
+            .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
             .ok()
-            .and_then(|p| {
-                let mut active = BOOL(0);
-                p.GetCaretRange(&mut active).ok()
-            })
+    };
+    // Same rule as macOS: a document of 50000 or more characters gives no text-before-caret.
+    let too_long = text_pattern.as_ref().is_some_and(|p| {
+        // SAFETY: as above.
+        let doc = unsafe {
+            p.DocumentRange()
+                .and_then(|range| range.GetText(DOCUMENT_READ_UNITS as i32))
+        };
+        doc.is_ok_and(|text| document_too_long(text.len()))
+    });
+    if out_of_time(start) {
+        return;
+    }
+    // SAFETY: UIA calls on objects owned by this thread; the only out pointer is a local.
+    let caret_range = if too_long {
+        None
+    } else {
+        unsafe {
+            element
+                .GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id)
+                .ok()
+                .and_then(|p| {
+                    let mut active = BOOL(0);
+                    p.GetCaretRange(&mut active).ok()
+                })
+        }
     };
     if let Some(range) = &caret_range {
         before = text_before(range);
     }
+    if out_of_time(start) {
+        read.value = before;
+        return;
+    }
     // SAFETY: as above.
     let selection = unsafe {
-        element
-            .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
-            .ok()
+        text_pattern
+            .as_ref()
             .and_then(|p| p.GetSelection().ok())
             .and_then(|array| {
                 if array.Length().ok()? > 0 {
@@ -428,10 +547,14 @@ fn read_text(element: &IUIAutomationElement, read: &mut FocusRead) {
                 }
             })
     };
-    if before.is_none() {
+    if before.is_none() && !too_long && !out_of_time(start) {
         if let Some(range) = &selection {
             before = text_before(range);
         }
+    }
+    if out_of_time(start) {
+        read.value = before;
+        return;
     }
     if let Some(range) = &selection {
         // SAFETY: as above.
@@ -442,7 +565,13 @@ fn read_text(element: &IUIAutomationElement, read: &mut FocusRead) {
             }
         }
     }
+    if too_long {
+        return;
+    }
     if before.is_none() {
+        if out_of_time(start) {
+            return;
+        }
         // SAFETY: as above.
         let value = unsafe {
             element

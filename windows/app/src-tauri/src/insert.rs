@@ -3,7 +3,7 @@
 
 use shepit_core::context::TargetContext;
 use shepit_core::dictation::InsertJob;
-use shepit_core::insert::{decide, InsertOutcome, RESTORE_DELAY_MS};
+use shepit_core::insert::{decide, paste_mode, InsertOutcome, PasteMode, RESTORE_DELAY_MS};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::mpsc::{Receiver, SyncSender};
 
@@ -13,6 +13,23 @@ use crate::controller::Msg;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SavedClipboard {
     pub formats: Vec<(u32, Vec<u8>)>,
+}
+
+/// Overwrites every saved byte. Volatile so the compiler cannot drop the writes as dead stores.
+fn wipe(formats: &mut [(u32, Vec<u8>)]) {
+    for (_, bytes) in formats {
+        for b in bytes.iter_mut() {
+            // SAFETY: b is a valid, aligned, exclusive reference to one byte.
+            unsafe { std::ptr::write_volatile(b, 0) };
+        }
+    }
+}
+
+// The snapshot is the user's previous clipboard, possibly a password from a password manager.
+impl Drop for SavedClipboard {
+    fn drop(&mut self) {
+        wipe(&mut self.formats);
+    }
 }
 
 /// What the worker asks of the desktop. Each method is one step the tests can observe.
@@ -29,6 +46,9 @@ pub trait Desktop {
     fn sequence_number(&mut self) -> u32;
     /// Puts the saved formats back.
     fn restore(&mut self, saved: SavedClipboard) -> Result<(), String>;
+    /// Integrity level RIDs of (this process, the foreground window's process); None when one
+    /// cannot be read.
+    fn integrity_levels(&mut self) -> (Option<u32>, Option<u32>);
     /// A fresh password check of the focused field; None when unreadable.
     fn probe_password(&mut self) -> Option<bool>;
     /// Reads the foreground app and focused field.
@@ -59,14 +79,20 @@ pub fn insert<D: Desktop>(desktop: &mut D, job: &InsertJob) -> Result<InsertOutc
             return Err(message);
         }
     };
+    let (ours, target) = desktop.integrity_levels();
+    if paste_mode(ours, target) == PasteMode::ClipboardOnly {
+        // UIPI would drop the keys; the text stays for a manual Ctrl+V and nothing is restored.
+        return Ok(InsertOutcome::ClipboardOnly);
+    }
     if desktop.send_paste().is_err() {
         // The text stays on the clipboard so the user can press Ctrl+V; restoring would lose it.
         return Ok(InsertOutcome::ClipboardOnly);
     }
     desktop.wait(RESTORE_DELAY_MS);
     // Someone else wrote to the clipboard during the wait: their content wins (PasteInserter.swift:72).
-    if desktop.sequence_number() == written {
-        let _ = desktop.restore(saved);
+    if desktop.sequence_number() == written && desktop.restore(saved).is_err() {
+        // Outcome kind only: the clipboard content is never logged.
+        eprintln!("clipboard restore failed");
     }
     Ok(InsertOutcome::Pasted)
 }
@@ -114,6 +140,9 @@ impl Desktop for NullDesktop {
     fn restore(&mut self, _saved: SavedClipboard) -> Result<(), String> {
         Ok(())
     }
+    fn integrity_levels(&mut self) -> (Option<u32>, Option<u32>) {
+        (None, None)
+    }
     fn probe_password(&mut self) -> Option<bool> {
         None
     }
@@ -125,7 +154,9 @@ impl Desktop for NullDesktop {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shepit_core::insert::{CLIPBOARD_BUSY, PASSWORD_REFUSED, RESTORE_DELAY_MS};
+    use shepit_core::insert::{
+        CLIPBOARD_BUSY, INTEGRITY_HIGH, INTEGRITY_MEDIUM, PASSWORD_REFUSED, RESTORE_DELAY_MS,
+    };
     use std::sync::mpsc::{channel, sync_channel};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,6 +164,7 @@ mod tests {
         Probe,
         Save,
         Put(String),
+        Integrity,
         Paste,
         Wait(u64),
         Sequence,
@@ -146,6 +178,7 @@ mod tests {
         save_error: Option<String>,
         put_error: Option<String>,
         paste_error: Option<String>,
+        integrity: (Option<u32>, Option<u32>),
         put_sequence: u32,
         later_sequence: u32,
         panic_on_capture: bool,
@@ -161,6 +194,7 @@ mod tests {
                 save_error: None,
                 put_error: None,
                 paste_error: None,
+                integrity: (Some(INTEGRITY_MEDIUM), Some(INTEGRITY_MEDIUM)),
                 put_sequence: 7,
                 later_sequence: 7,
                 panic_on_capture: false,
@@ -206,6 +240,10 @@ mod tests {
             self.calls.push(Call::Restore);
             Ok(())
         }
+        fn integrity_levels(&mut self) -> (Option<u32>, Option<u32>) {
+            self.calls.push(Call::Integrity);
+            self.integrity
+        }
         fn probe_password(&mut self) -> Option<bool> {
             self.calls.push(Call::Probe);
             self.probe
@@ -237,12 +275,46 @@ mod tests {
                 Call::Probe,
                 Call::Save,
                 Call::Put("hello".into()),
+                Call::Integrity,
                 Call::Paste,
                 Call::Wait(RESTORE_DELAY_MS),
                 Call::Sequence,
                 Call::Restore,
             ]
         );
+    }
+
+    #[test]
+    fn a_higher_integrity_target_keeps_the_text_without_keys_or_restore() {
+        let mut d = FakeDesktop::new();
+        d.integrity = (Some(INTEGRITY_MEDIUM), Some(INTEGRITY_HIGH));
+        assert_eq!(
+            insert(&mut d, &job(Some(false))),
+            Ok(InsertOutcome::ClipboardOnly)
+        );
+        assert!(d.calls.contains(&Call::Put("hello".into())));
+        assert!(!d.calls.contains(&Call::Paste), "{:?}", d.calls);
+        assert!(!d.calls.contains(&Call::Restore), "{:?}", d.calls);
+        assert!(!d.calls.iter().any(|c| matches!(c, Call::Wait(_))));
+    }
+
+    #[test]
+    fn an_unreadable_target_integrity_keeps_the_text_without_keys() {
+        let mut d = FakeDesktop::new();
+        d.integrity = (Some(INTEGRITY_MEDIUM), None);
+        assert_eq!(
+            insert(&mut d, &job(Some(false))),
+            Ok(InsertOutcome::ClipboardOnly)
+        );
+        assert!(!d.calls.contains(&Call::Paste), "{:?}", d.calls);
+    }
+
+    #[test]
+    fn dropping_a_saved_clipboard_wipes_its_bytes() {
+        let mut formats = vec![(1, vec![1u8, 2, 3]), (13, vec![9u8; 4])];
+        wipe(&mut formats);
+        assert!(formats.iter().all(|(_, b)| b.iter().all(|&x| x == 0)));
+        assert_eq!(formats[0].1.len(), 3);
     }
 
     #[test]
