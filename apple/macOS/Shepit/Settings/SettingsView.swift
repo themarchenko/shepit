@@ -59,6 +59,9 @@ struct GeneralPane: View {
             Section("Permissions") {
                 permission("Microphone", granted: microphoneGranted) { openPrivacy("Privacy_Microphone") }
                 permission("Accessibility (needed to paste)", granted: accessibilityTrusted, open: openAccessibilitySettings)
+                if !accessibilityTrusted {
+                    Text(accessibilityStaleHint).font(.caption).foregroundStyle(.secondary)
+                }
                 Button("Check again") {
                     accessibilityTrusted = ContextProbe.isAccessibilityTrusted
                     microphoneGranted = AudioRecorder.permissionGranted
@@ -279,6 +282,10 @@ func openPrivacy(_ pane: String) {
         NSWorkspace.shared.open(url)
     }
 }
+
+/// macOS keeps the Accessibility grant of the previous signature, so the switch can look on while
+/// the permission is not valid for this build. Removing the row is the only way to clear it.
+let accessibilityStaleHint = "Already on in the list? Select Shepit, remove it with the minus button, then turn it on again. macOS keeps the permission of the previous build."
 
 /// Asks for Accessibility first so Shepit is already in the list, then opens the list. Opening it
 /// without asking leaves Shepit out, and the user has to add it with the + button.
