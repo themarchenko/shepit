@@ -123,6 +123,24 @@
       "expected": [
         "Supabase"
       ]
+    },
+    {
+      "name": "LearningRejectsControlCharacters/1",
+      "input": {
+        "reported": [
+          "Ver\ncel",
+          "Super\tbase",
+          "Next\u0000js",
+          "Clean.js",
+          "  Pad\n",
+          "Tab\tEnd\t"
+        ],
+        "existing": []
+      },
+      "expected": [
+        "Clean.js",
+        "Pad"
+      ]
     }
   ]
 }

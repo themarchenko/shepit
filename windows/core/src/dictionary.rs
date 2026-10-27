@@ -408,6 +408,10 @@ pub fn new_entries(reported: &[String], existing: &[String]) -> Vec<String> {
         if !term.is_ascii() || !term.chars().any(|c| c.is_alphabetic()) {
             continue;
         }
+        // A newline or NUL inside a term would go back to the agent as part of the dictionary prompt.
+        if term.chars().any(|c| c.is_control()) {
+            continue;
+        }
         // `split(separator: " ")` drops empty pieces, so filter them.
         if term.split(' ').filter(|p| !p.is_empty()).count() > 3 {
             continue;

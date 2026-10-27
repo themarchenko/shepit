@@ -26,6 +26,7 @@ Fixture: `shared/fixtures/dictionary-learning.json`. Source: Learning/Dictionary
 3. Every character is ASCII, and it contains a letter.
 4. It has at most 3 space-separated words.
 5. It contains an uppercase letter, a digit, a "." or an "_".
+6. After trimming it contains no control character (newline, tab, NUL), so a reported term cannot inject lines into the dictionary prompt. Both platforms reject it (2026-10-27).
 
 Then return the kept terms (trimmed, original case), limited to `300 - existing.count` entries (never negative). The dictionary maximum is 300 (:227). Why the strictness: the agent's list is noisy (:223-225).
 
