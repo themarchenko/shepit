@@ -126,9 +126,14 @@ if has 'rm[[:space:]]+(-[A-Za-z]*[rR][A-Za-z]*[fF]|-[A-Za-z]*[fF][A-Za-z]*[rR]|-
 fi
 
 # --- repo secrets ------------------------------------------------------------
-# Replacing a signing secret would publish releases that installed copies refuse.
-if has 'gh[[:space:]]+secret[[:space:]]+(set|delete|remove)([[:space:]]|$)'; then
+# Replacing a signing secret would publish releases that installed copies refuse. Flags may sit
+# between `gh` and `secret` (`gh -R owner/repo secret set`), and `gh api` reaches the same endpoint.
+if has '(^|[[:space:];&|(])gh[[:space:]]+([^;&|]*[[:space:]])?secret[[:space:]]+(set|delete|remove)([[:space:]]|$)' \
+  || has '(^|[[:space:];&|(])gh[[:space:]]+api[^;&|]*actions/secrets'; then
   deny "changing repo secrets is forbidden for agents; the signing secrets are never replaced."
+fi
+if has 'scripts/release/new-updater-key\.sh'; then
+  deny "the updater key is created once, by a person; agents never run that script."
 fi
 
 # --- permission bypass ------------------------------------------------------
@@ -161,8 +166,9 @@ if git_subcmd commit || git_subcmd push; then
     target="${BASH_REMATCH[2]}"
   fi
   branch="$(git -C "$target" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
-  # Releases are tagged on main, so pushing exactly one release tag from there is allowed.
-  tag_only_push='^[[:space:]]*git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push[[:space:]]+origin[[:space:]]+(refs/tags/)?v[0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$'
+  # Pushing exactly one release tag and nothing else is allowed from any branch, main included:
+  # releases are tagged on main. The delete and force checks above have already run.
+  tag_only_push='^[[:space:]]*git([[:space:]]+-C[[:space:]]+[A-Za-z0-9_./-]+)?[[:space:]]+push[[:space:]]+origin[[:space:]]+(refs/tags/)?v[0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$'
   if [[ "$command" =~ $tag_only_push ]]; then
     exit 0
   fi
