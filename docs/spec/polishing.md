@@ -87,6 +87,7 @@ Limits are in graphemes: the last 500 before the caret; the field value is read 
 - Audio never leaves the device. Recognition is local; only text goes to an agent.
 - An agent receives the transcript, the dictionary part, the optional examples and the context keys listed above, and nothing else.
 - Dictated text is never logged at public privacy level. The one log of transcript text is marked private and cut to 80 characters (Pipeline/DictationSession.swift:186). A port must keep transcripts, results and context text out of public logs.
+- A secure captured field (password field or secure event input) skips the agent: the result is the local text with source `passthrough`, and the transcript is not sent anywhere. Error logs from the agents carry the error kind and the reply byte length only, never reply or server text.
 
 ## Process lifetime (both agents)
 

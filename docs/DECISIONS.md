@@ -2,6 +2,15 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-10-27: a secure field skips the polishing agent
+
+- When the captured field is secure (secure event input, or a secure text field in the focused
+  window), the dictation uses the local text (dictionary fix plus clean) with source `passthrough`
+  and the agent is not called. Reason: the transcript may be the password itself, and the insert
+  refuses that field anyway, so sending it off the device buys nothing.
+- Raw and fast-path routes are unchanged. Formatter error logs carry the case name and the reply
+  byte count only, never reply or server text.
+
 ## 2026-10-24: scope and defaults (from the plan review)
 
 - Hotkey is configurable; default Right Option hold, double tap for hands-free. Reason: the

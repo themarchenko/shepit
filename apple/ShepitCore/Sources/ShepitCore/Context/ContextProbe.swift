@@ -21,6 +21,9 @@ public enum ContextProbe {
         !secureEventInput && subrole != kAXSecureTextFieldSubrole
     }
 
+    /// Secure event input right now, for a check after recording: focus may have moved into a password field.
+    public static var isSecureInputActive: Bool { IsSecureEventInputEnabled() }
+
     public static func capture() -> TargetContext {
         var ctx = TargetContext()
         ctx.secureInput = IsSecureEventInputEnabled()
