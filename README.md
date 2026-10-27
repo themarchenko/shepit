@@ -11,7 +11,7 @@ Speech recognition runs on your Mac. If you already use Claude Code or Codex, Sh
 recognized text to it to fix punctuation, names and code terms before inserting it.
 
 There is also a Windows version. It is newer: it records, recognizes on the PC and pastes the text.
-Polishing, history, live preview and Settings are macOS only for now.
+Live preview is macOS only for now.
 
 ## Features
 
@@ -26,7 +26,11 @@ Polishing, history, live preview and Settings are macOS only for now.
   punctuation, self-corrections ("на п'яту, ні, на шосту"), filler words and identifiers. Without
   one, the text goes in as heard, with spacing, capitals and dictionary terms fixed locally.
 - A dictionary that grows: names and terms the recognizer gets wrong. Terms the agent corrects
-  are added on their own.
+  are added on their own. On Windows the dictionary fixes spellings locally and in the agent's
+  prompt; it does not steer the recognizer.
+- History: Shepit History in the menu lists your recent dictations with the raw and the inserted
+  text, and a copy button. It keeps what you dictated until you clear it (Windows has a Clear
+  history button).
 - Three widget styles: flow pill, caption bar or island, on black glass. Drag the widget
   anywhere and it stays there.
 
@@ -134,8 +138,12 @@ icon. A short tour runs on first launch.
 - Once a day Shepit asks the GitHub API for the latest release. The request carries the app version
   and nothing else. Turn it off in Settings → About.
 - Password fields are detected and nothing is inserted into them.
-- Windows: audio is recognized on your PC and no recordings are kept. Apart from the model download
-  on first use and the installer download, nothing leaves the PC. Once a day the Windows app asks
+- Windows: audio is recognized on your PC. The last 200 recordings and your dictation history (the
+  text you dictated, the app it went to and the window title) are kept in
+  `%LOCALAPPDATA%\com.themarchenko.shepit` (`recordings\` and `shepit.sqlite`), not in your roaming
+  profile. Dictations into password fields keep neither. To clear them, open History from the tray
+  and press Clear history, which deletes every entry and recording, or delete that folder. Apart
+  from the model download on first use and the installer download, nothing leaves the PC. Once a day the Windows app asks
   github.com for the latest update file. The request carries the user agent `tauri-plugin-updater/2.14.0`
   and nothing else. Turn it off in Settings → About.
 

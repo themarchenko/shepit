@@ -14,7 +14,7 @@ final class SharedFixtureTests: XCTestCase {
 
     // DictionaryLearning.newEntries(from reported: [String], existing: [String]) -> [String]
     func testDictionaryLearning() throws {
-        let f: FixtureFile<DictionaryLearningInput, [String]> = try SharedFixtures.load("dictionary-learning.json", minimumCases: 1)
+        let f: FixtureFile<DictionaryLearningInput, [String]> = try SharedFixtures.load("dictionary-learning.json", minimumCases: 8)
         for c in f.cases {
             XCTAssertEqual(DictionaryLearning.newEntries(from: c.input.reported, existing: c.input.existing), c.expected, c.name)
         }

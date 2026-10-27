@@ -120,6 +120,39 @@ fn apply_inner(
     Ok((settings, changes))
 }
 
+/// The settings after the polishing agent reported `reported` as fixed terms: the ones
+/// `dictionary::new_entries` accepts against the list as it is now are appended. Returns the new
+/// settings and the added terms. `learn` runs this inside `apply`, so a term typed in the pane a
+/// moment ago is part of "now".
+pub fn learned(current: &Settings, reported: &[String]) -> (Settings, Vec<String>) {
+    let added = shepit_core::dictionary::new_entries(reported, &current.dictionary);
+    if added.is_empty() {
+        return (current.clone(), added);
+    }
+    let mut next = current.clone();
+    next.dictionary.extend(added.iter().cloned());
+    (next, added)
+}
+
+/// Adds the terms the polishing agent reported to the dictionary through `apply`, so the open
+/// Dictionary pane hears `settings-changed`. Returns the terms that were new. Runs on the
+/// controller thread.
+pub fn learn(app: &AppHandle, reported: &[String]) -> Vec<String> {
+    let mut added = Vec::new();
+    let result = apply_on_controller(app, |current| {
+        let (next, new) = learned(current, reported);
+        added = new;
+        Ok(next)
+    });
+    match result {
+        Ok(_) => added,
+        Err(err) => {
+            eprintln!("could not save learned terms: {err}");
+            Vec::new()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,5 +328,80 @@ mod tests {
         let json: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(json["engine"], "whisper-turbo");
         assert_eq!(json["widgetVisible"], true);
+    }
+
+    fn strings(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn with_dictionary(items: &[&str]) -> Settings {
+        Settings {
+            dictionary: strings(items),
+            ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn learning_appends_the_accepted_terms_to_the_current_list() {
+        let current = with_dictionary(&["Vercel"]);
+        let (new, added) = learned(
+            &current,
+            &strings(&["Supabase", "vercel", "handleSubmit", "main"]),
+        );
+        assert_eq!(added, ["Supabase", "handleSubmit"]);
+        assert_eq!(new.dictionary, ["Vercel", "Supabase", "handleSubmit"]);
+        assert_eq!(
+            Settings {
+                dictionary: current.dictionary.clone(),
+                ..new
+            },
+            current
+        );
+    }
+
+    #[test]
+    fn learning_nothing_new_changes_nothing() {
+        let current = with_dictionary(&["Vercel"]);
+        for reported in [strings(&[]), strings(&["vercel", "main", "git rebase"])] {
+            let (new, added) = learned(&current, &reported);
+            assert!(added.is_empty());
+            assert_eq!(new, current);
+            assert!(!shepit_core::settings::changes(&current, &new).any());
+        }
+    }
+
+    #[test]
+    fn learning_flags_the_dictionary_for_the_open_pane() {
+        let current = Settings::default();
+        let (new, _) = learned(&current, &strings(&["Supabase"]));
+        assert!(shepit_core::settings::changes(&current, &new).dictionary);
+    }
+
+    #[test]
+    fn a_learn_followed_by_a_patch_keeps_both() {
+        let (learned_settings, _) = learned(&Settings::default(), &strings(&["Supabase"]));
+        let patched = shepit_core::settings::apply_patch(
+            &learned_settings,
+            &serde_json::json!({"speakerNotes": "Notes."}),
+        )
+        .unwrap();
+        assert_eq!(patched.dictionary, ["Supabase"]);
+        assert_eq!(patched.speaker_notes, "Notes.");
+        let t = TempDir::new();
+        let mut store = SettingsStore::new(t.0.clone());
+        store.save(&patched).unwrap();
+        assert_eq!(SettingsStore::new(t.0.clone()).load(), patched);
+    }
+
+    #[test]
+    fn a_patch_followed_by_a_learn_works_on_the_patched_list() {
+        let patched = shepit_core::settings::apply_patch(
+            &Settings::default(),
+            &serde_json::json!({"dictionary": ["Supabase", "Vercel"]}),
+        )
+        .unwrap();
+        let (new, added) = learned(&patched, &strings(&["supabase", "Tauri.conf"]));
+        assert_eq!(added, ["Tauri.conf"]);
+        assert_eq!(new.dictionary, ["Supabase", "Vercel", "Tauri.conf"]);
     }
 }

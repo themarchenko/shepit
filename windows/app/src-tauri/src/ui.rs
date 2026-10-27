@@ -17,6 +17,11 @@ use tauri::{
 
 pub const SETTINGS: &str = "settings";
 pub const TOUR: &str = "tour";
+/// The History window (HistoryView.swift:42,65-68).
+pub const HISTORY: &str = "history";
+pub const HISTORY_TITLE: &str = "Shepit History";
+pub const HISTORY_SIZE: (f64, f64) = (760.0, 520.0);
+pub const HISTORY_MIN_SIZE: (f64, f64) = (620.0, 420.0);
 
 /// The tour opens this long after setup (AppDelegate.swift:59-65), once the tray and the widget
 /// are up.
@@ -71,6 +76,36 @@ pub fn open_settings(app: &AppHandle) -> Result<(), String> {
         }
     });
     Ok(())
+}
+
+/// Opens the History window, or focuses it when it is already open.
+pub fn open_history(app: &AppHandle) -> Result<(), String> {
+    let _opening = OPENING.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(window) = app.get_webview_window(HISTORY) {
+        focus(&window);
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, HISTORY, WebviewUrl::App("history.html".into()))
+        .title(HISTORY_TITLE)
+        .inner_size(HISTORY_SIZE.0, HISTORY_SIZE.1)
+        .min_inner_size(HISTORY_MIN_SIZE.0, HISTORY_MIN_SIZE.1)
+        .resizable(true)
+        .theme(Some(Theme::Dark))
+        .background_color(Color(0x1f, 0x20, 0x23, 0xff))
+        .skip_taskbar(false)
+        .center()
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Tells an open History window that a row was added or the history was cleared.
+pub fn emit_history_changed(app: &AppHandle) {
+    if app.get_webview_window(HISTORY).is_some() {
+        if let Err(err) = app.emit_to(HISTORY, "history-changed", ()) {
+            eprintln!("could not send history-changed: {err}");
+        }
+    }
 }
 
 /// Opens the welcome tour, or focuses it when it is already open.
@@ -149,4 +184,27 @@ pub fn show_tour_on_first_run(app: &AppHandle) {
             eprintln!("could not open the tour: {err}");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_history_window_is_labelled_titled_and_sized_like_macos() {
+        assert_eq!(HISTORY, "history");
+        assert_eq!(HISTORY_TITLE, "Shepit History");
+        assert_eq!(HISTORY_SIZE, (760.0, 520.0));
+        assert_eq!(HISTORY_MIN_SIZE, (620.0, 420.0));
+    }
+
+    #[test]
+    fn the_windows_have_distinct_labels() {
+        let labels = [SETTINGS, TOUR, HISTORY];
+        for (i, a) in labels.iter().enumerate() {
+            for b in &labels[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+    }
 }

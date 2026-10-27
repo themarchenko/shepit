@@ -30,7 +30,13 @@ pub fn open_microphone_privacy() -> Result<(), String> {
     open_url(MIC_PRIVACY_URI).map_err(|_| "Could not open the Windows privacy settings".to_string())
 }
 
-/// Private on purpose: callers pass a constant or a URL built in this file.
+/// Opens the recordings folder. `dir` is the path the app computed from its data directory; no
+/// text from a webview reaches this call.
+pub fn open_folder(dir: &std::path::Path) -> Result<(), String> {
+    open_url(&dir.to_string_lossy()).map_err(|_| "Could not open the recordings folder".to_string())
+}
+
+/// Private on purpose: callers pass a constant, a URL built in this file or the recordings folder.
 #[cfg(windows)]
 fn open_url(target: &str) -> Result<(), ()> {
     use windows::core::{w, PCWSTR};

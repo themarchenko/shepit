@@ -12,6 +12,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::Arc;
+use std::time::Instant;
 
 pub trait Engine {
     /// Makes the engine ready: download what is missing (reporting a 0..=1 fraction), then load.
@@ -52,9 +53,14 @@ pub fn run<E: Engine>(
                 }
             }
         }
-        // A panic in the model code must not take the thread down with a job half done.
+        // A panic in the model code must not take the thread down with a job half done. The time
+        // covers `transcribe` only (DictationSession.swift:171-180) and goes first, so the
+        // controller has it when the result arrives.
+        let started = Instant::now();
         let result = catch_unwind(AssertUnwindSafe(|| engine.transcribe(&job.samples)))
             .unwrap_or_else(|_| Err(format!("Transcription failed: {CRASHED}")));
+        let ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let _ = tx.send(Msg::SttMs { id: job.id, ms });
         let _ = tx.send(Msg::Recognized { id: job.id, result });
     }
 }
@@ -152,6 +158,8 @@ mod tests {
         load_progress: Vec<f32>,
         results: VecDeque<Result<String, String>>,
         panic_on_transcribe: bool,
+        /// How long `transcribe` takes.
+        delay: std::time::Duration,
     }
 
     impl Fake {
@@ -161,6 +169,7 @@ mod tests {
                 load_progress: vec![],
                 results: VecDeque::new(),
                 panic_on_transcribe: false,
+                delay: std::time::Duration::ZERO,
             }
         }
     }
@@ -173,6 +182,7 @@ mod tests {
             self.loads.pop_front().unwrap_or(Ok(()))
         }
         fn transcribe(&mut self, _samples: &[f32]) -> Result<String, String> {
+            std::thread::sleep(self.delay);
             if self.panic_on_transcribe {
                 panic!("boom");
             }
@@ -197,10 +207,12 @@ mod tests {
         let (tx, rx) = mpsc::sync_channel(256);
         run(engine, jrx, Arc::new(AtomicU64::new(wanted)), tx);
         rx.try_iter()
-            .map(|m| match m {
-                Msg::Model(ModelStatus::Downloading(p)) => format!("downloading {p:.2}"),
-                Msg::Model(s) => format!("{s:?}").to_lowercase(),
-                Msg::Recognized { id, result } => format!("recognized {id} {result:?}"),
+            .filter_map(|m| match m {
+                Msg::Model(ModelStatus::Downloading(p)) => Some(format!("downloading {p:.2}")),
+                Msg::Model(s) => Some(format!("{s:?}").to_lowercase()),
+                Msg::Recognized { id, result } => Some(format!("recognized {id} {result:?}")),
+                // Timing has its own test below.
+                Msg::SttMs { .. } => None,
                 other => panic!("unexpected {other:?}"),
             })
             .collect()
@@ -208,6 +220,44 @@ mod tests {
 
     fn strings(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn the_stt_time_comes_from_the_engine_and_arrives_before_the_result() {
+        let mut e = Fake::ok();
+        e.delay = std::time::Duration::from_millis(40);
+        e.results.push_back(Ok("hello".into()));
+        let (jtx, jrx) = mpsc::channel();
+        jtx.send(job(7)).unwrap();
+        drop(jtx);
+        let (tx, rx) = mpsc::sync_channel(256);
+        run(e, jrx, Arc::new(AtomicU64::new(7)), tx);
+        let sent: Vec<Msg> = rx.try_iter().collect();
+        let timed = sent
+            .iter()
+            .position(|m| matches!(m, Msg::SttMs { id: 7, .. }))
+            .expect("an SttMs message");
+        let result = sent
+            .iter()
+            .position(|m| matches!(m, Msg::Recognized { id: 7, .. }))
+            .expect("a Recognized message");
+        assert!(timed < result, "the time must reach the controller first");
+        let Msg::SttMs { ms, .. } = &sent[timed] else {
+            unreachable!()
+        };
+        assert!((40..5_000).contains(ms), "{ms} ms");
+    }
+
+    #[test]
+    fn a_skipped_job_sends_no_stt_time() {
+        let mut e = Fake::ok();
+        e.results.push_back(Ok("hello".into()));
+        let (jtx, jrx) = mpsc::channel();
+        jtx.send(job(7)).unwrap();
+        drop(jtx);
+        let (tx, rx) = mpsc::sync_channel(256);
+        run(e, jrx, Arc::new(AtomicU64::new(0)), tx);
+        assert!(!rx.try_iter().any(|m| matches!(m, Msg::SttMs { .. })));
     }
 
     #[test]

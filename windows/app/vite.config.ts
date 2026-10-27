@@ -5,13 +5,14 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   build: {
-    // The widget, Settings, the tour and the update card are separate windows with their own page.
+    // The widget, Settings, the tour, the update card and History are separate windows with their own page.
     rollupOptions: {
       input: {
         main: "index.html",
         settings: "settings.html",
         tour: "tour.html",
         update: "update.html",
+        history: "history.html",
       },
     },
   },

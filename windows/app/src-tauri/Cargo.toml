@@ -19,6 +19,8 @@ serde = { version = "=1.0.229", features = ["derive"] }
 # tauri.conf.json carries a plugins section, and generate_context! expands to serde_json calls;
 # update_settings also takes a JSON patch.
 serde_json = "=1.0.154"
+# History (docs/spec/history.md): the same schema as the macOS app. `bundled` builds SQLite with the crate.
+rusqlite = { version = "=0.41.0", features = ["bundled"] }
 
 [dev-dependencies]
 # The functional updater tests build a mock app; the feature is test-only.

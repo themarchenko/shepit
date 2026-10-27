@@ -115,3 +115,12 @@
     transform: rotate(360deg);
   }
 }
+
+/* The Dictionary pane: monospace, one term per line, fills the pane. */
+.sp-terms {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+  height: 300px;
+  min-height: 300px;
+  margin-bottom: 8px;
+}

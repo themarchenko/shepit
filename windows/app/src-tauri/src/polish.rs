@@ -12,7 +12,7 @@ use shepit_agent::{
     default_claude_work_dir, default_codex_work_dir, ClaudeConfig, ClaudeWorker, CodexConfig,
     CodexWorker,
 };
-use shepit_core::dictation::FormatJob;
+use shepit_core::dictation::{FormatJob, FormatMeta};
 use shepit_core::polish::discovery::{find_agent, Env};
 use shepit_core::polish::lifecycle::{Debounce, DEBOUNCE_SECS};
 use shepit_core::polish::pipeline::{
@@ -66,6 +66,7 @@ pub enum Action {
         text: String,
         source: Source,
         route: Route,
+        meta: FormatMeta,
     },
     Queue(QueuedJob),
     /// Replace the running agent (`None` stops it).
@@ -151,12 +152,25 @@ impl Dispatcher {
                 let done = format_request(&request, fast, None, &|| false);
                 vec![Action::Answer {
                     id: job.id,
+                    meta: meta_of(&request, &done, 0),
                     text: done.text,
                     source: done.source,
                     route: which,
                 }]
             }
         }
+    }
+}
+
+/// What the history keeps of a finished format. Ids only: the text is passed on separately.
+fn meta_of(request: &FormatRequest, done: &Formatted, llm_ms: u64) -> FormatMeta {
+    FormatMeta {
+        profile: request.profile.id.to_string(),
+        mode: request.mode.as_str().to_string(),
+        source: done.source,
+        language: done.language.clone(),
+        new_terms: done.new_terms.clone(),
+        llm_ms,
     }
 }
 
@@ -287,9 +301,10 @@ fn dispatch_thread(input: mpsc::Receiver<Input>, agent: Sender<AgentCmd>, tx: Sy
                     text,
                     source,
                     route,
+                    meta,
                 } => {
                     log_result(route_name(route), source, 0);
-                    let _ = tx.send(Msg::Formatted { id, text });
+                    let _ = tx.send(Msg::FormattedWith { id, text, meta });
                 }
                 Action::Queue(job) => {
                     if let Err(failed) = agent.send(AgentCmd::Job(job)) {
@@ -309,8 +324,9 @@ fn dispatch_thread(input: mpsc::Receiver<Input>, agent: Sender<AgentCmd>, tx: Sy
 
 fn local_answer(job: &QueuedJob) -> Msg {
     let done = format_request(&job.request, job.fast_path_max_words, None, &|| false);
-    Msg::Formatted {
+    Msg::FormattedWith {
         id: job.id,
+        meta: meta_of(&job.request, &done, 0),
         text: done.text,
     }
 }
@@ -408,8 +424,13 @@ fn agent_thread(rx: mpsc::Receiver<AgentCmd>, tx: SyncSender<Msg>, wanted: Arc<A
                         if let Some(note) = &done.note {
                             eprintln!("polish: fallback ({note})");
                         }
-                        let _ = tx.send(Msg::Formatted {
+                        let _ = tx.send(Msg::FormattedWith {
                             id: job.id,
+                            meta: meta_of(
+                                &job.request,
+                                &done,
+                                u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                            ),
                             text: done.text,
                         });
                     }
@@ -466,6 +487,7 @@ mod tests {
                 text,
                 source,
                 route,
+                ..
             }) => (id, text, source, route),
             other => panic!("not an answer: {other:?}"),
         }

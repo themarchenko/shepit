@@ -203,3 +203,69 @@ fn no_window_can_call_a_plugin_command() {
         }
     }
 }
+
+const HISTORY_COMMANDS: [&str; 3] = ["history_recent", "history_clear", "open_recordings_folder"];
+
+#[test]
+fn the_history_commands_exist_and_are_in_the_build_manifest() {
+    let names = command_names();
+    let listed = manifest_commands();
+    for name in HISTORY_COMMANDS {
+        assert!(names.contains(&name.to_string()), "{name} is not a command");
+        assert!(
+            listed.contains(&name.to_string()),
+            "{name} is not in COMMANDS"
+        );
+    }
+}
+
+#[test]
+fn the_history_window_gets_only_the_history_commands_and_events() {
+    let caps = capabilities();
+    let (_, history) = caps
+        .iter()
+        .find(|(n, _)| n == "history.json")
+        .expect("capabilities/history.json");
+    assert_eq!(history["windows"], serde_json::json!(["history"]));
+    let mut got = permissions(history);
+    got.sort();
+    let mut want = vec![
+        permission_of("history_recent"),
+        permission_of("history_clear"),
+        "core:event:default".to_string(),
+    ];
+    want.sort();
+    assert_eq!(got, want);
+}
+
+#[test]
+fn the_history_commands_reach_no_other_window_except_the_folder_button_in_settings() {
+    for (file, cap) in capabilities() {
+        if file == "history.json" {
+            continue;
+        }
+        let got = permissions(&cap);
+        for command in ["history_recent", "history_clear"] {
+            assert!(
+                !got.contains(&permission_of(command)),
+                "{file} grants {command}"
+            );
+        }
+        let folder = got.contains(&permission_of("open_recordings_folder"));
+        assert_eq!(folder, file == "settings.json", "{file}");
+    }
+}
+
+#[test]
+fn no_other_window_can_be_named_history() {
+    for (file, cap) in capabilities() {
+        if file == "history.json" {
+            continue;
+        }
+        let windows = cap["windows"].as_array().cloned().unwrap_or_default();
+        assert!(
+            !windows.iter().any(|w| w == "history"),
+            "{file} lists the history window"
+        );
+    }
+}

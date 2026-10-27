@@ -127,6 +127,32 @@ impl CaptureBuffer {
     }
 }
 
+/// A canonical RIFF/WAVE file: 16 kHz, mono, 16-bit PCM, a 44-byte header (RecordingStore.swift:45-74).
+/// Samples are clamped to -1..=1 and scaled by 32767, halves rounded away from zero like Swift's
+/// `.rounded()`.
+pub fn wav_16k_mono(samples: &[f32]) -> Vec<u8> {
+    let data_len = (samples.len() * 2) as u32;
+    let mut out = Vec::with_capacity(44 + samples.len() * 2);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data_len).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    out.extend_from_slice(&1u16.to_le_bytes()); // mono
+    out.extend_from_slice(&16_000u32.to_le_bytes());
+    out.extend_from_slice(&32_000u32.to_le_bytes()); // byte rate
+    out.extend_from_slice(&2u16.to_le_bytes()); // block align
+    out.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_len.to_le_bytes());
+    for s in samples {
+        // f32::round is half away from zero, like Swift's `.rounded()`.
+        let v = (s.clamp(-1.0, 1.0) * 32767.0).round() as i16;
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +284,54 @@ mod tests {
         let mut v = vec![0.0; 16_000];
         v[9_000] = 0.3;
         assert!(!is_digital_silence(&v));
+    }
+
+    fn u16_at(b: &[u8], i: usize) -> u16 {
+        u16::from_le_bytes([b[i], b[i + 1]])
+    }
+    fn u32_at(b: &[u8], i: usize) -> u32 {
+        u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]])
+    }
+    fn pcm(wav: &[u8]) -> Vec<i16> {
+        wav[44..]
+            .chunks(2)
+            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+            .collect()
+    }
+
+    #[test]
+    fn the_wav_header_is_16k_mono_16_bit_pcm() {
+        let wav = wav_16k_mono(&[0.0; 3]);
+        assert_eq!(&wav[0..4], b"RIFF");
+        assert_eq!(u32_at(&wav, 4), 36 + 6);
+        assert_eq!(&wav[8..12], b"WAVE");
+        assert_eq!(&wav[12..16], b"fmt ");
+        assert_eq!(u32_at(&wav, 16), 16);
+        assert_eq!(u16_at(&wav, 20), 1, "PCM");
+        assert_eq!(u16_at(&wav, 22), 1, "mono");
+        assert_eq!(u32_at(&wav, 24), 16_000);
+        assert_eq!(u32_at(&wav, 28), 32_000, "byte rate");
+        assert_eq!(u16_at(&wav, 32), 2, "block align");
+        assert_eq!(u16_at(&wav, 34), 16, "bits");
+        assert_eq!(&wav[36..40], b"data");
+        assert_eq!(u32_at(&wav, 40), 6);
+    }
+
+    #[test]
+    fn the_wav_is_44_bytes_plus_two_per_sample() {
+        assert_eq!(wav_16k_mono(&[]).len(), 44);
+        assert_eq!(wav_16k_mono(&[0.1; 1000]).len(), 44 + 2000);
+    }
+
+    #[test]
+    fn samples_are_clamped_and_scaled_by_32767() {
+        let wav = wav_16k_mono(&[2.0, -2.0, 1.0, -1.0, 0.0]);
+        assert_eq!(pcm(&wav), [32767, -32767, 32767, -32767, 0]);
+    }
+
+    #[test]
+    fn a_half_rounds_away_from_zero() {
+        // 0.5 * 32767 = 16383.5 -> 16384; -0.5 -> -16384.
+        assert_eq!(pcm(&wav_16k_mono(&[0.5, -0.5])), [16384, -16384]);
     }
 }

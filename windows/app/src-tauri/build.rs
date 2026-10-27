@@ -1,5 +1,5 @@
 // The app commands are listed here so each window gets only its own (capabilities/*.json). Without a
-// manifest every window could call every command. Widget commands first, then the Settings and tour ones, then the update ones.
+// manifest every window could call every command. Widget commands first, then the Settings and tour ones, the history ones, then the update ones.
 const COMMANDS: &[&str] = &[
     "widget_ready",
     "widget_hover",
@@ -15,6 +15,9 @@ const COMMANDS: &[&str] = &[
     "finish_tour",
     "show_tour",
     "detect_agents",
+    "history_recent",
+    "history_clear",
+    "open_recordings_folder",
     "get_update_status",
     "check_updates_now",
     "show_update_card",

@@ -5,6 +5,7 @@ use shepit_core::update::UpdateState;
 pub enum MenuAction {
     Quit,
     OpenSettings,
+    OpenHistory,
     ToggleWidget,
     ResetWidget,
     CheckUpdates,
@@ -17,10 +18,26 @@ pub struct ShowWidgetItem(pub tauri::menu::CheckMenuItem<tauri::Wry>);
 /// The "Check for updates…" item, kept so the updater can rename it to "Update to X…".
 pub struct UpdateItem(pub tauri::menu::MenuItem<tauri::Wry>);
 
+/// The History item sits right after Settings (StatusItemController.swift:98-100).
+pub const HISTORY_LABEL: &str = "History\u{2026}";
+
+/// The ids of the menu items in order; separators are not listed. `main.rs` builds the menu in
+/// this order and the tests pin it.
+#[cfg_attr(not(test), allow(dead_code))]
+pub const MENU_IDS: &[&str] = &[
+    "settings",
+    "history",
+    "check-updates",
+    "toggle-widget",
+    "reset-widget",
+    "quit",
+];
+
 pub fn action_for(id: &str) -> MenuAction {
     match id {
         "quit" => MenuAction::Quit,
         "settings" => MenuAction::OpenSettings,
+        "history" => MenuAction::OpenHistory,
         "toggle-widget" => MenuAction::ToggleWidget,
         "reset-widget" => MenuAction::ResetWidget,
         "check-updates" => MenuAction::CheckUpdates,
@@ -148,5 +165,32 @@ mod tests {
     #[test]
     fn ids_are_case_sensitive() {
         assert_eq!(action_for("QUIT"), MenuAction::None);
+    }
+
+    #[test]
+    fn history_id_opens_history() {
+        assert_eq!(action_for("history"), MenuAction::OpenHistory);
+        assert_eq!(action_for("History"), MenuAction::None);
+        assert_eq!(action_for("history "), MenuAction::None);
+    }
+
+    #[test]
+    fn the_history_item_is_labelled_with_an_ellipsis_character() {
+        assert_eq!(HISTORY_LABEL, "History\u{2026}");
+        assert!(!HISTORY_LABEL.ends_with("..."));
+    }
+
+    #[test]
+    fn the_history_item_comes_right_after_settings() {
+        let settings = MENU_IDS.iter().position(|id| *id == "settings").unwrap();
+        let history = MENU_IDS.iter().position(|id| *id == "history");
+        assert_eq!(history, Some(settings + 1), "{MENU_IDS:?}");
+    }
+
+    #[test]
+    fn every_menu_id_has_an_action() {
+        for id in MENU_IDS {
+            assert_ne!(action_for(id), MenuAction::None, "{id}");
+        }
     }
 }

@@ -2,6 +2,7 @@
 //! needs no window lives in pure functions here so it runs in tests on any host.
 
 use crate::controller::{Msg, PickMsg};
+use crate::history_store::{DataDir, HistoryStore, RECENT_LIMIT};
 use crate::polish;
 use crate::settings_store;
 use crate::ui;
@@ -59,6 +60,8 @@ pub struct SettingsPayload {
     pub speaker_notes: String,
     /// The daily look at GitHub (Settings > About).
     pub check_for_updates: bool,
+    /// One term per entry, in stored order (Settings > Dictionary).
+    pub dictionary: Vec<String>,
 }
 
 /// `detect_agents`: the resolved paths (null when not found) and the settings after the fallback
@@ -96,7 +99,99 @@ pub fn settings_payload(settings: &Settings, model: ModelStatus, version: &str) 
         prompt_mode_min_words: settings.prompt_mode_min_words,
         speaker_notes: settings.speaker_notes.clone(),
         check_for_updates: settings.check_for_updates,
+        dictionary: settings.dictionary.clone(),
     }
+}
+
+/// One row of the History window. No window title, language, audio length or file name: the
+/// window does not show them.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryItem {
+    pub id: i64,
+    pub created_at_ms: i64,
+    pub app_name: Option<String>,
+    /// The exe name.
+    pub app_id: Option<String>,
+    pub profile: String,
+    pub mode: String,
+    pub formatter_source: String,
+    pub stt_ms: i64,
+    pub llm_ms: i64,
+    pub raw_text: String,
+    pub formatted_text: String,
+    pub status: String,
+}
+
+/// `history_recent`: the newest 200 rows, how many there are in all, and why there are none to
+/// show (`error` is null when the store works).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct HistoryPayload {
+    pub items: Vec<HistoryItem>,
+    pub total: i64,
+    pub error: Option<String>,
+}
+
+/// `store` is `None` when the database could not be opened at launch.
+pub fn history_payload(store: Option<&HistoryStore>) -> HistoryPayload {
+    let Some(store) = store else {
+        return unavailable();
+    };
+    let loaded = store
+        .recent(RECENT_LIMIT)
+        .and_then(|rows| store.count().map(|total| (rows, total)));
+    match loaded {
+        Ok((rows, total)) => HistoryPayload {
+            items: rows
+                .into_iter()
+                .map(|r| HistoryItem {
+                    id: r.id,
+                    created_at_ms: r.created_at_ms,
+                    app_name: r.app_name,
+                    app_id: r.bundle_id,
+                    profile: r.profile,
+                    mode: r.mode,
+                    formatter_source: r.formatter_source,
+                    stt_ms: r.stt_ms,
+                    llm_ms: r.llm_ms,
+                    raw_text: r.raw_text,
+                    formatted_text: r.formatted_text,
+                    status: r.status,
+                })
+                .collect(),
+            total,
+            error: None,
+        },
+        Err(err) => {
+            eprintln!("could not read the history: {err}");
+            unavailable()
+        }
+    }
+}
+
+fn unavailable() -> HistoryPayload {
+    HistoryPayload {
+        items: Vec::new(),
+        total: 0,
+        error: Some("History is unavailable".to_string()),
+    }
+}
+
+/// Deletes every row and every recording. Rows go first; recordings are deleted even when the
+/// rows could not be.
+pub fn clear_history(
+    store: Option<&HistoryStore>,
+    recordings: &std::path::Path,
+) -> Result<(), String> {
+    let rows = match store {
+        Some(store) => store.clear(),
+        None => Err("History is unavailable".to_string()),
+    };
+    let files = crate::recordings::clear(recordings);
+    rows?;
+    files
+        .map(|_| ())
+        .map_err(|_| "Could not delete the recordings".to_string())
 }
 
 /// The settings with the agent choice moved off a missing agent (SharedControls.swift:81-89).
@@ -266,6 +361,50 @@ pub async fn detect_agents(app: AppHandle) -> Result<AgentsPayload, String> {
     })
 }
 
+pub type History = Arc<Mutex<Option<HistoryStore>>>;
+
+/// The newest dictations for the History window. Reads on a blocking thread: SQLite waits on disk.
+#[tauri::command]
+pub async fn history_recent(history: State<'_, History>) -> Result<HistoryPayload, String> {
+    let history = history.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        history_payload(history.lock().unwrap_or_else(|e| e.into_inner()).as_ref())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Deletes every row and every recording, then tells the open History window.
+#[tauri::command]
+pub async fn history_clear(
+    app: AppHandle,
+    history: State<'_, History>,
+    dir: State<'_, DataDir>,
+) -> Result<(), String> {
+    let history = history.inner().clone();
+    let recordings = crate::recordings::dir_in(&dir.0);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        clear_history(
+            history.lock().unwrap_or_else(|e| e.into_inner()).as_ref(),
+            &recordings,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    ui::emit_history_changed(&app);
+    result
+}
+
+/// Creates the recordings folder if needed and opens it. The path is computed here, never taken
+/// from the page.
+#[tauri::command]
+pub async fn open_recordings_folder(dir: State<'_, DataDir>) -> Result<(), String> {
+    let folder = crate::recordings::dir_in(&dir.0);
+    crate::recordings::ensure_dir(&folder)
+        .map_err(|_| "Could not create the recordings folder".to_string())?;
+    crate::shell::open_folder(&folder)
+}
+
 /// Marks the tour done and closes it.
 #[tauri::command]
 pub async fn finish_tour(app: AppHandle) -> Result<(), String> {
@@ -303,6 +442,7 @@ mod tests {
                 "claudeModel",
                 "codexExecutable",
                 "defaultMode",
+                "dictionary",
                 "fadeWhenIdle",
                 "fastPathMaxWords",
                 "glassOpacity",
@@ -355,7 +495,7 @@ mod tests {
         assert_eq!(v["fastPathMaxWords"], 12);
         assert_eq!(v["promptModeMinWords"], 60);
         assert_eq!(v["speakerNotes"], "Notes.");
-        assert!(v.get("dictionary").is_none());
+        assert_eq!(v["dictionary"], serde_json::json!(["Vercel"]));
     }
 
     #[test]
@@ -546,5 +686,178 @@ mod tests {
         assert_eq!(v["result"], "ok");
         assert!(v["detail"].is_null());
         assert_eq!(v.as_object().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn the_payload_dictionary_keeps_order_and_duplicates() {
+        let none = json(&Settings::default(), ModelStatus::Ready);
+        assert_eq!(none["dictionary"], serde_json::json!([]));
+        let s = Settings {
+            dictionary: vec!["B".into(), "a".into(), "B".into()],
+            ..Settings::default()
+        };
+        let v = json(&s, ModelStatus::Ready);
+        assert_eq!(v["dictionary"], serde_json::json!(["B", "a", "B"]));
+    }
+
+    // History.
+
+    use crate::history_store::HistoryStore;
+    use shepit_core::dictation::RecordDraft;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static NEXT: AtomicU32 = AtomicU32::new(0);
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new() -> Self {
+            let n = NEXT.fetch_add(1, Ordering::Relaxed);
+            let dir =
+                std::env::temp_dir().join(format!("shepit-commands-{}-{n}", std::process::id()));
+            let _ = fs::remove_dir_all(&dir);
+            Self(dir)
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn draft(raw_text: &str) -> RecordDraft {
+        RecordDraft {
+            app_id: Some("code.exe".into()),
+            app_name: Some("Visual Studio Code".into()),
+            window_title: Some("secret title".into()),
+            profile: "generic".into(),
+            mode: "clean".into(),
+            engine: "parakeet-v3".into(),
+            raw_text: raw_text.into(),
+            formatted_text: format!("{raw_text}."),
+            language: Some("en".into()),
+            audio_seconds: 2.5,
+            stt_ms: 350,
+            llm_ms: 420,
+            formatter_source: "claude".into(),
+            insert_method: "paste".into(),
+            status: "inserted".into(),
+        }
+    }
+
+    fn keys(v: &serde_json::Value) -> Vec<&str> {
+        let mut k: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        k.sort();
+        k
+    }
+
+    #[test]
+    fn the_history_payload_has_items_total_and_error() {
+        let t = TempDir::new();
+        let store = HistoryStore::open(&t.0).unwrap();
+        store
+            .save(1_700_000_000_123, &draft("hello"), Some("a.wav"))
+            .unwrap();
+        let v = serde_json::to_value(history_payload(Some(&store))).unwrap();
+        assert_eq!(keys(&v), ["error", "items", "total"]);
+        assert_eq!(v["total"], 1);
+        assert!(v["error"].is_null());
+        assert_eq!(v["items"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_history_item_carries_exactly_the_agreed_keys() {
+        let t = TempDir::new();
+        let store = HistoryStore::open(&t.0).unwrap();
+        let id = store
+            .save(1_700_000_000_123, &draft("hello"), Some("a.wav"))
+            .unwrap();
+        let v = serde_json::to_value(history_payload(Some(&store))).unwrap();
+        let item = &v["items"][0];
+        assert_eq!(
+            keys(item),
+            [
+                "appId",
+                "appName",
+                "createdAtMs",
+                "formattedText",
+                "formatterSource",
+                "id",
+                "llmMs",
+                "mode",
+                "profile",
+                "rawText",
+                "status",
+                "sttMs"
+            ]
+        );
+        assert_eq!(item["id"], id);
+        assert_eq!(item["createdAtMs"], 1_700_000_000_123_i64);
+        assert_eq!(item["appName"], "Visual Studio Code");
+        assert_eq!(item["appId"], "code.exe");
+        assert_eq!(item["profile"], "generic");
+        assert_eq!(item["mode"], "clean");
+        assert_eq!(item["formatterSource"], "claude");
+        assert_eq!(
+            (item["sttMs"].as_i64(), item["llmMs"].as_i64()),
+            (Some(350), Some(420))
+        );
+        assert_eq!(item["rawText"], "hello");
+        assert_eq!(item["formattedText"], "hello.");
+        assert_eq!(item["status"], "inserted");
+    }
+
+    #[test]
+    fn the_history_payload_is_the_newest_two_hundred_and_the_total() {
+        let t = TempDir::new();
+        let store = HistoryStore::open(&t.0).unwrap();
+        for i in 0..205 {
+            store
+                .save(1_000 + i, &draft(&format!("row {i}")), None)
+                .unwrap();
+        }
+        let p = history_payload(Some(&store));
+        assert_eq!((p.items.len(), p.total, p.error), (200, 205, None));
+        assert_eq!(p.items[0].raw_text, "row 204");
+    }
+
+    #[test]
+    fn an_unavailable_store_says_so_instead_of_showing_an_empty_history() {
+        let p = history_payload(None);
+        assert!(p.items.is_empty());
+        assert_eq!(p.total, 0);
+        assert!(p.error.is_some_and(|e| !e.is_empty()));
+    }
+
+    #[test]
+    fn clearing_deletes_every_row_and_every_recording() {
+        let t = TempDir::new();
+        let store = HistoryStore::open(&t.0).unwrap();
+        let recordings = crate::recordings::dir_in(&t.0);
+        fs::create_dir_all(&recordings).unwrap();
+        for name in ["a.wav", "b.wav"] {
+            fs::write(recordings.join(name), b"x").unwrap();
+        }
+        fs::write(recordings.join("keep.txt"), b"x").unwrap();
+        for i in 0..3 {
+            store.save(1_000 + i, &draft("x"), Some("a.wav")).unwrap();
+        }
+        clear_history(Some(&store), &recordings).unwrap();
+        assert_eq!(store.count().unwrap(), 0);
+        assert!(!recordings.join("a.wav").exists() && !recordings.join("b.wav").exists());
+        assert!(recordings.join("keep.txt").exists());
+    }
+
+    #[test]
+    fn clearing_deletes_the_recordings_even_without_a_store() {
+        let t = TempDir::new();
+        let recordings = crate::recordings::dir_in(&t.0);
+        fs::create_dir_all(&recordings).unwrap();
+        fs::write(recordings.join("a.wav"), b"x").unwrap();
+        let _ = clear_history(None, &recordings);
+        assert!(!recordings.join("a.wav").exists());
     }
 }

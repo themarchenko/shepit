@@ -233,6 +233,8 @@ public enum DictionaryLearning {
             let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard (2...40).contains(term.count), !known.contains(term.lowercased()) else { continue }
             guard term.unicodeScalars.allSatisfy({ $0.isASCII }), term.contains(where: \.isLetter) else { continue }
+            // A newline or NUL inside a term would go back to the agent as part of the dictionary prompt.
+            guard !term.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { continue }
             guard term.split(separator: " ").count <= 3 else { continue }
             let marked = term.contains(where: { $0.isUppercase || $0.isNumber || $0 == "." || $0 == "_" })
             guard marked else { continue }
