@@ -33,6 +33,8 @@ pub enum Msg {
     SttMs { id: u64, ms: u64 },
     /// The polish worker finished dictation `id` with the final `text`. Dropped unless `id` is the
     /// dictation being formatted.
+    // Only tests send it now: every real answer carries a meta so it gets a history row.
+    #[cfg_attr(not(test), allow(dead_code))]
     Formatted { id: u64, text: String },
     /// `Formatted` with what the history keeps: profile, mode, source, language, learned terms
     /// and the agent time.

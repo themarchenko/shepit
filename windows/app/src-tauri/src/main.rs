@@ -28,8 +28,9 @@ use polish::PolishHandle;
 use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
 use shepit_core::cleanup::passthrough_clean;
-use shepit_core::dictation::{Finished, Job, ModelStatus, Phase};
+use shepit_core::dictation::{Finished, FormatMeta, Job, ModelStatus, Phase};
 use shepit_core::keys::PickResult;
+use shepit_core::polish::route::Source;
 use shepit_core::settings::Settings;
 use shepit_core::update::UpdateState;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -428,14 +429,7 @@ fn controller_loop(
             let (id, heard) = (job.id, job.transcript.clone());
             if !workers.polish.format(job) {
                 // No dispatcher: insert the transcript as it was heard rather than hang.
-                let fed = runner.step_at(
-                    Msg::Formatted {
-                        id,
-                        text: passthrough_clean(&heard),
-                    },
-                    epoch,
-                    Instant::now(),
-                );
+                let fed = runner.step_at(local_formatted(id, &heard), epoch, Instant::now());
                 changed = fed.or(changed);
             }
         }
@@ -544,4 +538,46 @@ fn set_tooltip(app: &AppHandle, current: &mut String, text: String) {
         }
     }
     *current = text;
+}
+
+/// The transcript cleaned locally, for when no polish dispatcher exists. It carries a meta so the
+/// dictation still gets a history row; the controller has not resolved a profile by then, so the
+/// row says generic and clean, with no agent time.
+fn local_formatted(id: u64, heard: &str) -> Msg {
+    Msg::FormattedWith {
+        id,
+        text: passthrough_clean(heard),
+        meta: FormatMeta {
+            profile: "generic".to_string(),
+            mode: "clean".to_string(),
+            source: Source::Passthrough,
+            language: None,
+            new_terms: Vec::new(),
+            llm_ms: 0,
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_local_fallback_carries_a_passthrough_meta_for_the_history_row() {
+        let Msg::FormattedWith { id, text, meta } = local_formatted(7, "hello there") else {
+            panic!("a plain Formatted would leave no history row");
+        };
+        assert_eq!(id, 7);
+        assert_eq!(text, passthrough_clean("hello there"));
+        assert_eq!(
+            (
+                meta.profile.as_str(),
+                meta.mode.as_str(),
+                meta.source,
+                meta.llm_ms
+            ),
+            ("generic", "clean", Source::Passthrough, 0)
+        );
+        assert!(meta.new_terms.is_empty());
+    }
 }
