@@ -16,6 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # One version per tag for both platforms (release.yml checks the tag against both). Fails a
+      # pull request that bumps only one of them, before the tag exists; tags cannot be taken back.
+      - name: Check the macOS and Windows versions match
+        run: |
+          mac=$(sed -n 's/.*CFBundleShortVersionString: "\(.*\)"/\1/p' apple/macOS/project.yml)
+          win=$(sed -n 's/^version = "\(.*\)"/\1/p' windows/app/src-tauri/Cargo.toml | head -n 1)
+          if [ -z "$mac" ] || [ "$mac" != "$win" ]; then
+            echo "::error::apple/macOS/project.yml has version '$mac', windows/app/src-tauri/Cargo.toml has '$win'"
+            exit 1
+          fi
+
       # Dependencies (WhisperKit, FluidAudio, GRDB) take most of the build time. Restoring both build
       # directories lets SwiftPM and Xcode skip them; the key changes with the Xcode version and the
       # resolved packages, because objects from another Xcode or another package version are useless.

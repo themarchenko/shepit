@@ -10,6 +10,9 @@ English, let go, and the text appears where your cursor is: in Terminal, a chat,
 Speech recognition runs on your Mac. If you already use Claude Code or Codex, Shepit can hand the
 recognized text to it to fix punctuation, names and code terms before inserting it.
 
+There is also a Windows version. It is newer: it records, recognizes on the PC and pastes the text.
+Polishing, history, live preview and Settings are macOS only for now.
+
 ## Features
 
 - On-device recognition: Whisper large-v3-turbo through WhisperKit, or Parakeet v3 through
@@ -31,10 +34,12 @@ recognized text to it to fix punctuation, names and code terms before inserting 
 
 - macOS 26. Built and tested on an M1 with 16 GB of memory.
 - About 1.6 GB of disk for the speech models, downloaded on first use.
+- Windows: 64-bit Windows 10 or later. About 670 MB of disk for the speech model, downloaded on first
+  use.
 - For polishing (optional): [Claude Code](https://claude.ai/code) or
   [Codex](https://github.com/openai/codex), installed and signed in.
 
-## Install
+## Install on macOS
 
 Paste this into Terminal:
 
@@ -49,7 +54,7 @@ warning. [install.sh](install.sh) is about 80 lines if you want to read it first
 After that Shepit updates itself: it checks GitHub once a day and offers the new version, which it
 downloads, checks and installs in place. The switch and a Check now button are in Settings → About.
 
-### Without Terminal
+### Without Terminal (macOS)
 
 1. Download [Shepit.dmg](https://github.com/themarchenko/shepit/releases/latest/download/Shepit.dmg),
    open it and drag Shepit into Applications.
@@ -65,7 +70,7 @@ If Shepit is already in Applications, this does the same as steps 2 and 3:
 xattr -dr com.apple.quarantine /Applications/Shepit.app
 ```
 
-### Permissions
+### Permissions (macOS)
 
 On first launch Shepit asks for the microphone and for Accessibility. Accessibility lets it notice the
 key in any app and paste the text at your cursor; the welcome tour opens that list in System
@@ -73,6 +78,27 @@ Settings, where you turn Shepit on. Releases from 0.3.0 on are all signed with t
 so the permissions stay granted across updates. Coming from 0.2.x, grant Accessibility once more. If
 Shepit is on in the list but nothing gets pasted, remove it with the minus button, click Open Privacy
 settings in Shepit's Settings and turn it on again.
+
+## Install on Windows
+
+Paste this into PowerShell (no administrator rights needed):
+
+```
+irm https://raw.githubusercontent.com/themarchenko/shepit/main/install.ps1 | iex
+```
+
+The script downloads `Shepit-setup.exe` from the latest release, checks its checksum, installs Shepit
+for your user and starts it. Shepit appears in the notification area next to the clock.
+[install.ps1](install.ps1) is short if you want to read it first.
+
+To update, run the same command again. The app does not update itself on Windows yet.
+
+The installer is not code-signed, because a code-signing certificate costs money. If you download
+`Shepit-setup.exe` from the [releases page](https://github.com/themarchenko/shepit/releases/latest)
+in a browser, Windows SmartScreen will most likely stop it with "Windows protected your PC". Click
+**More info**, then **Run anyway**. The PowerShell command above should not get that prompt: files
+that PowerShell downloads carry no Mark of the Web, the flag a browser adds and SmartScreen looks for.
+Neither has been checked on a Windows PC yet.
 
 ## Use
 
@@ -97,6 +123,9 @@ icon. A short tour runs on first launch.
 - Once a day Shepit asks the GitHub API for the latest release. The request carries the app version
   and nothing else. Turn it off in Settings → About.
 - Password fields are detected and nothing is inserted into them.
+- Windows: audio is recognized on your PC and no recordings are kept. Apart from the model download
+  on first use and the installer download, nothing leaves the PC. The Windows app does not check for
+  updates yet; when it does, it will make one request a day to github.com and have a switch for it.
 
 ## Build from source
 
@@ -127,7 +156,9 @@ swift run -c release shepit-smoke --audio "$HOME/Library/Application Support/She
   insertion, history, settings and updates. Everything that can be tested with `swift test`.
 - `apple/macOS`: the app itself (widget, Settings, welcome tour, menu bar item), its XcodeGen spec
   and the layout of the release disk image.
-- `install.sh`: the one-line installer.
+- `windows`: the Windows version, a Rust workspace (`core`, `engine`, `release-check`) and the Tauri
+  app in `app`.
+- `install.sh` and `install.ps1`: the one-line installers for macOS and Windows.
 - `docs/PLAN.md` and `docs/DECISIONS.md`: the plan and a dated log of decisions and measurements.
 - `CLAUDE.md` and `.claude/agents/`: notes and subagents for working on the code with Claude Code.
 

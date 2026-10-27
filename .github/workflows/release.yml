@@ -1,9 +1,15 @@
 name: Release
 
-# Push a tag like v0.3.0 on main. The tag must match CFBundleShortVersionString in apple/macOS/project.yml.
+# Push a tag like v0.3.0 on main. The tag must match CFBundleShortVersionString in apple/macOS/project.yml
+# and the version in windows/app/src-tauri/Cargo.toml.
+#
+# Run it by hand (Actions, Release, Run workflow) for a dry run: both platforms are built, signed and
+# checked, and the files go to a draft prerelease named dry-run-<run id>. Nothing is published.
+# Delete the draft afterwards. Run one before the first tag after this file changes.
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,7 +20,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # A tag can be pushed from any branch. Only a commit that reached main went through review and
+      # CI, so refuse to sign or publish anything else. Runs before any build; no `if:` on purpose.
+      - name: Check the commit is on main
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=2147483647 origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main"
+            exit 1
+          fi
+
       - name: Check the tag against the app version
+        if: github.event_name == 'push'
         id: version
         run: |
           version=$(sed -n 's/.*CFBundleShortVersionString: "\(.*\)"/\1/p' apple/macOS/project.yml)
@@ -78,9 +96,23 @@ jobs:
           codesign -d -r- .build/DerivedData/Build/Products/Release/Shepit.app 2>&1 | tee /dev/stderr \
             | grep -q 'certificate leaf = H"96a6c47e5a0095ba7fe7833cf16bcd0e0474210e"'
 
+      # A dry run keeps the disk image in a draft prerelease. Drafts and prereleases never appear in
+      # releases/latest, and the name does not match v*.*.*, so publishing it by mistake starts no release.
+      - name: Create the dry-run draft
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "dry-run-$GITHUB_RUN_ID" .build/dist/Shepit.dmg \
+            --title "Dry run $GITHUB_RUN_ID" \
+            --notes "Dry run of the release workflow. Safe to delete." \
+            --draft --prerelease \
+            --target "$GITHUB_SHA"
+
       # The asset has the same name in every release, so releases/latest/download/Shepit.dmg (used by
       # install.sh and the README) always points at the newest one.
       - name: Publish the release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -90,3 +122,242 @@ jobs:
             --notes-file .github/release-notes.md \
             --generate-notes \
             --verify-tag
+
+  # Builds and signs the Windows installer in parallel with the macOS job. It never touches the
+  # release: windows-publish uploads its files after the macOS job has created the release.
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # A tag can be pushed from any branch. Only a commit that reached main went through review and
+      # CI, so refuse to sign or publish anything else. Runs before any build; no `if:` on purpose.
+      - name: Check the commit is on main
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=2147483647 origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main"
+            exit 1
+          fi
+
+      # One version per tag for both platforms. The feed announces the tag's version, so an installed
+      # app that reports another one would be offered the same update forever.
+      - name: Check the version
+        id: version
+        shell: bash
+        run: |
+          cargo=$(sed -n 's/^version = "\(.*\)"/\1/p' windows/app/src-tauri/Cargo.toml | head -n 1)
+          mac=$(sed -n 's/.*CFBundleShortVersionString: "\(.*\)"/\1/p' apple/macOS/project.yml)
+          if [ -z "$cargo" ] || [ "$cargo" != "$mac" ]; then
+            echo "::error::windows/app/src-tauri/Cargo.toml has version '$cargo', apple/macOS/project.yml has '$mac'"
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "v$cargo" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $cargo"
+            exit 1
+          fi
+          echo "tag=v$cargo" >> "$GITHUB_OUTPUT"
+          echo "version=$cargo" >> "$GITHUB_OUTPUT"
+
+      # Same steps as windows.yml, so a release builds the way CI does.
+      - name: Install Rust toolchain
+        working-directory: windows
+        run: rustup toolchain install
+
+      # A release run reads the cache and never writes one.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: windows -> target
+          save-if: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: windows/app/package.json
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: windows/app/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: windows/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Rust tests
+        working-directory: windows
+        run: cargo test --workspace --locked
+
+      # The model is about 670 MB; the cache key changes only when a pin changes.
+      - name: Cache the speech model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/shepit-models
+          key: parakeet-v3-int8-${{ hashFiles('windows/engine/src/pins.rs') }}
+
+      - name: Transcribe the fixture clips
+        working-directory: windows
+        env:
+          SHEPIT_MODELS_DIR: ${{ runner.temp }}/shepit-models
+        run: cargo test -p shepit-engine --release --locked --test transcribe_fixture -- --ignored --nocapture
+
+      # The pyke ONNX Runtime build is always linked with DirectML
+      # (ort-sys 2.0.0-rc.12 build/static_link/mod.rs:55-61), so the exe imports DirectML.dll. ort
+      # leaves it as a symlink into its download cache next to the exe; the installer needs a real
+      # file. The release test step above built ort-sys, which put the link in place.
+      - name: Stage DirectML.dll for the installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=windows/target/release/DirectML.dll
+          test -e "$src" || { echo "::error::$src missing"; ls -l windows/target/release/*.dll || true; exit 1; }
+          mkdir -p windows/app/src-tauri/runtime
+          cp -L "$src" windows/app/src-tauri/runtime/DirectML.dll
+          ls -l windows/app/src-tauri/runtime
+
+      # Without the key the signing step would fail after the whole build. Fail before spending
+      # the build time. The values stay out of the shell: only whether they are set is passed in.
+      - name: Check the updater signing secrets
+        shell: bash
+        env:
+          KEY_SET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          PASSWORD_SET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+        run: |
+          if [ "$KEY_SET" != true ] || [ "$PASSWORD_SET" != true ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY or TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not set"
+            exit 1
+          fi
+
+      # The release build is the CI build: no signing key in its environment, so the Vite build and
+      # every build.rs run without it. The installer is signed in a separate step below.
+      - name: Build the installer
+        working-directory: windows/app
+        run: pnpm tauri build --config src-tauri/tauri.runtime.conf.json
+
+      # Fails when the installer lacks DirectML.dll (a clean machine could not start the app).
+      - name: Check the installer carries DirectML.dll
+        shell: bash
+        run: |
+          set -euo pipefail
+          setup=$(ls windows/target/release/bundle/nsis/*-setup.exe | head -n 1)
+          7z l "$setup" | tee /tmp/installer-list.txt
+          grep -qi 'DirectML\.dll' /tmp/installer-list.txt
+
+      - name: Stage the release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle=windows/target/release/bundle/nsis
+          installers=("$bundle"/*-setup.exe)
+          test "${#installers[@]}" -eq 1 && test -f "${installers[0]}" || { echo "::error::expected one installer"; ls -l "$bundle"; exit 1; }
+          setup="${installers[0]}"
+          mkdir dist
+          cp "$setup" dist/Shepit-setup.exe
+          (cd dist && sha256sum Shepit-setup.exe > Shepit-setup.exe.sha256)
+
+      # The key and password are in the environment of this step only, which runs one command. The
+      # CLI reads both from the environment. `pnpm exec`, not `pnpm tauri`: the package script echoes
+      # its arguments. --app-version puts `version:` into the signed comment, as `tauri build` does
+      # for updater artifacts, so the app can check the feed's version against what was signed.
+      - name: Sign the installer
+        working-directory: windows/app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: pnpm exec tauri signer sign --app-version "$VERSION" ../../dist/Shepit-setup.exe > /dev/null
+
+      - name: Write the update feed
+        working-directory: windows
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --locked -p shepit-release-check -- feed --tag "$TAG" \
+            --sig ../dist/Shepit-setup.exe.sig \
+            --pub-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --out ../dist/latest.json
+
+      # Pins the minisign key installed copies trust, the Windows twin of the macOS certificate check.
+      # An installer signed with anything else would be refused by every installed app, so it must
+      # not reach the upload. No `if:`: this runs on every path.
+      - name: Verify the installer against the pinned key
+        working-directory: windows
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --locked -p shepit-release-check -- verify --tag "$TAG" \
+            --feed ../dist/latest.json --installer ../dist/Shepit-setup.exe
+
+      # The signature is inside latest.json, so no .sig asset is kept.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shepit-windows-release
+          path: |
+            dist/Shepit-setup.exe
+            dist/Shepit-setup.exe.sha256
+            dist/latest.json
+          if-no-files-found: error
+          overwrite: true
+
+  # Adds the Windows files to the release the macOS job created. It never creates or edits the
+  # release, so it cannot race that job. latest.json goes last: the update feed then never points at
+  # an installer that is not there yet.
+  windows-publish:
+    needs: [release, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: shepit-windows-release
+          path: dist
+
+      - name: Upload the Windows files
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.windows.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            release="$GITHUB_REF_NAME"
+          else
+            release="dry-run-$GITHUB_RUN_ID"
+          fi
+
+          sha256sum -c Shepit-setup.exe.sha256
+          jq -e --arg tag "$TAG" '.platforms["windows-x86_64"].url | contains("/download/" + $tag + "/")' latest.json > /dev/null \
+            || { echo "::error::latest.json does not point at the $TAG download"; exit 1; }
+
+          # A published Windows build is never replaced. latest.json is the commit marker, so a rerun
+          # after a partial upload carries on, and a rerun after a full one stops here.
+          # Into a variable first: with pipefail, grep -q closing the pipe early would fail gh with SIGPIPE.
+          assets=$(gh release view "$release" --json assets --jq '.assets[].name')
+          if grep -qx latest.json <<< "$assets"; then
+            echo "::notice::$release already has latest.json, leaving the Windows files as they are"
+            exit 0
+          fi
+
+          gh release upload "$release" Shepit-setup.exe Shepit-setup.exe.sha256 --clobber
+          gh release upload "$release" latest.json --clobber
+
+          names=$(gh release view "$release" --json assets --jq '.assets[].name')
+          for name in Shepit.dmg Shepit-setup.exe Shepit-setup.exe.sha256 latest.json; do
+            grep -qx "$name" <<< "$names" || { echo "::error::release $release has no $name"; exit 1; }
+          done

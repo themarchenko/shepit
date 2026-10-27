@@ -44,3 +44,4 @@ Notes:
   parsed, defaults are used, and the first write copies the bad file to `settings.json.bak` once before it
   replaces it.
 - Speaker notes go into the system prompt (polishing.md).
+- Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are kept in `settings.json` under `%APPDATA%\com.themarchenko.shepit`, with the same key names. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.

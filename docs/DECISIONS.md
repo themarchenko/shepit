@@ -564,6 +564,64 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   focused field has the secure text subrole. App name and window title are still captured.
 - Paste: the clipboard is restored when the dictation is cancelled during the 350 ms wait, still after the full delay, as on Windows. Restoring at once would race the paste already sent and could paste the previous clipboard (a copied password, say) into the target.
 
+## 2026-10-27: Windows release and updater
+
+- Jobs in `release.yml`: `release` (macOS, steps unchanged apart from push-only conditions on the tag
+  check and the publish step), `windows` (build, sign, verify, upload an artifact; read-only token) and
+  `windows-publish` (ubuntu, needs both; the only job that adds Windows files to the release). It never
+  creates or edits the release, so it cannot race the macOS job. A single shared publish job was
+  rejected: a Windows failure would then block a macOS release. Cost: for about a minute after the
+  macOS publish the latest release has no Windows files, and the Windows background check fails
+  silently until they arrive.
+- Re-runs: if Windows fails, the macOS release stands and "Re-run failed jobs" runs the two Windows
+  jobs again. `windows-publish` uploads the installer and checksum first and `latest.json` last, and
+  does nothing when `latest.json` is already there, so a published Windows build is never replaced and
+  the feed never points at a missing installer.
+- Every `v*` tag builds and publishes Windows from this change on. The user chose to ship Windows as a
+  full version with no preview label and no switch variable.
+- Version: one per tag. `version` in `windows/app/src-tauri/Cargo.toml` (Tauri reads it, there is no
+  `version` in `tauri.conf.json`) equals `CFBundleShortVersionString`; aligned to 0.3.1. `ci.yml` checks
+  the pair on every pull request, because tags cannot be taken back.
+- Dry run: `workflow_dispatch` builds and signs both platforms and creates the draft prerelease
+  `dry-run-<run id>`. Drafts and prereleases never serve `releases/latest`, and the name does not match
+  `v*.*.*`. GitHub only offers the trigger once the workflow is on `main`, so the first dry run happens
+  after the merge and must pass before the first tag.
+- Updater key: minisign, made by `scripts/release/new-updater-key.sh` (key id FC48EEB6B111E059). The
+  private key and password are repository secrets `TAURI_SIGNING_PRIVATE_KEY` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and are passed to the build step only. The public key is pinned
+  twice: `plugins.updater.pubkey` in `tauri.conf.json` and `PINNED_UPDATER_PUBKEY` in
+  `windows/release-check`, with a test that they are equal. Release verification uses the constant, as
+  the macOS job uses a hard-coded certificate hash. Never replace the key: installed copies would stop
+  updating, exactly as with the "Shepit Release" certificate. The script refuses to overwrite.
+- `requireSignedVersion` is on. `tauri-plugin-updater` 2.14.0 then demands a `version:` field in the
+  signed comment and compares it with the announced version (plugin `src/updater.rs` `verify_signed_version`),
+  which closes the path where a tampered feed offers an older signed installer. The Tauri CLI writes
+  that field during `tauri build` (CLI changelog 2.12.1, and `tauri signer sign --app-version`), but no
+  real `tauri build` has been seen to do it. The dry run settles it: `release-check verify` requires the
+  field and fails there if it is missing.
+- Plugin versions: `tauri-plugin-updater` 2.14.0 (the version that accepts `tauri` 2.12.5),
+  `minisign-verify` 0.3.0 in `release-check`, the same one the plugin resolves. The decode and verify
+  steps in `release-check` copy the plugin's, so the CI check accepts exactly what the installed app
+  accepts.
+- Signing only at release, and not inside the build: the release builds with `tauri.runtime.conf.json`
+  like pull requests (no `createUpdaterArtifacts`, no `plugins`; tests and `check_config` enforce it) and
+  a later step signs the staged installer with `pnpm exec tauri signer sign --app-version <version>`. The
+  two secrets are in the environment of that step only, so the Vite build and every build.rs never see
+  them (security review M1). An earlier draft used a `tauri.release.conf.json` with
+  `createUpdaterArtifacts` and put the secrets on `tauri build`; it was removed.
+- Tag safety: both release jobs fail unless the tagged commit is an ancestor of `origin/main`, because a
+  tag can be pushed from any branch (security review M2).
+- The installer is not code-signed. Claim in the README and `install.ps1`: a browser download carries
+  the Mark of the Web and so triggers SmartScreen, while a file PowerShell downloads does not. This is
+  from general knowledge of Windows and is NOT verified on a device yet. Device check: browser
+  download of `Shepit-setup.exe` (exact SmartScreen wording, whether Defender flags it) and
+  `irm ... | iex` on a non-administrator account (no UAC prompt, no SmartScreen).
+- `install.ps1` always checks the SHA-256 from `<url>.sha256` and has no way to skip it. The
+  checksum guards against a damaged download, not against a tampered release, since both files sit in
+  the same place; the update path has the signature for that.
+- Uninstall: the CI test logs what the uninstaller leaves in `%LOCALAPPDATA%\Shepit` (the models live
+  there). Moving the models out of the install folder is a follow-up.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

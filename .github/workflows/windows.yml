@@ -2,10 +2,10 @@ name: Windows
 
 on:
   pull_request:
-    paths: [windows/**, shared/**, .github/workflows/windows.yml]
+    paths: [windows/**, shared/**, install.ps1, .github/workflows/windows.yml]
   push:
     branches: [main]
-    paths: [windows/**, shared/**, .github/workflows/windows.yml]
+    paths: [windows/**, shared/**, install.ps1, .github/workflows/windows.yml]
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -123,6 +123,49 @@ jobs:
           setup=$(ls windows/target/release/bundle/nsis/*-setup.exe | head -n 1)
           7z l "$setup" | tee /tmp/installer-list.txt
           grep -qi 'DirectML\.dll' /tmp/installer-list.txt
+
+      # Runs install.ps1 the way users do ("irm ... | iex": the text goes through Invoke-Expression)
+      # against the installer built above, under Windows PowerShell 5.1 like a stock Windows. The
+      # runner is an administrator, so this cannot show that no UAC prompt appears; that is a device check.
+      - name: Test install.ps1 and the uninstaller
+        shell: powershell
+        run: |
+          $setup = (Get-ChildItem windows\target\release\bundle\nsis\*-setup.exe | Select-Object -First 1).FullName
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $setup).Hash.ToLower()
+          "$hash  Shepit-setup.exe" | Set-Content -Encoding ascii "$setup.sha256"
+          $env:SHEPIT_URL = $setup
+
+          $dir = Join-Path $env:LOCALAPPDATA 'Shepit'
+          $exe = Join-Path $dir 'shepit-app.exe'
+          $marker = Join-Path $dir 'models\marker.txt'
+
+          Get-Content -Raw install.ps1 | Invoke-Expression
+          if (-not (Test-Path $exe)) { throw "$exe is missing after install" }
+
+          New-Item -ItemType Directory -Force -Path (Split-Path $marker) | Out-Null
+          'keep' | Set-Content $marker
+
+          # The second run finds the app running from $dir and must stop it before replacing it.
+          Get-Content -Raw install.ps1 | Invoke-Expression
+          if (-not (Test-Path $exe)) { throw "$exe is missing after reinstall" }
+          if (-not (Test-Path $marker)) { throw 'models\marker.txt did not survive a reinstall' }
+
+          # A damaged installer must be refused.
+          'deadbeef  Shepit-setup.exe' | Set-Content -Encoding ascii "$setup.sha256"
+          $refused = $false
+          try { Get-Content -Raw install.ps1 | Invoke-Expression } catch { $refused = $true }
+          if (-not $refused) { throw 'install.ps1 accepted a wrong checksum' }
+
+          Get-Process -Name shepit-app -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 2
+          $uninstaller = Join-Path $dir 'uninstall.exe'
+          if (-not (Test-Path $uninstaller)) { throw 'uninstall.exe is missing' }
+          # "_?=" keeps the uninstaller in place so -Wait waits for the real work.
+          $p = Start-Process -FilePath $uninstaller -ArgumentList '/S', "_?=$dir" -Wait -PassThru
+          Write-Host "uninstaller exit code $($p.ExitCode)"
+          Write-Host 'left after uninstall:'
+          Get-ChildItem -Recurse -Force $dir -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+          Write-Host "marker survives uninstall: $(Test-Path $marker)"
 
       - uses: actions/upload-artifact@v4
         with:

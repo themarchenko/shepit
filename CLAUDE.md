@@ -64,6 +64,12 @@ Run pnpm there as `corepack pnpm` (Node comes from nvm): a different global pnpm
   image and publishes the GitHub release. The `release` agent does all of this.
 - The in-app updater installs only builds signed with that certificate. Never publish a release
   signed otherwise, and never replace the certificate: installed copies would stop updating.
+- Windows uses the same version and tag. Its version is `version` in
+  `windows/app/src-tauri/Cargo.toml`; the release bumps it together with `project.yml`. The same
+  release workflow builds the NSIS installer and signs it for the Tauri updater with a minisign key
+  (repo secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; the public key is
+  pinned in `tauri.conf.json` and in `windows/release-check`). The same rules apply: never publish a
+  Windows update signed otherwise, and never replace that key.
 
 ## Agent pipeline
 
