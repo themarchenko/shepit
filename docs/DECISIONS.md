@@ -549,6 +549,21 @@ Task 7 of PLAN-windows.md: the three styles, drag, saved position, idle fade, cl
 - Gaps: no right-click menu, no live text (task 12), no formatting step (task 9). Not verified: everything
   that needs a Windows desktop. See PLAN-windows.md task 7.
 
+## 2026-10-27: macOS privacy follow-ups
+
+Five macOS changes found while porting to Windows. The spec gap rows they closed are gone.
+
+- Release feed: a release whose `Shepit.dmg` URL is not https is rejected (`insecureDiskImage`). The
+  signature check stays the boundary; this is defence in depth.
+- Prompt dictionary: the agent now gets the last 120 entries (newest), not the first 120. Learned terms
+  are appended, so entries past 120 never reached the agent. Same direction as the recognizer (last 30).
+- Paste: the dictated text is written with empty `org.nspasteboard.TransientType` and `ConcealedType`
+  so clipboard managers skip it. The restore of the user's previous contents is not marked. Confirmed
+  by the user; Windows does the same since PR #14.
+- Context capture: no text before the caret or selection is read when secure event input is on or the
+  focused field has the secure text subrole. App name and window title are still captured.
+- Paste: the clipboard is restored when the dictation is cancelled during the 350 ms wait, still after the full delay, as on Windows. Restoring at once would race the paste already sent and could paste the previous clipboard (a copied password, say) into the target.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

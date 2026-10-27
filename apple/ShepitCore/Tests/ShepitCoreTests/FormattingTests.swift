@@ -45,6 +45,18 @@ final class PromptBuilderTests: XCTestCase {
         XCTAssertTrue(m.hasSuffix("Transcript:\nзроби рефакторинг"))
     }
 
+    func testPromptDictionaryKeepsTheNewest120Entries() {
+        let words = (1...130).map { "term\($0)" }
+        let req = FormatRequest(transcript: "x", languageHint: "en", mode: .clean,
+                                profile: BuiltInProfiles.generic, context: TargetContext(), dictionary: words)
+        let m = PromptBuilder.userMessage(req)
+        let line = m.split(separator: "\n").first { $0.hasPrefix("Dictionary (preferred spellings): ") }.map(String.init) ?? ""
+        let entries = line.dropFirst("Dictionary (preferred spellings): ".count).components(separatedBy: ", ")
+        XCTAssertEqual(entries.count, 120)
+        XCTAssertEqual(entries.first, "term11")
+        XCTAssertEqual(entries.last, "term130")
+    }
+
     func testParseReply() {
         let parsed = PromptBuilder.parseReply(#"{"text":"Hello","language":"en","new_terms":["X"]}"#)
         XCTAssertEqual(parsed?.text, "Hello")

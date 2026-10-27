@@ -15,6 +15,12 @@ public enum ContextProbe {
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// Whether the focused field's text (before the caret, selection) may be read. A password field must
+    /// not leak into the agent prompt or the history; the app name and window title are still captured.
+    nonisolated static func mayReadText(secureEventInput: Bool, subrole: String?) -> Bool {
+        !secureEventInput && subrole != kAXSecureTextFieldSubrole
+    }
+
     public static func capture() -> TargetContext {
         var ctx = TargetContext()
         ctx.secureInput = IsSecureEventInputEnabled()
@@ -30,8 +36,10 @@ public enum ContextProbe {
         if let focused = element(axApp, kAXFocusedUIElementAttribute) {
             let role = string(focused, kAXRoleAttribute) ?? ""
             let editableRoles: Set<String> = [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole, "AXSearchField"]
-            ctx.hasEditableFocus = editableRoles.contains(role) || string(focused, kAXSubroleAttribute) == kAXSecureTextFieldSubrole
-            if string(focused, kAXSubroleAttribute) == kAXSecureTextFieldSubrole { ctx.secureInput = true }
+            let subrole = string(focused, kAXSubroleAttribute)
+            ctx.hasEditableFocus = editableRoles.contains(role) || subrole == kAXSecureTextFieldSubrole
+            if subrole == kAXSecureTextFieldSubrole { ctx.secureInput = true }
+            guard mayReadText(secureEventInput: IsSecureEventInputEnabled(), subrole: subrole) else { return ctx }
             if let value = string(focused, kAXValueAttribute), value.count < 50_000 {
                 if let range = range(focused, kAXSelectedTextRangeAttribute) {
                     let location = min(max(0, range.location), value.count)

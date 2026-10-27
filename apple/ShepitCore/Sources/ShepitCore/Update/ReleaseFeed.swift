@@ -45,12 +45,14 @@ public enum ReleaseFeed {
     public enum FeedError: LocalizedError {
         case http(Int)
         case noDiskImage(String)
+        case insecureDiskImage(String)
 
         public var errorDescription: String? {
             switch self {
             case .http(403), .http(429): return "GitHub is rate limiting update checks. Try again in an hour."
             case .http(let code): return "GitHub answered with HTTP \(code)."
             case .noDiskImage(let version): return "Release \(version) has no \(ReleaseFeed.diskImageName)."
+            case .insecureDiskImage(let version): return "Release \(version) points at a download that is not https."
             }
         }
     }
@@ -81,7 +83,13 @@ public enum ReleaseFeed {
         guard let image = payload.assets.first(where: { $0.name == diskImageName }) else {
             throw FeedError.noDiskImage(version)
         }
-        return AppRelease(version: version, pageURL: payload.html_url, diskImageURL: image.browser_download_url,
+        // The signature check is the real boundary; refusing plain http is defence in depth.
+        guard image.browser_download_url.scheme?.lowercased() == "https" else {
+            throw FeedError.insecureDiskImage(version)
+        }
+        // The page opens in the browser from "What changed"; anything but https gets the releases list.
+        let page = payload.html_url.scheme?.lowercased() == "https" ? payload.html_url : releasesPage
+        return AppRelease(version: version, pageURL: page, diskImageURL: image.browser_download_url,
                           diskImageSize: image.size)
     }
 }
