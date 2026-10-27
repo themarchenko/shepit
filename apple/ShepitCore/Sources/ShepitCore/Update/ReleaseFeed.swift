@@ -87,7 +87,9 @@ public enum ReleaseFeed {
         guard image.browser_download_url.scheme?.lowercased() == "https" else {
             throw FeedError.insecureDiskImage(version)
         }
-        return AppRelease(version: version, pageURL: payload.html_url, diskImageURL: image.browser_download_url,
+        // The page opens in the browser from "What changed"; anything but https gets the releases list.
+        let page = payload.html_url.scheme?.lowercased() == "https" ? payload.html_url : releasesPage
+        return AppRelease(version: version, pageURL: page, diskImageURL: image.browser_download_url,
                           diskImageSize: image.size)
     }
 }

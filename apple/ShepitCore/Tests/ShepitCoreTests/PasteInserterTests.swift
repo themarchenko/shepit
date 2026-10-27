@@ -54,4 +54,22 @@ final class PasteInserterTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(900))
         XCTAssertEqual(pasteboard.string(forType: .string), "mine")
     }
+
+    func testAnInsertRightAfterACancelStillRestoresTheUsersClipboard() async throws {
+        pasteboard.setString("mine", forType: .string)
+        let inserter = PasteInserter(pasteboard: pasteboard)
+        inserter.isTrusted = { true }
+        inserter.restoreDelay = .milliseconds(300)
+        let pasted = expectation(description: "paste sent")
+        inserter.sendPaste = { pasted.fulfill() }
+        let first = Task { @MainActor in
+            try await inserter.insert("first", context: TargetContext())
+        }
+        await fulfillment(of: [pasted], timeout: 5)
+        first.cancel()
+        _ = await first.result
+        inserter.sendPaste = {}
+        _ = try await inserter.insert("second", context: TargetContext())
+        XCTAssertEqual(pasteboard.string(forType: .string), "mine")
+    }
 }

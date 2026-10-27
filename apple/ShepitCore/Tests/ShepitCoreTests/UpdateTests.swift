@@ -38,6 +38,14 @@ final class UpdateTests: XCTestCase {
             }
         }
     }
+
+    func testInsecurePageURLFallsBackToTheReleasesPage() throws {
+        let json = """
+        {"tag_name": "v0.3.0", "html_url": "javascript:alert(1)",
+         "assets": [{"name": "Shepit.dmg", "browser_download_url": "https://example.com/Shepit.dmg", "size": 1}]}
+        """
+        XCTAssertEqual(try ReleaseFeed.parse(Data(json.utf8)).pageURL, ReleaseFeed.releasesPage)
+    }
 }
 
 /// Installs real disk images over a scratch copy of the app. Needs prepared files, so it only runs when

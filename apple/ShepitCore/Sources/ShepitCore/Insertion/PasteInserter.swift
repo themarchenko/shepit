@@ -55,6 +55,8 @@ public final class PasteInserter {
 
     public var restoreDelay: Duration = .milliseconds(350)
     private let pasteboard: NSPasteboard
+    /// The restore a cancelled paste still owes, after its delay.
+    private var pendingRestore: Task<Void, Never>?
     // Seams for tests: the real values need Accessibility and a focused app.
     var isTrusted: () -> Bool = { AXIsProcessTrusted() }
     var sendPaste: () -> Void = { PasteInserter.postCommandV() }
@@ -81,6 +83,9 @@ public final class PasteInserter {
         guard !text.isEmpty else { throw InsertError.empty }
         if context.secureInput || IsSecureEventInputEnabled() { throw InsertError.secureInput }
 
+        // Let a cancelled paste give the clipboard back first, so this snapshot is the user's contents
+        // and not the previous dictation.
+        await pendingRestore?.value
         let snapshot = PasteboardSnapshot(pasteboard)
         Self.writeDictation(text, to: pasteboard)
         let ourChangeCount = pasteboard.changeCount
@@ -96,9 +101,10 @@ public final class PasteInserter {
             try await Task.sleep(for: restoreDelay)
         } catch {
             let delay = restoreDelay
-            Task { @MainActor in
+            pendingRestore = Task { @MainActor in
                 try? await Task.sleep(for: delay)
                 self.restoreIfUntouched(snapshot, ourChangeCount)
+                self.pendingRestore = nil
             }
             throw error
         }
