@@ -1,3 +1,11 @@
+:root {
+  --text: rgb(244, 242, 238);
+  --dim: rgba(244, 242, 238, 0.46);
+  --ok: rgb(134, 207, 160);
+  --amber: rgb(234, 174, 85);
+  --rec: rgb(255, 97, 89);
+}
+
 html,
 body,
 #root {
@@ -8,81 +16,385 @@ body,
   overflow: hidden;
 }
 
-/* The window resizes per phase on the Rust side; the pill stays centred, 26px above the bottom. */
-.pill {
-  position: absolute;
-  left: 50%;
-  bottom: 26px;
-  width: 40px;
-  height: 8px;
-  transform: translateX(-50%);
+/* Nothing in the widget is selectable text or a drag source: a press is a click or a drag of the window. */
+body {
+  color: var(--text);
+  font: 12.5px/1.3 "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+/* The window is the shape plus its shadow margin (padding is set inline from the same constant).
+   The shape stays at the bottom centre; the window grows upward. */
+.stage {
   box-sizing: border-box;
-  border-radius: 9999px;
-  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  transition: opacity 400ms ease;
+  touch-action: none;
+}
+
+/* Black glass without blur: a WebView2 backdrop-filter cannot see the desktop. The tint colour is set
+   inline from glassOpacity. Hairline edge and shadow as in WidgetView.swift Glass. */
+.glass {
+  box-sizing: border-box;
   border: 0.75px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.38);
+}
+
+/* Size and radius are set inline from the payload; the spring easing is sampled in spring.ts. */
+.shape {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+  transition:
+    width var(--spring-ms) var(--spring),
+    height var(--spring-ms) var(--spring),
+    border-radius var(--spring-ms) var(--spring);
+}
+
+.icon {
+  display: block;
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.amber {
+  color: var(--amber);
+}
+
+.grow {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mono-digits {
+  font-variant-numeric: tabular-nums;
+}
+
+.fade-in {
+  animation: fade-in 220ms ease-out both;
+}
+
+.pop {
+  display: flex;
+  animation: pop 320ms var(--spring) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+.keycap {
+  flex: none;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 0.75px solid rgba(255, 255, 255, 0.12);
+  font: 11px/1.3 Consolas, "Cascadia Mono", ui-monospace, monospace;
+  white-space: nowrap;
+}
+
+/* One line of words. */
+.live-line {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.live-line.end {
+  text-overflow: ellipsis;
+}
+
+/* Keep the newest words: the head is clipped and faded instead of the tail. */
+.live-line.start {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.live-line.start.fade-head {
+  mask-image: linear-gradient(to right, transparent, #000 22px);
+}
+
+.live-inner {
+  flex: none;
+}
+
+/* Bars */
+.bars {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1px;
-  transition:
-    width 120ms ease-out,
-    height 120ms ease-out;
-}
-
-.pill.listening {
-  width: 132px;
-  height: 32px;
-}
-
-.pill.listening.hands-free {
-  width: 166px;
-}
-
-.pill.processing {
-  width: 112px;
-  height: 32px;
-}
-
-.pill.done,
-.pill.failed {
-  width: 44px;
-  height: 32px;
 }
 
 .bar {
-  width: 2px;
-  border-radius: 1px;
-  background: rgb(244, 242, 238);
+  display: block;
+  flex: none;
+  border-radius: 9999px;
+  background: var(--text);
+  transition: height 80ms linear;
 }
 
-/* Sits 8px above the pill: 26 + 32 + 8 from the window bottom. */
-.caption {
+/* Steps */
+.steps {
+  display: flex;
+  gap: 6px;
+}
+
+.seg {
+  position: relative;
+  flex: 1 1 0;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.seg.labelled {
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+}
+
+.seg-fill {
   position: absolute;
-  left: 50%;
-  bottom: 66px;
-  transform: translateX(-50%);
-  box-sizing: border-box;
-  max-width: 440px;
-  width: max-content;
-  padding: 6px 12px;
+  inset: 0 auto 0 0;
+  background: rgba(255, 255, 255, 0.9);
+  transition: width 1400ms cubic-bezier(0, 0, 0.3, 1);
+}
+
+.seg.labelled .seg-fill {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.seg-label {
+  position: relative;
+}
+
+.stop-square {
+  display: block;
+  background: rgba(244, 242, 238, 0.9);
+}
+
+/* Flow pill */
+.flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.caption-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.7);
-  border: 0.75px solid rgba(255, 255, 255, 0.15);
-  color: rgb(244, 242, 238);
-  font: 13px/1.3 "Segoe UI", system-ui, sans-serif;
-  text-align: center;
-  overflow-wrap: anywhere;
-  /* Two lines at most, so a long message never clips in the 126px window. */
+  font-size: 13px;
+  line-height: 20px;
+  animation: caption-in var(--spring-ms) var(--spring) both;
+}
+
+@keyframes caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+.caption-label {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pill-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: rgba(244, 242, 238, 0.82);
+}
+
+.pill-stop {
+  position: absolute;
+  right: 11px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Caption bar */
+.bar-idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  color: rgba(244, 242, 238, 0.78);
+}
+
+.bar-row {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 0 7px;
+}
+
+.bar-badge {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bar-text {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.bar-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(244, 242, 238, 0.6);
+  white-space: nowrap;
+}
+
+.chip {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+}
+
+.bar-lock {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bar-steps {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 0;
+}
+
+/* Island */
+.island {
+  display: flex;
+  flex-direction: column;
+}
+
+.island-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  white-space: nowrap;
+  color: rgba(244, 242, 238, 0.8);
+}
+
+.island-head.compact {
+  justify-content: center;
+  padding: 0 8px;
+}
+
+.island-time {
+  font-size: 12px;
+  color: rgba(244, 242, 238, 0.55);
+}
+
+.island-fail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rec);
+}
+
+.island-body {
+  flex: none;
+  padding: 0 16px;
+  font-size: 14.5px;
+  line-height: 20px;
+}
+
+.island-body p {
+  margin: 0;
+}
+
+/* Two lines. Finished text keeps its start; live words keep the newest line, so the tail is bottom-aligned. */
+.island-clamp {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
-/* WidgetPalette.dim: the processing label is quieter than a result. */
-.caption.dim {
-  color: rgba(244, 242, 238, 0.46);
+.island-tail {
+  height: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.island-steps {
+  flex: none;
+  padding: 0 14px 12px;
 }
