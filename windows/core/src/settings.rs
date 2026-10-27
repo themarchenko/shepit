@@ -390,7 +390,12 @@ pub struct Changes {
 
 impl Changes {
     pub fn any(&self) -> bool {
-        self.look || self.hotkey || self.visible || self.polishing || self.formatting
+        self.look
+            || self.hotkey
+            || self.visible
+            || self.polishing
+            || self.formatting
+            || self.updates
     }
 }
 
