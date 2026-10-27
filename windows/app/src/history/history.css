@@ -1,0 +1,126 @@
+/* The History window: a count bar over a scrolling list. Text here is selectable, unlike the other pages. */
+.hi-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hi-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 16px;
+  background: #26272a;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.hi-count {
+  color: var(--muted);
+}
+
+.hi-confirm {
+  color: var(--ink);
+}
+
+.hi-spacer {
+  flex: 1 1 auto;
+}
+
+.hi-error {
+  flex: none;
+  margin: 0;
+  padding: 10px 16px;
+  color: #f0a39b;
+  background: rgba(240, 163, 155, 0.08);
+}
+
+.hi-empty {
+  margin: 0;
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.hi-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.hi-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.hi-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  border: 2px solid var(--win);
+}
+
+.hi-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--group-line);
+}
+
+.hi-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  font-size: 12px;
+}
+
+.hi-time,
+.hi-meta {
+  color: var(--muted);
+}
+
+.hi-app {
+  font-weight: 600;
+}
+
+.hi-copy {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.hi-copy:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.hi-copied {
+  color: var(--muted);
+}
+
+.hi-raw {
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.hi-formatted {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}

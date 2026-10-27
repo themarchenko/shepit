@@ -2,10 +2,11 @@ import { useState, type ReactNode } from "react";
 import { useSettings, type SettingsStore } from "../shared/useSettings";
 import AboutPane from "./AboutPane";
 import AppearancePane from "./AppearancePane";
+import DictionaryPane from "./DictionaryPane";
 import GeneralPane from "./GeneralPane";
 import PolishingPane from "./PolishingPane";
 
-type Tab = "general" | "appearance" | "polishing" | "about";
+type Tab = "general" | "appearance" | "polishing" | "dictionary" | "about";
 
 // Inline SVG: the apps ship no icon font.
 function Icon({ children }: { children: ReactNode }) {
@@ -50,6 +51,17 @@ const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    id: "dictionary",
+    label: "Dictionary",
+    icon: (
+      <Icon>
+        <path d="M5 19V5.5A2 2 0 0 1 7 3.5h12v14H7a2 2 0 0 0-2 2" />
+        <path d="M7 17.5h12v3H7a2 2 0 0 1-2-1.5" />
+        <path d="M9 7.5h6" />
+      </Icon>
+    ),
+  },
+  {
     id: "about",
     label: "About",
     icon: (
@@ -67,6 +79,7 @@ function Pane({ tab, store }: { tab: Tab; store: SettingsStore }) {
   const props = { settings: store.settings, update: store.update };
   if (tab === "appearance") return <AppearancePane {...props} />;
   if (tab === "polishing") return <PolishingPane {...props} />;
+  if (tab === "dictionary") return <DictionaryPane {...props} />;
   if (tab === "about") return <AboutPane {...props} />;
   return <GeneralPane {...props} />;
 }

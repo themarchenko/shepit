@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { checkUpdatesNow, getUpdateStatus, onUpdateStatus, showTour, showUpdateCard, type UpdateStatus } from "../shared/api";
+import { checkUpdatesNow, getUpdateStatus, onUpdateStatus, openRecordingsFolder, showTour, showUpdateCard, type UpdateStatus } from "../shared/api";
 import { Button, Group, Row, Toggle } from "../shared/controls";
 import { type PaneProps } from "../shared/useSettings";
 
@@ -81,6 +81,9 @@ export default function AboutPane({ settings, update }: PaneProps) {
       <Group>
         <Row label="Welcome tour">
           <Button onClick={() => showTour().catch(() => {})}>Show again</Button>
+        </Row>
+        <Row label="Recordings" detail="Last 200 dictations, kept for comparing recognizers">
+          <Button onClick={() => openRecordingsFolder().catch(() => {})}>Open folder</Button>
         </Row>
       </Group>
       <Group title="Credits">

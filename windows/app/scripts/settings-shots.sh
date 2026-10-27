@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Renders every Settings and tour state in headless Chrome against the Vite dev server (dev mock, see
+# Renders every Settings, History and tour state in headless Chrome against the Vite dev server (dev mock, see
 # src/shared/mockBackend.ts) and writes PNGs to docs/_working/settings-shots. Never captures the screen.
-# Settings is 620x600, the tour 620x540 and the update card 420x320, the sizes of the real windows (the card
+# Settings is 620x600, History 760x520, the tour 620x540 and the update card 420x320, the sizes of the real windows (the card
 # window is 420 wide and sized to its content), at 1x and 1.5x.
 # Headless Chrome on the Mac has no Segoe UI, so text metrics differ from Windows.
 set -euo pipefail
@@ -68,13 +68,16 @@ shot() { # page mock width height scale
 SETTINGS="settings-general settings-general-downloading settings-general-picking settings-general-rightalt
 settings-general-mic-silent settings-appearance-flowPill settings-appearance-captionBar
 settings-appearance-island settings-polishing settings-polishing-none settings-polishing-codex
+settings-dictionary settings-dictionary-empty
 settings-about settings-about-available settings-about-checking settings-about-failed"
 UPDATE="update-checking update-upToDate update-available update-downloading update-downloadingNoSize
 update-installing update-checkFailed update-installFailed"
+HISTORY="history history-empty history-many history-error history-clear-confirm"
 TOUR="tour-1 tour-2 tour-2-denied tour-3 tour-4 tour-5 tour-5-downloading"
 
 for scale in 1 1.5; do
   for name in $SETTINGS; do shot settings "$name" 620 600 "$scale"; done
+  for name in $HISTORY; do shot history "$name" 760 520 "$scale"; done
   for name in $TOUR; do shot tour "$name" 620 540 "$scale"; done
   for name in $UPDATE; do shot update "$name" 420 320 "$scale"; done
 done

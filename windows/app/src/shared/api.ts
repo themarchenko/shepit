@@ -30,7 +30,7 @@ export interface SettingsData {
   hotkey: HotkeyInfo;
   model: ModelInfo;
   version: string;
-  // Polishing (docs/spec/settings.md). The dictionary is read-only here and not part of the payload.
+  // Polishing (docs/spec/settings.md).
   polishing: Polishing;
   claudeModel: ClaudeModel;
   // Empty means "found automatically".
@@ -43,6 +43,8 @@ export interface SettingsData {
   speakerNotes: string;
   // The daily update check (docs/spec/settings.md). The skipped version and the last check are not exposed.
   checkForUpdates: boolean;
+  // One term per entry, stored order, duplicates kept (docs/spec/settings.md). Learned terms arrive here.
+  dictionary: string[];
 }
 
 // What `detect_agents` returns: the resolved path of each agent that was found (null when missing) and the
@@ -69,6 +71,8 @@ export interface SettingsPatch {
   promptModeMinWords?: number;
   speakerNotes?: string;
   checkForUpdates?: boolean;
+  // Rust trims every item, drops blanks and replaces the whole list.
+  dictionary?: string[];
 }
 
 export type MicResult = "ok" | "silent" | "denied" | "noDevice" | "failed";
@@ -124,6 +128,32 @@ export interface CardPayload {
   buttons: CardButton[];
 }
 
+// One row of the History window (src-tauri/src/commands.rs HistoryItem).
+export interface HistoryItem {
+  id: number;
+  createdAtMs: number;
+  appName: string | null;
+  // The exe name.
+  appId: string | null;
+  profile: string;
+  mode: string;
+  // claude | codex | passthrough | fastPath | fallback
+  formatterSource: string;
+  sttMs: number;
+  llmMs: number;
+  rawText: string;
+  formattedText: string;
+  // inserted | clipboard
+  status: string;
+}
+
+// `history_recent`: the newest 200 rows, the number of rows in all, and why there are none (else null).
+export interface HistoryPayload {
+  items: HistoryItem[];
+  total: number;
+  error: string | null;
+}
+
 export interface Backend {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
   listen<T>(event: string, handler: (payload: T) => void): Promise<() => void>;
@@ -166,8 +196,13 @@ export const updateAction = (action: string) => backend.invoke<void>("update_act
 // Logical px: the card height plus its 20 px margins.
 export const updateResize = (height: number) => backend.invoke<void>("update_resize", { height });
 
+export const historyRecent = () => backend.invoke<HistoryPayload>("history_recent");
+export const historyClear = () => backend.invoke<void>("history_clear");
+export const openRecordingsFolder = () => backend.invoke<void>("open_recordings_folder");
+
 export const onSettingsChanged = (fn: (s: SettingsData) => void) => backend.listen<SettingsData>("settings-changed", fn);
 export const onModelStatus = (fn: (m: ModelInfo) => void) => backend.listen<ModelInfo>("model-status", fn);
 export const onHotkeyPick = (fn: (p: PickEvent) => void) => backend.listen<PickEvent>("hotkey-pick", fn);
 export const onUpdateStatus = (fn: (s: UpdateStatus) => void) => backend.listen<UpdateStatus>("update-status", fn);
 export const onUpdateCard = (fn: (c: CardPayload) => void) => backend.listen<CardPayload>("update-card", fn);
+export const onHistoryChanged = (fn: () => void) => backend.listen<unknown>("history-changed", () => fn());

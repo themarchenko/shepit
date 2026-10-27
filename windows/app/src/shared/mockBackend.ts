@@ -2,12 +2,13 @@
 // tour state can be rendered and checked, and scripts a few clicks for states that need them. Not part of
 // the production bundle. States: ?mock=settings-{general,general-downloading,general-picking,
 // general-rightalt,general-mic-silent,appearance-<style>,polishing,polishing-none,polishing-codex,about,
-// about-available,about-checking,about-failed}, ?mock=tour-{1,2,2-denied,3,4,5,5-downloading} or
+// about-available,about-checking,about-failed,dictionary,dictionary-empty}, ?mock=history{,-empty,-many,
+// -error,-clear-confirm}, ?mock=tour-{1,2,2-denied,3,4,5,5-downloading} or
 // ?mock=update-<case> for every case of the update card fixture (update-cards.json, the file Rust is tested against).
 import fixture from "../../../core/tests/fixtures/widget-layout-windows.json";
 import type { WidgetPhase, WidgetStage, WidgetState, WidgetStyle } from "../widgetState";
 import cards from "../../src-tauri/tests/fixtures/update-cards.json";
-import type { AgentsInfo, Backend, CardPayload, DemoStep, HotkeyInfo, MicCheck, MicResult, ModelInfo, PickEvent, Polishing, SettingsData, SettingsPatch, UpdateStatus } from "./api";
+import type { AgentsInfo, Backend, CardPayload, DemoStep, HistoryItem, HistoryPayload, HotkeyInfo, MicCheck, MicResult, ModelInfo, PickEvent, Polishing, SettingsData, SettingsPatch, UpdateStatus } from "./api";
 
 const HOTKEYS: Record<string, string> = {
   rightCtrl: "Right Ctrl",
@@ -81,6 +82,51 @@ function aboutStatus(name: string): UpdateStatus {
   }
 }
 
+const TERMS = ["Supabase", "Vercel", "Tauri", "WebView2", "Parakeet", "kubectl", "useEffect", "Claude Code"];
+
+// The splitting rule of dictionary::normalize_terms.
+const normalizeTerms = (terms: string[]) =>
+  terms.flatMap((t) => t.split(/\r\n|\r|\n/)).map((t) => t.trim()).filter((t) => t !== "");
+
+const SOURCES = ["claude", "codex", "passthrough", "fastPath", "fallback"];
+const LONG_RAW =
+  "so basically what I wanted to say is that the deploy pipeline keeps failing on the staging branch because the migration step runs before the database is ready and then the whole job times out after ten minutes and nobody notices until the next morning when the build badge is red and somebody has to dig through the logs to find out what happened";
+
+function historyItem(id: number, createdAtMs: number, n: number): HistoryItem {
+  const source = SOURCES[n % SOURCES.length];
+  const apps: [string | null, string | null][] = [["Visual Studio Code", "Code.exe"], [null, "slack.exe"], [null, null], ["Notepad", "notepad.exe"]];
+  const [appName, appId] = apps[n % apps.length];
+  const raw = n === 2 ? LONG_RAW : n % 2 ? "ok so let's meet tomorrow at ten" : "Зустрінемось завтра о десятій";
+  return {
+    id,
+    createdAtMs,
+    appName,
+    appId,
+    profile: n % 3 === 0 ? "chat" : "generic",
+    mode: n % 3 === 0 ? "raw" : "clean",
+    formatterSource: source,
+    sttMs: 180 + n * 7,
+    llmMs: source === "claude" || source === "codex" ? 600 + n * 11 : 0,
+    rawText: raw,
+    formattedText: n === 2 ? `${LONG_RAW.charAt(0).toUpperCase()}${LONG_RAW.slice(1)}.` : n % 2 ? "OK, so let's meet tomorrow at 10." : "Зустрінемось завтра о десятій.",
+    status: "inserted",
+  };
+}
+
+function historyPayload(name: string): HistoryPayload {
+  const now = Date.now();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(18, 42, 0, 0);
+  if (name === "history-empty") return { items: [], total: 0, error: null };
+  if (name === "history-error") return { items: [], total: 0, error: "History is unavailable" };
+  if (name === "history-many") {
+    return { items: Array.from({ length: 200 }, (_, i) => historyItem(1000 - i, now - i * 90_000, i)), total: 1234, error: null };
+  }
+  const items = Array.from({ length: 7 }, (_, i) => historyItem(10 - i, i < 3 ? now - (i * 9 + 2) * 60_000 : yesterday.getTime() - (i - 3) * 3_600_000, i));
+  return { items, total: items.length, error: null };
+}
+
 const STYLES: WidgetStyle[] = ["flowPill", "captionBar", "island"];
 
 interface Scenario {
@@ -125,6 +171,10 @@ function scenario(name: string): Scenario {
     case "settings-general-picking":
       s.clicks.push("[data-pick-button]");
       break;
+    case "settings-dictionary":
+    case "settings-dictionary-empty":
+      s.clicks.push("[data-tab=dictionary]");
+      break;
     case "settings-general-rightalt":
       s.hotkeyId = "rightAlt";
       break;
@@ -143,6 +193,9 @@ function scenario(name: string): Scenario {
     case "settings-polishing-codex":
       s.found = { claude: false, codex: true };
       s.clicks.push("[data-tab=polishing]");
+      break;
+    case "history-clear-confirm":
+      s.clicks.push("[data-clear]");
       break;
     case "settings-about":
     case "settings-about-available":
@@ -214,10 +267,37 @@ function cardProblems(resizes: number[], expected: CardPayload): string[] {
 
 // Publishes <html data-layout-check="PASS ..."|"FAIL ..."> for settings-shots.sh (read with --dump-dom):
 // nothing may overflow sideways, and a tour step must fit its window.
-function scheduleLayoutCheck(resizes: number[], expectCard: CardPayload | null) {
+function historyProblems(expected: HistoryPayload, name: string): string[] {
+  const problems: string[] = [];
+  const rows = document.querySelectorAll<HTMLElement>(".hi-row");
+  if (rows.length !== expected.items.length) problems.push(`${rows.length} rows != ${expected.items.length}`);
+  const count = document.querySelector("[data-count]")?.textContent ?? "";
+  const wantNote = expected.total > expected.items.length;
+  if (wantNote !== count.startsWith("Showing the newest")) problems.push(`count line "${count}" is wrong for total ${expected.total}`);
+  if (wantNote && !count.endsWith(` of ${expected.total}`)) problems.push(`count line "${count}" lacks the total`);
+  if ((document.querySelector(".hi-empty") !== null) !== (expected.items.length === 0 && !expected.error)) problems.push("empty state is wrong");
+  if ((document.querySelector(".hi-error") !== null) !== (expected.error !== null)) problems.push("error line is wrong");
+  const confirm = document.querySelector(".hi-confirm")?.textContent;
+  if ((name === "history-clear-confirm") !== (confirm !== undefined)) problems.push("confirmation is wrong");
+  if (confirm !== undefined && !confirm.startsWith(`Delete all ${expected.total} dictations`)) problems.push(`confirmation says "${confirm}"`);
+  for (const raw of document.querySelectorAll<HTMLElement>(".hi-raw")) {
+    if (raw.clientHeight > 3 * 20) problems.push("a raw text shows more than 3 lines");
+  }
+  const list = document.querySelector<HTMLElement>(".hi-list");
+  if (list && rows.length > 0 && list.clientHeight < 40) problems.push("the list has no room");
+  return problems;
+}
+
+function scheduleLayoutCheck(resizes: number[], expectCard: CardPayload | null, expectHistory: HistoryPayload | null, expectTerms: string[] | null, name: string) {
   window.setTimeout(() => {
     const problems: string[] = [];
     if (expectCard) problems.push(...cardProblems(resizes, expectCard));
+    if (expectHistory) problems.push(...historyProblems(expectHistory, name));
+    if (expectTerms) {
+      const box = document.querySelector<HTMLTextAreaElement>(".sp-terms");
+      if (!box) problems.push("no dictionary text area");
+      else if (box.value !== expectTerms.join("\n")) problems.push(`dictionary text "${box.value}" != the stored terms`);
+    }
     const doc = document.documentElement;
     const root = document.getElementById("root");
     const width = root?.clientWidth ?? window.innerWidth;
@@ -231,7 +311,7 @@ function scheduleLayoutCheck(resizes: number[], expectCard: CardPayload | null) 
     // The fallback rule: the chosen agent is never one that was not found.
     const chosen = document.querySelector<HTMLButtonElement>(".sp-provider[aria-checked=true]");
     if (chosen?.disabled) problems.push(`chosen agent ${chosen.dataset.provider} is not installed`);
-    for (const el of document.querySelectorAll<HTMLElement>(".sp-pane *, .sp-tour *")) {
+    for (const el of document.querySelectorAll<HTMLElement>(".sp-pane *, .sp-tour *, .hi-window *")) {
       if (el.closest(".sp-demo")) continue;
       const r = el.getBoundingClientRect();
       if (r.width > 0 && (r.right > width + 1 || r.left < -1)) {
@@ -248,7 +328,7 @@ function scheduleLayoutCheck(resizes: number[], expectCard: CardPayload | null) 
 // The real window sizes (logical). Headless Chrome's viewport is shorter than the window it is given, so the
 // page is forced to the size the native window would have.
 function forceWindowSize(name: string) {
-  const [width, height] = name.startsWith("update") ? [420, 320] : name.startsWith("tour") ? [620, 540] : [620, 600];
+  const [width, height] = name.startsWith("update") ? [420, 320] : name.startsWith("tour") ? [620, 540] : name.startsWith("history") ? [760, 520] : [620, 600];
   // The card window is transparent; a mid-grey desktop behind it shows the glass.
   if (name.startsWith("update")) document.documentElement.style.background = "#4a5568";
   for (const el of [document.documentElement, document.body, document.getElementById("root")]) {
@@ -288,6 +368,8 @@ export function createMockBackend(): Backend {
     promptModeMinWords: 40,
     speakerNotes: "",
     checkForUpdates: true,
+    dictionary: name === "settings-dictionary-empty" ? [] : name === "settings-dictionary" ? [...TERMS] : [],
+    history: historyPayload(name),
     update: aboutStatus(name),
   };
   const resizes: number[] = [];
@@ -310,6 +392,7 @@ export function createMockBackend(): Backend {
     promptModeMinWords: state.promptModeMinWords,
     speakerNotes: state.speakerNotes,
     checkForUpdates: state.checkForUpdates,
+    dictionary: state.dictionary,
   });
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(v)));
 
@@ -347,6 +430,7 @@ export function createMockBackend(): Backend {
       if (patch.promptModeMinWords !== undefined) state.promptModeMinWords = clamp(patch.promptModeMinWords, 10, 200);
       if (patch.speakerNotes !== undefined) state.speakerNotes = patch.speakerNotes;
       if (patch.checkForUpdates !== undefined) state.checkForUpdates = patch.checkForUpdates;
+      if (patch.dictionary !== undefined) state.dictionary = normalizeTerms(patch.dictionary);
       return data();
     },
     // The real command runs the same fallback rule server-side and re-sends the settings.
@@ -377,6 +461,11 @@ export function createMockBackend(): Backend {
         emit("update-status", state.update);
       }, 1200);
     },
+    history_recent: () => state.history,
+    history_clear: () => {
+      state.history = { items: [], total: 0, error: state.history.error };
+      emit("history-changed", null);
+    },
     update_card_ready: () => card,
     update_resize: (args) => {
       resizes.push(Number(args?.height));
@@ -385,7 +474,9 @@ export function createMockBackend(): Backend {
   };
 
   // The check runs once the scripted clicks are done and the last animation has settled.
-  runClicks(sc.clicks, () => scheduleLayoutCheck(resizes, card));
+  const expectHistory = name.startsWith("history") ? state.history : null;
+  const expectTerms = name.startsWith("settings-dictionary") ? state.dictionary : null;
+  runClicks(sc.clicks, () => scheduleLayoutCheck(resizes, card, expectHistory, expectTerms, name));
 
   return {
     invoke: async <T>(command: string, args?: Record<string, unknown>) => {
