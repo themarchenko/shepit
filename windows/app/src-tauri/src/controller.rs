@@ -3,7 +3,7 @@
 use shepit_core::context::TargetContext;
 use shepit_core::dictation::{
     CaptureError, Controller, Finished, FormatJob, FormatMeta, InsertJob, Job, ModelStatus,
-    Recorder, View, WidgetInput,
+    PreviewJob, Recorder, View, WidgetInput,
 };
 use shepit_core::insert::InsertOutcome;
 use shepit_core::keys::{Hotkey, HotkeyPicker, PickResult, RawKey};
@@ -31,6 +31,13 @@ pub enum Msg {
     },
     /// How long the recognizer took on dictation `id`, in ms. Sent just before its `Recognized`.
     SttMs { id: u64, ms: u64 },
+    /// A live preview pass for dictation `id` finished in `secs`. Display only.
+    Previewed {
+        id: u64,
+        seq: u64,
+        result: Result<String, String>,
+        secs: f64,
+    },
     /// The polish worker finished dictation `id` with the final `text`. Dropped unless `id` is the
     /// dictation being formatted.
     // Only tests send it now: every real answer carries a meta so it gets a history row.
@@ -113,6 +120,12 @@ impl<R: Recorder> Runner<R> {
             Msg::Model(status) => self.controller.on_model(status),
             Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
             Msg::SttMs { id, ms } => self.controller.on_stt_ms(id, ms),
+            Msg::Previewed {
+                id,
+                seq,
+                result,
+                secs,
+            } => self.controller.on_previewed(id, seq, result, secs, now),
             Msg::Formatted { id, text } => self.controller.on_formatted(id, text, now),
             Msg::FormattedWith { id, text, meta } => {
                 self.controller.on_formatted_with(id, text, meta, now)
@@ -193,6 +206,21 @@ impl<R: Recorder> Runner<R> {
         self.controller.take_job()
     }
 
+    /// The `livePreview` setting; it takes effect when the next recording starts.
+    pub fn set_live_preview(&mut self, on: bool) {
+        self.controller.set_live_preview(on);
+    }
+
+    /// The next preview pass, handed over once.
+    pub fn take_preview(&mut self) -> Option<PreviewJob> {
+        self.controller.take_preview()
+    }
+
+    /// The dictation whose preview passes are still wanted, or 0 (also after release).
+    pub fn preview_wanted(&self) -> u64 {
+        self.controller.preview_wanted().unwrap_or(0)
+    }
+
     /// The id of the job whose result is still wanted, or 0. Job ids start at 1.
     pub fn wanted(&self) -> u64 {
         self.controller.current_job().unwrap_or(0)
@@ -246,6 +274,15 @@ mod tests {
     };
 
     struct FakeRecorder;
+
+    impl shepit_core::live::LiveSource for FakeRecorder {
+        fn captured(&self) -> usize {
+            16_000
+        }
+        fn samples_from(&self, start: usize) -> Vec<f32> {
+            vec![0.1; 16_000usize.saturating_sub(start)]
+        }
+    }
 
     impl Recorder for FakeRecorder {
         fn start(&mut self) -> Result<(), CaptureError> {
@@ -910,5 +947,64 @@ mod tests {
         runner.step(Msg::Pick(PickMsg::Start), 20.0);
         runner.step(key_down(0x7D, 0), 21.0);
         assert_eq!(runner.take_pick(), Some(PickResult::Picked(Hotkey::F14)));
+    }
+
+    // Live preview.
+
+    /// Listening with the preview on and its first job handed out.
+    fn previewing() -> (Runner<FakeRecorder>, shepit_core::dictation::PreviewJob) {
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Ready);
+        runner.set_live_preview(true);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        runner.step(Msg::Tick, 11.0);
+        let job = runner.take_preview().expect("a preview job");
+        (runner, job)
+    }
+
+    #[test]
+    fn a_preview_job_is_handed_out_once_and_wanted_by_its_dictation() {
+        let (mut runner, job) = previewing();
+        assert_eq!(job.id, 1);
+        assert_eq!(job.samples.len(), 16_000);
+        assert_eq!(runner.preview_wanted(), 1);
+        assert!(runner.take_preview().is_none());
+    }
+
+    #[test]
+    fn a_previewed_message_reaches_the_view() {
+        let (mut runner, job) = previewing();
+        let view = runner
+            .step(
+                Msg::Previewed {
+                    id: job.id,
+                    seq: job.seq,
+                    result: Ok("so the widget should".into()),
+                    secs: 0.1,
+                },
+                11.2,
+            )
+            .expect("view changes");
+        assert_eq!(view.phase, Phase::Listening);
+        assert_eq!(view.live.stable, "so the");
+        assert_eq!(view.live.unstable, "widget should");
+    }
+
+    #[test]
+    fn preview_wanted_is_zero_after_release() {
+        let (mut runner, _job) = previewing();
+        assert_eq!(runner.preview_wanted(), 1);
+        runner.step(rctrl(WM_KEYUP), 11.5);
+        assert_eq!(runner.preview_wanted(), 0);
+        assert!(runner.take_preview().is_none());
+    }
+
+    #[test]
+    fn preview_wanted_is_zero_with_the_setting_off() {
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Ready);
+        runner.set_live_preview(false);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        runner.step(Msg::Tick, 11.0);
+        assert_eq!(runner.preview_wanted(), 0);
+        assert!(runner.take_preview().is_none());
     }
 }

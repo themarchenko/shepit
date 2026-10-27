@@ -94,6 +94,10 @@ fn apply_inner(
 ) -> Result<(Settings, Changes), String> {
     let host = app.state::<WidgetHost>();
     let (settings, changes) = host.update(edit)?;
+    if changes.live_preview {
+        host.live_preview()
+            .store(settings.live_preview, std::sync::atomic::Ordering::SeqCst);
+    }
     if changes.visible {
         if let Some(item) = app.try_state::<tray::ShowWidgetItem>() {
             let _ = item.0.set_checked(settings.widget_visible);

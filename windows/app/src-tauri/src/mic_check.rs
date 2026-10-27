@@ -74,6 +74,15 @@ mod tests {
 
     struct Fake(Result<(), CaptureError>, Vec<f32>);
 
+    impl shepit_core::live::LiveSource for Fake {
+        fn captured(&self) -> usize {
+            0
+        }
+        fn samples_from(&self, _start: usize) -> Vec<f32> {
+            Vec::new()
+        }
+    }
+
     impl Recorder for Fake {
         fn start(&mut self) -> Result<(), CaptureError> {
             self.0.clone()

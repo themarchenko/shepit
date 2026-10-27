@@ -25,16 +25,16 @@ mod widget_host;
 use controller::{log_line, Msg, Runner};
 use insert::Request;
 use polish::PolishHandle;
-use recognizer::ParakeetEngine;
+use recognizer::{ParakeetEngine, Work};
 use recorder::CpalRecorder;
 use shepit_core::cleanup::passthrough_clean;
-use shepit_core::dictation::{Finished, FormatMeta, Job, ModelStatus, Phase};
+use shepit_core::dictation::{Finished, FormatMeta, ModelStatus, Phase};
 use shepit_core::keys::PickResult;
 use shepit_core::polish::route::Source;
 use shepit_core::settings::Settings;
 use shepit_core::update::UpdateState;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -231,13 +231,17 @@ fn main() {
             hook::start(tx.clone(), host.settings().hotkey);
             // One recognizer for the whole run: it outlives controller restarts, so the model is
             // loaded once. It preloads (and downloads) at launch.
-            let (job_tx, job_rx) = mpsc::channel::<Job>();
+            let (job_tx, job_rx) = mpsc::channel::<Work>();
             let wanted = Arc::new(AtomicU64::new(0));
+            let preview_wanted = Arc::new(AtomicU64::new(0));
             {
-                let (wanted, tx) = (wanted.clone(), tx.clone());
+                let (wanted, preview_wanted, tx) =
+                    (wanted.clone(), preview_wanted.clone(), tx.clone());
                 std::thread::Builder::new()
                     .name("recognizer".into())
-                    .spawn(move || recognizer::run(ParakeetEngine::new(), job_rx, wanted, tx))?;
+                    .spawn(move || {
+                        recognizer::run(ParakeetEngine::new(), job_rx, wanted, preview_wanted, tx)
+                    })?;
             }
             // One worker for the target context and the paste: both need the same COM and
             // clipboard-owner state, which belongs to a single thread. The desktop is built inside
@@ -270,10 +274,21 @@ fn main() {
                 history: history_tx,
             };
             let handle = app.handle().clone();
+            let live = host.live_preview();
             // The recorder is built inside the thread: a cpal Stream may not be Send.
             std::thread::Builder::new()
                 .name("controller".into())
-                .spawn(move || run_controller(handle, tx, rx, workers, wanted, model))?;
+                .spawn(move || {
+                    run_controller(
+                        handle,
+                        tx,
+                        rx,
+                        workers,
+                        (wanted, preview_wanted),
+                        live,
+                        model,
+                    )
+                })?;
             ui::show_tour_on_first_run(app.handle());
             Ok(())
         })
@@ -283,7 +298,7 @@ fn main() {
 
 /// Where the controller sends work: the recognizer, the polish dispatcher and the insert worker.
 struct Workers {
-    jobs: Sender<Job>,
+    jobs: Sender<Work>,
     polish: PolishHandle,
     inserts: Sender<Request>,
     history: Sender<Finished>,
@@ -320,7 +335,10 @@ fn run_controller(
     tx: SyncSender<Msg>,
     rx: Receiver<Msg>,
     workers: Workers,
-    wanted: Arc<AtomicU64>,
+    // The final job the recognizer still wants, and the dictation whose previews it still wants.
+    (wanted, preview_wanted): (Arc<AtomicU64>, Arc<AtomicU64>),
+    // The `livePreview` setting, stored by `settings_store::apply`.
+    live: Arc<AtomicBool>,
     // Outlives the loop below: filled from every Model message before the controller sees it.
     model: Arc<Mutex<ModelStatus>>,
 ) {
@@ -329,7 +347,19 @@ fn run_controller(
         // Ids start at 1; 0 means "no job wanted".
         let first_job_id = job_id_base + 1;
         let result = catch_unwind(AssertUnwindSafe(|| {
-            controller_loop(&app, &tx, &rx, &workers, &wanted, first_job_id, &model)
+            controller_loop(
+                &app,
+                &tx,
+                &rx,
+                &workers,
+                &Flags {
+                    wanted: &wanted,
+                    preview_wanted: &preview_wanted,
+                    live: &live,
+                },
+                first_job_id,
+                &model,
+            )
         }));
         if result.is_ok() {
             return;
@@ -338,9 +368,20 @@ fn run_controller(
         eprintln!("controller thread panicked, restarting");
         job_id_base += JOB_ID_STRIDE;
         wanted.store(0, Ordering::SeqCst);
+        preview_wanted.store(0, Ordering::SeqCst);
         workers.polish.want(0);
         app.state::<WidgetHost>().view(widget::idle_view());
     }
+}
+
+/// What the controller thread shares with the recognizer and the settings.
+struct Flags<'a> {
+    /// The final job the recognizer still wants, or 0.
+    wanted: &'a AtomicU64,
+    /// The dictation whose previews it still wants, or 0.
+    preview_wanted: &'a AtomicU64,
+    /// The `livePreview` setting.
+    live: &'a AtomicBool,
 }
 
 /// Owns the dictation controller: feeds it hook and level messages, polls it every 100 ms and
@@ -350,10 +391,15 @@ fn controller_loop(
     tx: &SyncSender<Msg>,
     rx: &Receiver<Msg>,
     workers: &Workers,
-    wanted: &AtomicU64,
+    flags: &Flags,
     first_job_id: u64,
     model: &Mutex<ModelStatus>,
 ) {
+    let Flags {
+        wanted,
+        preview_wanted,
+        live,
+    } = *flags;
     let epoch = Instant::now();
     let known = *model.lock().unwrap_or_else(|e| e.into_inner());
     // After a restart the hook still holds the key in force, so the new controller starts on it. A
@@ -383,6 +429,14 @@ fn controller_loop(
                 println!("{}", shepit_core::context::presence_flags_line(context));
             }
         }
+        // Timing only, never the text: a preview is the user's speech.
+        if cfg!(debug_assertions) {
+            if let Msg::Previewed { secs, .. } = &msg {
+                println!("preview pass {secs:.2} s");
+            }
+        }
+        // Copied on every message, used by the controller at recording start only.
+        runner.set_live_preview(live.load(Ordering::SeqCst));
         let new_key = match &msg {
             Msg::Hotkey(hotkey) => Some(*hotkey),
             _ => None,
@@ -407,9 +461,15 @@ fn controller_loop(
         }
         // The wanted id goes first: the worker skips a job it has not started once Esc cleared it.
         wanted.store(runner.wanted(), Ordering::SeqCst);
+        // Before the final job is sent, so the worker skips a preview still queued behind it.
+        preview_wanted.store(runner.preview_wanted(), Ordering::SeqCst);
+        if let Some(pass) = runner.take_preview() {
+            // A dead recognizer just means no preview.
+            let _ = workers.jobs.send(Work::Preview(pass));
+        }
         if let Some(job) = runner.take_job() {
             let id = job.id;
-            if workers.jobs.send(job).is_err() {
+            if workers.jobs.send(Work::Final(job)).is_err() {
                 let fed = runner.step_at(
                     Msg::Recognized {
                         id,

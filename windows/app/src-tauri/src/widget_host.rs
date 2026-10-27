@@ -21,6 +21,7 @@ use shepit_core::widget::{
     default_anchor, resolve_anchor, Fitter, Monitor, Point, PointerGesture, PointerOut, Rect,
     Shrink, Size, HOLD_SECS, SHRINK_DELAY_SECS,
 };
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
@@ -34,6 +35,8 @@ pub struct WidgetHost {
     msgs: SyncSender<Msg>,
     /// Hover and pointer events from the frontend, in arrival order.
     ui: Sender<UiEvent>,
+    /// `livePreview`, shared with the controller thread. `settings_store::apply` stores it.
+    live: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +105,7 @@ fn lock(inner: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
 impl WidgetHost {
     pub fn new(app: AppHandle, msgs: SyncSender<Msg>, mut store: SettingsStore) -> Self {
         let settings = store.load();
+        let live = Arc::new(AtomicBool::new(settings.live_preview));
         let presentation = presentation_of(&settings);
         let view = widget::idle_view();
         let target = widget::window_for(&view, &presentation);
@@ -123,6 +127,7 @@ impl WidgetHost {
             inner: Arc::new(Mutex::new(inner)),
             msgs,
             ui,
+            live,
         };
         let worker = host.clone();
         std::thread::spawn(move || worker.drain(queue));
@@ -190,6 +195,11 @@ impl WidgetHost {
             inner.present()
         };
         self.spawn_shrink(later);
+    }
+
+    /// The live preview switch the controller reads at the start of a recording.
+    pub fn live_preview(&self) -> Arc<AtomicBool> {
+        self.live.clone()
     }
 
     /// A copy of the settings as they are now.

@@ -15,6 +15,7 @@ pub fn idle_view() -> View {
         stage: None,
         progress: None,
         target: None,
+        live: shepit_core::live::LiveText::default(),
     }
 }
 
@@ -113,10 +114,9 @@ impl WidgetState {
             key_label: presentation.hotkey.label().to_string(),
             hovering: presentation.hovering,
             target: view.target.clone(),
-            // Stays empty until the live preview exists (task 12).
             live: LiveJson {
-                stable: String::new(),
-                unstable: String::new(),
+                stable: view.live.stable.clone(),
+                unstable: view.live.unstable.clone(),
             },
             shape: ShapeJson {
                 width: layout.shape.width,
@@ -159,6 +159,7 @@ pub fn demo_script(style: Style, hotkey: Hotkey) -> Vec<DemoStep> {
         stage,
         progress: None,
         target: (phase != Phase::Idle).then(|| DEMO_TARGET.to_string()),
+        live: shepit_core::live::LiveText::default(),
     };
     let step = |view: View, hovering: bool, seconds: f64| DemoStep {
         state: WidgetState::new(&view, &presentation(hovering)),
@@ -196,7 +197,7 @@ fn layout_input(view: &View, presentation: &Presentation) -> LayoutInput {
         phase: view.phase,
         hands_free: view.hands_free,
         hovering: presentation.hovering,
-        has_live: false,
+        has_live: !view.live.is_empty(),
     }
 }
 
@@ -272,6 +273,17 @@ mod tests {
             stage: None,
             progress: None,
             target: None,
+            live: shepit_core::live::LiveText::default(),
+        }
+    }
+
+    fn live_view(phase: Phase) -> View {
+        View {
+            live: shepit_core::live::LiveText {
+                stable: "so the".into(),
+                unstable: "widget should".into(),
+            },
+            ..view(phase, false, "")
         }
     }
 
@@ -397,10 +409,46 @@ mod tests {
     }
 
     #[test]
-    fn live_text_is_empty_until_task_12() {
+    fn live_text_reaches_the_payload() {
+        let json = payload(&live_view(Phase::Listening), &Presentation::default());
+        assert_eq!(json["live"]["stable"], "so the");
+        assert_eq!(json["live"]["unstable"], "widget should");
+    }
+
+    #[test]
+    fn a_view_without_live_text_has_an_empty_live_payload() {
         let json = payload(&view(Phase::Listening, false, ""), &Presentation::default());
         assert_eq!(json["live"]["stable"], "");
         assert_eq!(json["live"]["unstable"], "");
+    }
+
+    #[test]
+    fn a_listening_island_with_text_is_410_by_94() {
+        let p = Presentation {
+            style: Style::Island,
+            ..Presentation::default()
+        };
+        let json = payload(&live_view(Phase::Listening), &p);
+        assert_eq!(json["shape"]["width"], 410.0);
+        assert_eq!(json["shape"]["height"], 94.0);
+        let plain = payload(&view(Phase::Listening, false, ""), &p);
+        assert_eq!(plain["shape"]["width"], 270.0);
+        assert_eq!(plain["shape"]["height"], 36.0);
+    }
+
+    #[test]
+    fn a_listening_flow_pill_with_text_has_the_caption_row() {
+        let json = payload(&live_view(Phase::Listening), &Presentation::default());
+        assert_eq!(json["caption"], true);
+        assert_eq!(json["window"]["width"], 520.0);
+        assert_eq!(json["window"]["height"], 126.0);
+        let plain = payload(&view(Phase::Listening, false, ""), &Presentation::default());
+        assert_eq!(plain["caption"], false);
+    }
+
+    #[test]
+    fn the_idle_view_has_no_live_text() {
+        assert!(idle_view().live.is_empty());
     }
 
     #[test]
