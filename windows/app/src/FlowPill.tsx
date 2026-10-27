@@ -1,5 +1,6 @@
 import { captionContent } from "./captionContent";
 import { CheckIcon, ExclamationIcon, StopSquare } from "./Icons";
+import FitRow from "./FitRow";
 import KeyCap from "./KeyCap";
 import LevelBars from "./LevelBars";
 import LiveLine from "./LiveLine";
@@ -24,11 +25,11 @@ export default function FlowPill({ s }: StyleProps) {
       )}
       <div className="glass shape pill" style={{ ...shapeStyle(s), ...glassStyle(s) }}>
         {idleHover && (
-          <div className="pill-hint fade-in">
+          <FitRow size={12} className="pill-hint fade-in">
             <span>Hold</span>
             <KeyCap label={s.keyLabel} />
             <span>to talk · click for hands-free</span>
-          </div>
+          </FitRow>
         )}
         {(listening || processing) && (
           <div className="fade-in" style={{ transform: `translateX(${s.handsFree ? -11 : 0}px)` }}>

@@ -156,6 +156,11 @@ export default function Widget({ preset }: { preset?: MockConfig }) {
           "--spring-ms": `${SPRING_MS}ms`,
           padding: `${MARGIN.y}px ${MARGIN.x}px`,
           opacity,
+          // The dev page has no native window: give the stage the exact window size, so a
+          // viewport wider than the window (headless Chrome has a minimum width) cannot hide a layout bug.
+          ...(preset
+            ? { position: "absolute", left: 0, bottom: 0, width: state.window.width, height: state.window.height }
+            : {}),
         } as React.CSSProperties
       }
       onPointerDown={onPointerDown}

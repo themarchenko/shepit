@@ -1,5 +1,6 @@
 import { liveFull, processingLabel, stepOf } from "./captionContent";
 import { CheckIcon, ExclamationIcon, LockIcon, MicIcon } from "./Icons";
+import FitRow from "./FitRow";
 import KeyCap from "./KeyCap";
 import LevelBars from "./LevelBars";
 import StepBar from "./StepBar";
@@ -22,11 +23,11 @@ export default function Island({ s, elapsed }: StyleProps) {
         {s.phase === "idle" && (
           <>
             {s.hovering ? (
-              <>
+              <FitRow size={12.5}>
                 <span>Hold</span>
                 <KeyCap label={s.keyLabel} />
                 <span>· click for hands-free</span>
-              </>
+              </FitRow>
             ) : (
               <>
                 <MicIcon size={10} />

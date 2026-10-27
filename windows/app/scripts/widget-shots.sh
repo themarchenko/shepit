@@ -13,6 +13,7 @@ NODE_BIN="$HOME/.nvm/versions/node/v24.22.1/bin"
 export PATH="$NODE_BIN:$PATH" COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 mkdir -p "$OUT"
+FAILS=0
 WORK="$(mktemp -d)"
 cd "$APP"
 corepack pnpm dev >"$WORK/vite.log" 2>&1 &
@@ -41,14 +42,34 @@ for c in json.load(open(sys.argv[1]))["cases"]:
 PY
 )"
 
+# Chrome has no built-in timeout and macOS has no timeout(1): stop a run that hangs after 40 s.
+chrome() { # output-file args...
+  local out="$1"
+  shift
+  "$CHROME" --headless=new --disable-gpu --no-first-run "$@" >"$out" 2>/dev/null &
+  local pid=$! n=0
+  while kill -0 "$pid" 2>/dev/null; do
+    n=$((n + 1))
+    [ "$n" -gt 400 ] && { kill "$pid"; echo "chrome timed out" >&2; return 1; }
+    sleep 0.1
+  done
+  wait "$pid" || true
+}
+
 shot() { # name query width height scale
-  local file="$OUT/$1@$5x.png"
-  "$CHROME" --headless=new --disable-gpu --hide-scrollbars --no-first-run \
-    --user-data-dir="$WORK/chrome" --force-device-scale-factor="$5" \
-    --window-size="$3,$4" --default-background-color=00000000 \
-    --virtual-time-budget=2500 --screenshot="$file" \
-    "http://localhost:$PORT/?$2" >/dev/null 2>&1
+  local file="$OUT/$1@$5x.png" url="http://localhost:$PORT/?$2"
+  chrome /dev/null --user-data-dir="$WORK/shot" --hide-scrollbars --force-device-scale-factor="$5" \
+    --window-size="$3,$4" --default-background-color=00000000 --virtual-time-budget=2500 \
+    --screenshot="$file" "$url"
   [ -s "$file" ] || { echo "missing $file" >&2; exit 1; }
+  # The mock publishes a layout verdict (shape size, centring, inside the window) on <html>.
+  local dom="$WORK/dom.html" verdict
+  chrome "$dom" --user-data-dir="$WORK/dom" --force-device-scale-factor="$5" \
+    --window-size="$3,$4" --virtual-time-budget=2500 --dump-dom "$url" || true
+  verdict="$(grep -o 'data-shape-check="[^"]*"' "$dom" | head -1 | sed 's/^data-shape-check="//; s/"$//' || true)"
+  verdict="${verdict:-FAIL no verdict}"
+  echo "$verdict  $(basename "$file")"
+  case "$verdict" in PASS*) ;; *) FAILS=$((FAILS + 1)) ;; esac
 }
 
 while read -r name w h; do
@@ -71,4 +92,5 @@ for style in flowPill captionBar island; do
     shot "$style-done-long" "mock=$style-done&long=1&bg=dark" "$w" "$h" "$scale"
   done
 done
-echo "wrote $(ls "$OUT"/*.png | wc -l | tr -d ' ') PNGs to $OUT"
+echo "wrote $(ls "$OUT"/*.png | wc -l | tr -d ' ') PNGs to $OUT, $FAILS failed the layout check"
+[ "$FAILS" -eq 0 ]

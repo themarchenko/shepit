@@ -71,5 +71,33 @@ export function mockFromLocation(): MockConfig | undefined {
     caption: c.expected.caption,
     window: c.expected.window,
   };
+  scheduleShapeCheck(state);
   return { state, elapsedSeconds: 7 };
+}
+
+// After the spring has settled, compare the rendered shape with the payload and publish the verdict as
+// <html data-shape-check="PASS ..."|"FAIL ..."> for widget-shots.sh (read with --dump-dom).
+function scheduleShapeCheck(state: WidgetState) {
+  setTimeout(() => {
+    const stage = document.querySelector(".stage")?.getBoundingClientRect();
+    const shape = document.querySelector(".shape")?.getBoundingClientRect();
+    let verdict: string;
+    if (!stage || !shape) {
+      verdict = "FAIL no stage or shape element";
+    } else {
+      const { shape: want, window: win } = state;
+      const problems: string[] = [];
+      if (Math.abs(stage.width - win.width) > 1 || Math.abs(stage.height - win.height) > 1)
+        problems.push(`stage ${stage.width}x${stage.height} != window ${win.width}x${win.height}`);
+      if (Math.abs(shape.width - want.width) > 1 || Math.abs(shape.height - want.height) > 1)
+        problems.push(`size ${shape.width.toFixed(1)}x${shape.height.toFixed(1)} != ${want.width}x${want.height}`);
+      const left = shape.left - stage.left;
+      const centre = left + shape.width / 2;
+      if (Math.abs(centre - win.width / 2) > 1) problems.push(`centre ${centre.toFixed(1)} != ${win.width / 2}`);
+      if (left < -0.5 || shape.right > stage.right + 0.5 || shape.top < stage.top - 0.5 || shape.bottom > stage.bottom + 0.5)
+        problems.push(`outside the window (x ${left.toFixed(1)}..${(left + shape.width).toFixed(1)})`);
+      verdict = problems.length ? `FAIL ${problems.join("; ")}` : `PASS shape x ${left.toFixed(1)}..${(left + shape.width).toFixed(1)} of ${win.width}`;
+    }
+    document.documentElement.dataset.shapeCheck = verdict;
+  }, 1000);
 }

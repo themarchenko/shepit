@@ -1,5 +1,6 @@
 import { captionContent, processingLabel, stepOf } from "./captionContent";
 import { CheckIcon, ExclamationIcon, StopSquare } from "./Icons";
+import FitRow from "./FitRow";
 import KeyCap from "./KeyCap";
 import LevelBars from "./LevelBars";
 import LiveLine from "./LiveLine";
@@ -15,11 +16,11 @@ export default function CaptionBar({ s, elapsed }: StyleProps) {
   return (
     <div className="glass shape" style={{ ...shapeStyle(s), ...glassStyle(s) }}>
       {s.phase === "idle" ? (
-        <div className="bar-idle fade-in">
+        <FitRow size={12.5} className="bar-idle fade-in">
           <span>Shepit</span>
           <KeyCap label={s.keyLabel} />
           {s.hovering && <span>hold to talk · click for hands-free</span>}
-        </div>
+        </FitRow>
       ) : (
         <div className="bar-row fade-in" key="active">
           <div className="bar-badge">
