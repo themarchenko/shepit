@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-resize"
+description = "Enables the update_resize command without any pre-configured scope."
+commands.allow = ["update_resize"]
+
+[[permission]]
+identifier = "deny-update-resize"
+description = "Denies the update_resize command without any pre-configured scope."
+commands.deny = ["update_resize"]

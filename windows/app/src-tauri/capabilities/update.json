@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "update",
+  "description": "Lets the update card listen for its content and call the three card commands. It gets no plugin permission.",
+  "windows": [
+    "update"
+  ],
+  "permissions": [
+    "core:event:default",
+    "allow-update-card-ready",
+    "allow-update-action",
+    "allow-update-resize"
+  ]
+}

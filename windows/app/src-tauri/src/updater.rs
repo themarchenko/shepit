@@ -1,29 +1,44 @@
-//! Windows updater wiring (docs/spec/updates-install.md). STUBS: the tests below define the
-//! behaviour; the bodies are `todo!()` until the implementer fills them in.
-#![allow(dead_code, unused_variables)]
+//! Windows updater wiring (docs/spec/updates-install.md). The plugin is registered with one
+//! option, the version rule; the key, the endpoint and the passive install all come from
+//! tauri.conf.json, and nothing here overrides them (tests/updater_trust.rs reads this file to
+//! keep it so). No webview can reach the plugin: every call below is Rust.
 
+use crate::widget_host::WidgetHost;
+use crate::{settings_store, shell, tray, ui, update_card};
 use serde::Serialize;
-use shepit_core::update::{CheckOutcome, UpdateState};
-use std::time::Duration;
-use tauri::{AppHandle, Runtime};
-use tauri_plugin_updater::{Config, UpdaterBuilder};
+use shepit_core::app_version::is_newer;
+use shepit_core::settings::Settings;
+use shepit_core::update::{
+    is_busy, is_due, on_check_result, CheckOutcome, CheckResult, UpdateState, FIRST_LOOK_SECS,
+    LOOK_EVERY_SECS,
+};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+use tauri_plugin_updater::{Config, Update, UpdaterBuilder, UpdaterExt};
 
-/// A check that has not answered after this long is an error (ReleaseFeed.swift:61).
+/// A check that has not answered after this long is an error (ReleaseFeed.swift:61). The download
+/// has no timeout: a slow connection must be able to finish.
 pub const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// The plugin asks this for every release it finds. Same rule as the other platform.
 pub fn accept_release(installed: &str, remote: &str) -> bool {
-    todo!()
+    is_newer(remote, installed)
 }
 
 /// The updater plugin the app registers. The key and the endpoint come from tauri.conf.json only.
 pub fn plugin<R: Runtime>() -> tauri::plugin::TauriPlugin<R, Config> {
-    todo!()
+    tauri_plugin_updater::Builder::new()
+        .default_version_comparator(|installed, remote| {
+            accept_release(&installed.to_string(), &remote.version.to_string())
+        })
+        .build()
 }
 
 /// The builder for one check of the installed app.
 pub fn checker<R: Runtime>(app: &AppHandle<R>) -> UpdaterBuilder {
-    todo!()
+    app.updater_builder().timeout(CHECK_TIMEOUT)
 }
 
 /// What `get_update_status` and the `update-status` event carry.
@@ -43,7 +58,33 @@ pub fn status_payload(
     total: Option<u64>,
     last_check: Option<u64>,
 ) -> StatusPayload {
-    todo!()
+    let (id, label, message) = match state {
+        UpdateState::Idle => ("idle", "Up to date".to_string(), None),
+        UpdateState::UpToDate => ("upToDate", "Up to date".to_string(), None),
+        UpdateState::Checking => ("checking", "Checking GitHub\u{2026}".to_string(), None),
+        UpdateState::Available(v) => ("available", format!("Shepit {v} is out"), None),
+        UpdateState::Downloading(v, fraction) => {
+            let label = if total.is_some() {
+                format!("Downloading {v}: {}%", (fraction * 100.0) as u32)
+            } else {
+                format!("Downloading {v}\u{2026}")
+            };
+            ("downloading", label, None)
+        }
+        UpdateState::Installing(v) => ("installing", format!("Installing {v}\u{2026}"), None),
+        UpdateState::Failed(m) => ("failed", "Last check failed".to_string(), Some(m.clone())),
+        UpdateState::InstallFailed(_, m) => (
+            "installFailed",
+            "The update did not install".to_string(),
+            Some(m.clone()),
+        ),
+    };
+    StatusPayload {
+        state: id.to_string(),
+        label,
+        message,
+        last_check,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -71,9 +112,107 @@ pub struct CardPayload {
     pub buttons: Vec<CardButton>,
 }
 
-/// `installed` is the running version; `total` the download size in bytes when known.
+fn button(id: &str, label: &str, primary: bool, lead: bool) -> CardButton {
+    CardButton {
+        id: id.to_string(),
+        label: label.to_string(),
+        kind: if primary { "primary" } else { "quiet" }.to_string(),
+        lead,
+    }
+}
+
+fn indeterminate() -> Option<Progress> {
+    Some(Progress { fraction: None })
+}
+
+/// `installed` is the running version; `total` the download size in bytes when known. The texts
+/// follow UpdatePanel.swift:32-89 with the Windows wording of the install.
 pub fn card_for(state: &UpdateState, installed: &str, total: Option<u64>) -> CardPayload {
-    todo!()
+    let card = |title: String, detail: Option<String>| CardPayload {
+        title,
+        detail,
+        progress: None,
+        link: None,
+        buttons: Vec::new(),
+    };
+    match state {
+        UpdateState::Idle | UpdateState::Checking => CardPayload {
+            progress: indeterminate(),
+            buttons: vec![button("dismiss", "Close", false, false)],
+            ..card("Checking for updates".into(), None)
+        },
+        UpdateState::UpToDate => CardPayload {
+            buttons: vec![button("dismiss", "OK", true, false)],
+            ..card(
+                "Shepit is up to date".into(),
+                Some(format!("You have the latest version, {installed}.")),
+            )
+        },
+        UpdateState::Available(version) => CardPayload {
+            link: Some(button("whatChanged", "What changed", false, false)),
+            buttons: vec![
+                button("skip", "Skip this version", false, true),
+                button("dismiss", "Later", false, false),
+                button("install", "Install and reopen", true, false),
+            ],
+            ..card(
+                format!("Shepit {version} is out"),
+                Some(format!(
+                    "You have {installed}. Shepit downloads the new version from GitHub, checks \
+                     that it is signed like this one, runs the installer and opens again."
+                )),
+            )
+        },
+        UpdateState::Downloading(version, fraction) => {
+            let (detail, progress) = match total {
+                Some(bytes) => {
+                    let megabytes = |n: f64| (n / 1_000_000.0).round();
+                    (
+                        format!(
+                            "Downloading\u{2026} {} of {} MB",
+                            megabytes(fraction * bytes as f64),
+                            megabytes(bytes as f64)
+                        ),
+                        Some(Progress {
+                            fraction: Some(*fraction),
+                        }),
+                    )
+                }
+                None => ("Downloading\u{2026}".to_string(), indeterminate()),
+            };
+            CardPayload {
+                progress,
+                ..card(format!("Updating to {version}"), Some(detail))
+            }
+        }
+        // The plugin verifies the signature after the last byte, so this is also the verify step.
+        UpdateState::Installing(version) => CardPayload {
+            progress: indeterminate(),
+            ..card(
+                format!("Updating to {version}"),
+                Some(
+                    "Checking the signature and starting the installer. Shepit reopens on its \
+                     own."
+                        .into(),
+                ),
+            )
+        },
+        UpdateState::Failed(message) => CardPayload {
+            buttons: failure_buttons(),
+            ..card("Could not check for updates".into(), Some(message.clone()))
+        },
+        UpdateState::InstallFailed(_, message) => CardPayload {
+            buttons: failure_buttons(),
+            ..card("The update did not install".into(), Some(message.clone()))
+        },
+    }
+}
+
+fn failure_buttons() -> Vec<CardButton> {
+    vec![
+        button("dismiss", "Close", false, false),
+        button("releasePage", "Open release page", true, false),
+    ]
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,7 +227,14 @@ pub enum CardAction {
 impl CardAction {
     /// `install`, `skip`, `dismiss`, `whatChanged` or `releasePage`; exact and case-sensitive.
     pub fn parse(id: &str) -> Option<CardAction> {
-        todo!()
+        match id {
+            "install" => Some(CardAction::Install),
+            "skip" => Some(CardAction::Skip),
+            "dismiss" => Some(CardAction::Dismiss),
+            "whatChanged" => Some(CardAction::WhatChanged),
+            "releasePage" => Some(CardAction::ReleasePage),
+            _ => None,
+        }
     }
 }
 
@@ -108,42 +254,382 @@ pub enum Effect {
 }
 
 pub fn action_effect(state: &UpdateState, action: CardAction) -> Effect {
-    todo!()
+    match (action, state) {
+        (CardAction::Install, UpdateState::Available(v)) => Effect::Install(v.clone()),
+        (CardAction::Skip, UpdateState::Available(v)) => Effect::Skip(v.clone()),
+        (CardAction::Install | CardAction::Skip, _) => Effect::Ignore,
+        (CardAction::Dismiss, _) => Effect::Close,
+        (CardAction::WhatChanged, UpdateState::Available(v)) => Effect::OpenPage {
+            version: Some(v.clone()),
+            close: false,
+        },
+        (CardAction::WhatChanged, _) => Effect::Ignore,
+        (CardAction::ReleasePage, state) => Effect::OpenPage {
+            version: match state {
+                UpdateState::InstallFailed(v, _) | UpdateState::Available(v) => Some(v.clone()),
+                _ => None,
+            },
+            close: true,
+        },
+    }
 }
 
 /// A check result opens the card only when it found a release the user should see.
 pub fn opens_card(outcome: &CheckOutcome) -> bool {
-    todo!()
+    matches!(outcome.state, UpdateState::Available(_)) && outcome.show_card
+}
+
+// The worker. One thread runs checks and card clicks in order; an install runs on a thread of its
+// own so the card and the tray keep answering while it downloads.
+
+enum UpdateMsg {
+    /// The hourly look: checks only when checking is on and the last check is a day old.
+    Look,
+    /// `user` is a check someone asked for. `card_first` opens the card before it starts (the tray).
+    Check {
+        user: bool,
+        card_first: bool,
+    },
+    Action(CardAction),
+}
+
+struct Session {
+    state: UpdateState,
+    /// The release found by the last check, taken by the install.
+    pending: Option<Update>,
+    /// Download size in bytes once the server reports it.
+    total: Option<u64>,
+}
+
+#[derive(Clone)]
+pub struct Updates {
+    session: Arc<Mutex<Session>>,
+    tx: Sender<UpdateMsg>,
+    /// The tray text now shown, so a download does not rename the item at every percent.
+    tray_text: Arc<Mutex<String>>,
+}
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+/// Starts the worker and the hourly look, and manages the shared state. Call after the widget host
+/// is managed: the worker reads the settings from it.
+pub fn start(app: &AppHandle) -> std::io::Result<()> {
+    let (tx, rx) = mpsc::channel();
+    let updates = Updates {
+        session: Arc::new(Mutex::new(Session {
+            state: UpdateState::Idle,
+            pending: None,
+            total: None,
+        })),
+        tx: tx.clone(),
+        tray_text: Arc::new(Mutex::new(tray::update_label(&UpdateState::Idle))),
+    };
+    app.manage(updates.clone());
+    let handle = app.clone();
+    std::thread::Builder::new()
+        .name("updates".into())
+        .spawn(move || work(handle, updates, rx))?;
+    std::thread::Builder::new()
+        .name("update-ticker".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_secs(FIRST_LOOK_SECS));
+            while tx.send(UpdateMsg::Look).is_ok() {
+                std::thread::sleep(Duration::from_secs(LOOK_EVERY_SECS));
+            }
+        })?;
+    Ok(())
+}
+
+impl Updates {
+    /// The tray item: the card opens first, then the check runs. Never blocks.
+    pub fn check_from_tray(&self) {
+        let _ = self.tx.send(UpdateMsg::Check {
+            user: true,
+            card_first: true,
+        });
+    }
+}
+
+fn work(app: AppHandle, updates: Updates, rx: Receiver<UpdateMsg>) {
+    for msg in rx {
+        match msg {
+            UpdateMsg::Look => look(&app, &updates),
+            UpdateMsg::Check { user, card_first } => check(&app, &updates, user, card_first),
+            UpdateMsg::Action(action) => act(&app, &updates, action),
+        }
+    }
+}
+
+fn look(app: &AppHandle, updates: &Updates) {
+    let settings = app.state::<WidgetHost>().settings();
+    let busy = is_busy(&lock(&updates.session).state);
+    if !busy
+        && is_due(
+            settings.check_for_updates,
+            settings.last_update_check,
+            unix_now(),
+        )
+    {
+        check(app, updates, false, false);
+    }
+}
+
+fn open_card(app: &AppHandle) {
+    if let Err(err) = update_card::open(app) {
+        eprintln!("could not open the update card: {err}");
+    }
+}
+
+fn installed_version(app: &AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+/// Tells Settings, the card and the tray about the state now in force. Holds no lock while it
+/// talks to them.
+fn publish(app: &AppHandle, updates: &Updates) {
+    let (state, total) = {
+        let session = lock(&updates.session);
+        (session.state.clone(), session.total)
+    };
+    let last_check = app.state::<WidgetHost>().settings().last_update_check;
+    if app.get_webview_window(ui::SETTINGS).is_some() {
+        let payload = status_payload(&state, total, last_check);
+        if let Err(err) = app.emit_to(ui::SETTINGS, "update-status", payload) {
+            eprintln!("could not send the update status: {err}");
+        }
+    }
+    update_card::refresh(app, &card_for(&state, &installed_version(app), total));
+    let label = tray::update_label(&state);
+    let mut shown = lock(&updates.tray_text);
+    if *shown != label {
+        if let Some(item) = app.try_state::<tray::UpdateItem>() {
+            if item.0.set_text(&label).is_ok() {
+                *shown = label;
+            }
+        }
+    }
+}
+
+fn check(app: &AppHandle, updates: &Updates, user: bool, card_first: bool) {
+    let (busy, offered) = {
+        let session = lock(&updates.session);
+        (
+            is_busy(&session.state),
+            matches!(session.state, UpdateState::Available(_)),
+        )
+    };
+    if card_first && (busy || offered) {
+        open_card(app);
+        return;
+    }
+    if busy {
+        return;
+    }
+    lock(&updates.session).state = UpdateState::Checking;
+    publish(app, updates);
+    if card_first {
+        open_card(app);
+    }
+    let found = tauri::async_runtime::block_on(async { checker(app).build()?.check().await });
+    let (result, release) = match found {
+        Ok(None) => (CheckResult::UpToDate, None),
+        Ok(Some(update)) => (CheckResult::Newer(update.version.clone()), Some(update)),
+        Err(err) => (CheckResult::Error(err.to_string()), None),
+    };
+    let skipped = app.state::<WidgetHost>().settings().skipped_update;
+    let outcome = on_check_result(result, user, &skipped, unix_now());
+    if let Some(time) = outcome.store_check_time {
+        let stored = settings_store::apply(app, |current| {
+            Ok(Settings {
+                last_update_check: Some(time),
+                ..current.clone()
+            })
+        });
+        if let Err(err) = stored {
+            eprintln!("could not store the time of the update check: {err}");
+        }
+    }
+    {
+        let mut session = lock(&updates.session);
+        session.state = outcome.state.clone();
+        session.pending = release;
+        session.total = None;
+    }
+    publish(app, updates);
+    if opens_card(&outcome) {
+        open_card(app);
+    }
+}
+
+fn act(app: &AppHandle, updates: &Updates, action: CardAction) {
+    let state = lock(&updates.session).state.clone();
+    match action_effect(&state, action) {
+        Effect::Ignore => {}
+        Effect::Install(version) => start_install(app, updates, version),
+        Effect::Skip(version) => {
+            let stored = settings_store::apply(app, |current| {
+                Ok(Settings {
+                    skipped_update: version.clone(),
+                    ..current.clone()
+                })
+            });
+            if let Err(err) = stored {
+                eprintln!("could not store the skipped version: {err}");
+            }
+            update_card::close(app);
+        }
+        Effect::OpenPage { version, close } => {
+            if let Err(err) = shell::open_release_page(version.as_deref()) {
+                eprintln!("{err}");
+            }
+            if close {
+                update_card::close(app);
+            }
+        }
+        Effect::Close => update_card::close(app),
+    }
+}
+
+fn start_install(app: &AppHandle, updates: &Updates, version: String) {
+    let release = {
+        let mut session = lock(&updates.session);
+        session.state = UpdateState::Downloading(version.clone(), 0.0);
+        session.total = None;
+        session.pending.take()
+    };
+    publish(app, updates);
+    let Some(release) = release else {
+        fail(app, updates, &version, "The update is no longer available.");
+        return;
+    };
+    let (handle, shared) = (app.clone(), updates.clone());
+    let spawned = std::thread::Builder::new()
+        .name("update-install".into())
+        .spawn(move || install(&handle, &shared, release));
+    if let Err(err) = spawned {
+        fail(app, updates, &version, &err.to_string());
+    }
+}
+
+fn fail(app: &AppHandle, updates: &Updates, version: &str, message: &str) {
+    {
+        let mut session = lock(&updates.session);
+        session.state = UpdateState::InstallFailed(version.to_string(), message.to_string());
+        session.pending = None;
+        session.total = None;
+    }
+    publish(app, updates);
+    // The user may have closed the card while it ran; the failure must be seen.
+    open_card(app);
+}
+
+/// Downloads, verifies and starts the installer. On Windows a success ends the process (the
+/// installer reopens the app); every other result lands in `fail`.
+fn install(app: &AppHandle, updates: &Updates, release: Update) {
+    let version = release.version.clone();
+    if !cfg!(windows) {
+        fail(app, updates, &version, "Updates install only on Windows.");
+        return;
+    }
+    let mut done: u64 = 0;
+    let mut shown: Option<u32> = None;
+    let result = tauri::async_runtime::block_on(release.download_and_install(
+        |chunk, total| {
+            done += chunk as u64;
+            let Some(total) = total.filter(|t| *t > 0) else {
+                return;
+            };
+            let fraction = (done as f64 / total as f64).min(1.0);
+            let percent = (fraction * 100.0) as u32;
+            if shown == Some(percent) {
+                return;
+            }
+            shown = Some(percent);
+            {
+                let mut session = lock(&updates.session);
+                session.total = Some(total);
+                session.state = UpdateState::Downloading(version.clone(), fraction);
+            }
+            publish(app, updates);
+        },
+        || {
+            // The plugin checks the signature next; the card says so.
+            lock(&updates.session).state = UpdateState::Installing(version.clone());
+            publish(app, updates);
+        },
+    ));
+    if let Err(err) = result {
+        fail(app, updates, &version, &err.to_string());
+    }
+}
+
+// The commands. Async on purpose: a sync command runs on the main thread, and building the card
+// waits for it.
+
+#[tauri::command]
+pub async fn get_update_status(
+    app: AppHandle,
+    updates: State<'_, Updates>,
+) -> Result<StatusPayload, String> {
+    let (state, total) = {
+        let session = lock(&updates.session);
+        (session.state.clone(), session.total)
+    };
+    let last_check = app.state::<WidgetHost>().settings().last_update_check;
+    Ok(status_payload(&state, total, last_check))
+}
+
+/// Settings > About "Check now". A found release opens the card; nothing else does.
+#[tauri::command]
+pub async fn check_updates_now(updates: State<'_, Updates>) -> Result<(), String> {
+    updates
+        .tx
+        .send(UpdateMsg::Check {
+            user: true,
+            card_first: false,
+        })
+        .map_err(|_| "The updater is not running".to_string())
+}
+
+/// Settings > About "Install...": opens the card for the release that is out.
+#[tauri::command]
+pub async fn show_update_card(app: AppHandle) -> Result<(), String> {
+    update_card::open(&app)
+}
+
+/// The card page loaded: it gets what to draw now and updates through `update-card`.
+#[tauri::command]
+pub async fn update_card_ready(
+    app: AppHandle,
+    updates: State<'_, Updates>,
+) -> Result<CardPayload, String> {
+    let (state, total) = {
+        let session = lock(&updates.session);
+        (session.state.clone(), session.total)
+    };
+    Ok(card_for(&state, &installed_version(&app), total))
 }
 
 #[tauri::command]
-pub async fn get_update_status() -> Result<StatusPayload, String> {
-    todo!()
+pub async fn update_action(updates: State<'_, Updates>, action: String) -> Result<(), String> {
+    let action = CardAction::parse(&action).ok_or_else(|| format!("unknown action: {action}"))?;
+    updates
+        .tx
+        .send(UpdateMsg::Action(action))
+        .map_err(|_| "The updater is not running".to_string())
 }
 
 #[tauri::command]
-pub async fn check_updates_now() -> Result<(), String> {
-    todo!()
-}
-
-#[tauri::command]
-pub async fn show_update_card() -> Result<(), String> {
-    todo!()
-}
-
-#[tauri::command]
-pub async fn update_card_ready() -> Result<CardPayload, String> {
-    todo!()
-}
-
-#[tauri::command]
-pub async fn update_action(action: String) -> Result<(), String> {
-    todo!()
-}
-
-#[tauri::command]
-pub async fn update_resize(height: f64) -> Result<(), String> {
-    todo!()
+pub async fn update_resize(app: AppHandle, height: f64) -> Result<(), String> {
+    update_card::resize(&app, height)
 }
 
 #[cfg(test)]
@@ -226,7 +712,7 @@ mod tests {
     fn checking_reads_checking_github() {
         let s = status(&UpdateState::Checking, None, None);
         assert_eq!(s["state"], "checking");
-        assert_eq!(s["label"], "Checking GitHub...");
+        assert_eq!(s["label"], "Checking GitHub…");
         assert_eq!(s["lastCheck"], Value::Null);
     }
 
@@ -251,14 +737,14 @@ mod tests {
     #[test]
     fn a_download_without_a_size_shows_no_percent() {
         let s = status(&UpdateState::Downloading(v("0.4.0"), 0.0), None, None);
-        assert_eq!(s["label"], "Downloading 0.4.0...");
+        assert_eq!(s["label"], "Downloading 0.4.0…");
     }
 
     #[test]
     fn installing_names_its_version() {
         let s = status(&UpdateState::Installing(v("0.4.0")), None, None);
         assert_eq!(s["state"], "installing");
-        assert_eq!(s["label"], "Installing 0.4.0...");
+        assert_eq!(s["label"], "Installing 0.4.0…");
     }
 
     #[test]

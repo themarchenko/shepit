@@ -87,7 +87,7 @@
       },
       "card": {
         "title": "Updating to 0.4.0",
-        "detail": "Downloading... 12 of 48 MB",
+        "detail": "Downloading… 12 of 48 MB",
         "progress": {
           "fraction": 0.25
         },
@@ -104,7 +104,7 @@
       },
       "card": {
         "title": "Updating to 0.4.0",
-        "detail": "Downloading...",
+        "detail": "Downloading…",
         "progress": {
           "fraction": null
         },

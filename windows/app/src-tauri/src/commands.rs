@@ -57,6 +57,8 @@ pub struct SettingsPayload {
     pub fast_path_max_words: i64,
     pub prompt_mode_min_words: i64,
     pub speaker_notes: String,
+    /// The daily look at GitHub (Settings > About).
+    pub check_for_updates: bool,
 }
 
 /// `detect_agents`: the resolved paths (null when not found) and the settings after the fallback
@@ -93,6 +95,7 @@ pub fn settings_payload(settings: &Settings, model: ModelStatus, version: &str) 
         fast_path_max_words: settings.fast_path_max_words,
         prompt_mode_min_words: settings.prompt_mode_min_words,
         speaker_notes: settings.speaker_notes.clone(),
+        check_for_updates: settings.check_for_updates,
     }
 }
 

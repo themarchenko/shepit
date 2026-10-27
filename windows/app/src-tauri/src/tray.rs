@@ -14,20 +14,26 @@ pub enum MenuAction {
 /// The "Show widget" check item, kept so a change made in Settings can update it.
 pub struct ShowWidgetItem(pub tauri::menu::CheckMenuItem<tauri::Wry>);
 
+/// The "Check for updates…" item, kept so the updater can rename it to "Update to X…".
+pub struct UpdateItem(pub tauri::menu::MenuItem<tauri::Wry>);
+
 pub fn action_for(id: &str) -> MenuAction {
     match id {
         "quit" => MenuAction::Quit,
         "settings" => MenuAction::OpenSettings,
         "toggle-widget" => MenuAction::ToggleWidget,
         "reset-widget" => MenuAction::ResetWidget,
+        "check-updates" => MenuAction::CheckUpdates,
         _ => MenuAction::None,
     }
 }
 
 /// The tray item next to Settings: offers the release when one is found, else starts a check.
-#[allow(dead_code)]
 pub fn update_label(state: &UpdateState) -> String {
-    todo!()
+    match state {
+        UpdateState::Available(version) => format!("Update to {version}\u{2026}"),
+        _ => "Check for updates\u{2026}".to_string(),
+    }
 }
 
 /// Tray tooltip for the model state: the download percent while it runs, else the app name.
@@ -127,7 +133,7 @@ mod tests {
             UpdateState::UpToDate,
             UpdateState::Failed("offline".into()),
         ] {
-            assert_eq!(update_label(&state), "Check for updates...", "{state:?}");
+            assert_eq!(update_label(&state), "Check for updates…", "{state:?}");
         }
     }
 
@@ -135,7 +141,7 @@ mod tests {
     fn the_update_item_names_the_release_that_is_out() {
         assert_eq!(
             update_label(&UpdateState::Available("0.4.0".into())),
-            "Update to 0.4.0..."
+            "Update to 0.4.0…"
         );
     }
 

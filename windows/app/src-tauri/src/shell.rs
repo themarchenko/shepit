@@ -1,32 +1,43 @@
-//! Opening Windows pages from the app. There is no generic opener: the one page Shepit links to
-//! is the microphone privacy page, so no argument can reach `ShellExecuteW`.
+//! Opening pages from the app. There is no generic opener: the pages Shepit links to are the
+//! microphone privacy page and a release page built here from a constant and a version of digits
+//! and dots, so no text from a webview or from the feed reaches `ShellExecuteW`.
 
 /// The Settings page the microphone guidance points at.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub const MIC_PRIVACY_URI: &str = "ms-settings:privacy-microphone";
 
 /// Where Shepit releases live.
-#[cfg_attr(not(windows), allow(dead_code))]
 pub const RELEASES_URL: &str = "https://github.com/themarchenko/shepit/releases";
 
 /// The page of one release, or the latest releases page. A version that is not digits and dots
 /// (`0.4.0/../x`, `0.4.0-rc1`, empty) gets the latest page, so no feed text reaches the URL.
-#[cfg_attr(not(windows), allow(dead_code))]
 pub fn release_page_url(version: Option<&str>) -> String {
-    todo!()
+    match version {
+        Some(v) if !v.is_empty() && v.chars().all(|c| c.is_ascii_digit() || c == '.') => {
+            format!("{RELEASES_URL}/tag/v{v}")
+        }
+        _ => format!("{RELEASES_URL}/latest"),
+    }
+}
+
+/// Opens the page of release `version`, or the latest releases page.
+pub fn open_release_page(version: Option<&str>) -> Result<(), String> {
+    open_url(&release_page_url(version)).map_err(|_| "Could not open the release page".to_string())
 }
 
 /// Opens the Windows microphone privacy page.
-#[cfg(windows)]
 pub fn open_microphone_privacy() -> Result<(), String> {
+    open_url(MIC_PRIVACY_URI).map_err(|_| "Could not open the Windows privacy settings".to_string())
+}
+
+/// Private on purpose: callers pass a constant or a URL built in this file.
+#[cfg(windows)]
+fn open_url(target: &str) -> Result<(), ()> {
     use windows::core::{w, PCWSTR};
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    let uri: Vec<u16> = MIC_PRIVACY_URI
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
+    let uri: Vec<u16> = target.encode_utf16().chain(std::iter::once(0)).collect();
     // SAFETY: `uri` is a NUL-terminated UTF-16 string that outlives the call, and the other string
     // arguments are null, which ShellExecuteW allows. No window handle is passed.
     let result = unsafe {
@@ -43,13 +54,13 @@ pub fn open_microphone_privacy() -> Result<(), String> {
     if result.0 as isize > 32 {
         Ok(())
     } else {
-        Err("Could not open the Windows privacy settings".to_string())
+        Err(())
     }
 }
 
-/// There is no Windows privacy page elsewhere; the button does nothing.
+/// Nothing opens off Windows; the buttons do nothing.
 #[cfg(not(windows))]
-pub fn open_microphone_privacy() -> Result<(), String> {
+fn open_url(_target: &str) -> Result<(), ()> {
     Ok(())
 }
 
