@@ -71,7 +71,7 @@ Sources: `.github/workflows/release.yml`, `windows/release-check`, `windows/app/
 
 ## Installing an update (Windows)
 
-Sources: `windows/app/src-tauri/tauri.conf.json`, `tauri-plugin-updater` 2.14.0. Needs device checks.
+Sources: `windows/app/src-tauri/tauri.conf.json`, `tauri-plugin-updater` 2.14.0. NOT WIRED YET: the updater plugin, the tray items and the update card arrive in the next change (task 11, C3 and C5). Until then the Windows app does not check for updates and users reinstall with `install.ps1`. What follows is the target behaviour; it needs device checks.
 
 - The app checks on the schedule above, offers the update in a card, supports skip, and has Check for Updates and the daily-check switch in the tray menu.
 - Installing downloads `Shepit-setup.exe`, verifies the signature, runs the installer in passive mode (progress window, no questions, per-user, no administrator rights) and relaunches the app.
@@ -80,14 +80,14 @@ Sources: `windows/app/src-tauri/tauri.conf.json`, `tauri-plugin-updater` 2.14.0.
 
 ## Trust boundary (Windows)
 
-Sources: `windows/release-check/src/lib.rs`, `tauri.conf.json`, `tauri.release.conf.json`.
+Sources: `windows/release-check/src/lib.rs`, `tauri.conf.json`, `tauri.runtime.conf.json`. Not enforced by the app until the updater is wired (see above); the release checks already run.
 
 - Every update must carry a minisign signature that verifies against the public key in `plugins.updater.pubkey` of the installed app. There is no fallback and no override; the plugin refuses before it runs anything, and no `dangerous*` key is set.
 - `requireSignedVersion` is on: the signed comment must carry a version equal to the version the feed announces. A tampered feed cannot offer an older signed installer as an update.
 - The same key is pinned a second time as `PINNED_UPDATER_PUBKEY` in `windows/release-check`. A unit test requires the two to be equal. The release workflow verifies the built installer against the constant, before anything is uploaded.
 - The private key and its password live only in the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and in a local folder of the maintainer. The key is never replaced: installed copies would stop updating, as with the macOS certificate.
 - The installer itself is not code-signed (no Authenticode certificate). The signature check above is the update boundary; the first install is covered below.
-- Signing happens only in the release workflow, through `tauri.release.conf.json`. Pull request builds have no secrets and build an unsigned installer.
+- Signing happens only in the release workflow, in its own step after the build: `tauri signer sign --app-version <version>` on the staged installer, with the key and password in the environment of that step only. The build itself (the same config as pull requests, `tauri.runtime.conf.json`) never sees the key and creates no updater artifacts. Pull request builds have no secrets and no signature.
 
 ## install.ps1 (Windows)
 

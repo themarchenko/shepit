@@ -7,8 +7,11 @@
 # installs starts without that prompt. No administrator rights are needed: Shepit installs for the
 # current user.
 #
-# SHEPIT_URL takes another installer, as a URL or a local path, for example a local build. The
+# SHEPIT_URL takes another installer, for testing: a URL on another https host or a local path. The
 # checksum is always read from "<SHEPIT_URL>.sha256" and always compared; there is no way to skip it.
+# The checksum detects a damaged download. It does not detect a tampered release, because the file and
+# its checksum come from the same place. For updates, the signature check inside the app is the trust
+# boundary.
 #
 # Everything runs inside a function and failures throw instead of calling exit, because
 # "irm | iex" runs in the caller's session and exit would close their window.

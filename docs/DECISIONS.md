@@ -570,9 +570,14 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   `minisign-verify` 0.3.0 in `release-check`, the same one the plugin resolves. The decode and verify
   steps in `release-check` copy the plugin's, so the CI check accepts exactly what the installed app
   accepts.
-- Signing only at release: `tauri.release.conf.json` turns on `createUpdaterArtifacts` and repeats the
-  DirectML resource of `tauri.runtime.conf.json`; a test keeps the two resource lists equal. Pull
-  request builds have no secrets and use the runtime config.
+- Signing only at release, and not inside the build: the release builds with `tauri.runtime.conf.json`
+  like pull requests (no `createUpdaterArtifacts`, no `plugins`; tests and `check_config` enforce it) and
+  a later step signs the staged installer with `pnpm exec tauri signer sign --app-version <version>`. The
+  two secrets are in the environment of that step only, so the Vite build and every build.rs never see
+  them (security review M1). An earlier draft used a `tauri.release.conf.json` with
+  `createUpdaterArtifacts` and put the secrets on `tauri build`; it was removed.
+- Tag safety: both release jobs fail unless the tagged commit is an ancestor of `origin/main`, because a
+  tag can be pushed from any branch (security review M2).
 - The installer is not code-signed. Claim in the README and `install.ps1`: a browser download carries
   the Mark of the Web and so triggers SmartScreen, while a file PowerShell downloads does not. This is
   from general knowledge of Windows and is NOT verified on a device yet. Device check: browser

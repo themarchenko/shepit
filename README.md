@@ -88,18 +88,16 @@ irm https://raw.githubusercontent.com/themarchenko/shepit/main/install.ps1 | iex
 ```
 
 The script downloads `Shepit-setup.exe` from the latest release, checks its checksum, installs Shepit
-for your user and starts it. Shepit appears in the notification area next to the clock. Run the same
-command to update. [install.ps1](install.ps1) is short if you want to read it first.
+for your user and starts it. Shepit appears in the notification area next to the clock.
+[install.ps1](install.ps1) is short if you want to read it first.
 
-After that Shepit updates itself: it checks GitHub once a day and offers the new version. The tray
-menu has Check for Updates and a switch for the daily check.
+To update, run the same command again. The app does not update itself on Windows yet.
 
 The installer is not code-signed, because a code-signing certificate costs money. If you download
 `Shepit-setup.exe` from the [releases page](https://github.com/themarchenko/shepit/releases/latest)
 in a browser, Windows SmartScreen shows "Windows protected your PC". Click **More info**, then
 **Run anyway**. The PowerShell command above avoids this: files that PowerShell downloads carry no
-Mark of the Web, the flag a browser adds and SmartScreen looks for. Updates inside the app are
-checked against a key built into the app before they are installed.
+Mark of the Web, the flag a browser adds and SmartScreen looks for.
 
 ## Use
 
@@ -124,10 +122,9 @@ icon. A short tour runs on first launch.
 - Once a day Shepit asks the GitHub API for the latest release. The request carries the app version
   and nothing else. Turn it off in Settings → About.
 - Password fields are detected and nothing is inserted into them.
-- Windows: audio is recognized on your PC and no recordings are kept. Once a day Shepit makes one
-  request to github.com for the file that names the latest release. Apart from the model download
-  on first use, nothing else leaves the PC.
-  Turn it off in the tray menu, Check for updates once a day.
+- Windows: audio is recognized on your PC and no recordings are kept. Apart from the model download
+  on first use and the installer download, nothing leaves the PC. The Windows app does not check for
+  updates yet; when it does, it will make one request a day to github.com and have a switch for it.
 
 ## Build from source
 
