@@ -168,6 +168,10 @@ pub fn resolve_profile(
     if NOTE_APPS.contains(&bundle) {
         return &NOTES;
     }
+    resolve_by_host(url)
+}
+
+fn resolve_by_host(url: Option<&str>) -> &'static Profile {
     if let Some(host) = host_of(url) {
         if AI_HOSTS.iter().any(|b| host_matches(&host, b)) {
             return &AI_CHAT;
@@ -225,6 +229,77 @@ fn is_scheme(s: &str) -> bool {
     let mut chars = s.chars();
     chars.next().is_some_and(|c| c.is_ascii_alphabetic())
         && chars.all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
+}
+
+const WIN_TERMINALS: [&str; 8] = [
+    "windowsterminal.exe",
+    "openconsole.exe",
+    "conhost.exe",
+    "cmd.exe",
+    "powershell.exe",
+    "pwsh.exe",
+    "wezterm-gui.exe",
+    "alacritty.exe",
+];
+const WIN_AI_APPS: [&str; 3] = ["claude.exe", "chatgpt.exe", "codex.exe"];
+const WIN_CODE_EDITORS: [&str; 3] = ["code.exe", "cursor.exe", "zed.exe"];
+const WIN_MESSENGERS: [&str; 5] = [
+    "telegram.exe",
+    "slack.exe",
+    "discord.exe",
+    "whatsapp.exe",
+    "messenger.exe",
+];
+const WIN_MAIL_APPS: [&str; 3] = ["outlook.exe", "olk.exe", "superhuman.exe"];
+const WIN_NOTE_APPS: [&str; 5] = [
+    "notepad.exe",
+    "winword.exe",
+    "obsidian.exe",
+    "notion.exe",
+    "onenote.exe",
+];
+
+/// Windows identity: the exe file name stands in for the bundle id. Matched ignoring case, with the
+/// same order and host rules as `resolve_profile`. Spec profiles-modes.md "Windows app identifiers".
+pub fn resolve_exe_profile(
+    exe: Option<&str>,
+    window_title: Option<&str>,
+    url: Option<&str>,
+) -> &'static Profile {
+    let exe = exe.unwrap_or("").to_lowercase();
+    let title = window_title.unwrap_or("").to_lowercase();
+    if WIN_TERMINALS.contains(&exe.as_str()) {
+        return if title.contains("claude") {
+            &CLAUDE_CODE_TERMINAL
+        } else {
+            &TERMINAL
+        };
+    }
+    for (p, names) in [
+        (&AI_CHAT, &WIN_AI_APPS[..]),
+        (&CODE_EDITOR, &WIN_CODE_EDITORS[..]),
+        (&MESSENGER, &WIN_MESSENGERS[..]),
+        (&MAIL, &WIN_MAIL_APPS[..]),
+        (&NOTES, &WIN_NOTE_APPS[..]),
+    ] {
+        if names.contains(&exe.as_str()) {
+            return p;
+        }
+    }
+    resolve_by_host(url)
+}
+
+/// The exe tables as `(profile id, lowercase exe names)`. A terminal is `terminal`, or
+/// `claude-code-terminal` when the title says claude.
+pub fn exe_tables() -> Vec<(&'static str, &'static [&'static str])> {
+    vec![
+        ("terminal", &WIN_TERMINALS[..]),
+        ("ai-chat", &WIN_AI_APPS[..]),
+        ("code-editor", &WIN_CODE_EDITORS[..]),
+        ("messenger", &WIN_MESSENGERS[..]),
+        ("mail", &WIN_MAIL_APPS[..]),
+        ("notes", &WIN_NOTE_APPS[..]),
+    ]
 }
 
 /// Profile.swift:145 `ModeResolver.resolve`: clean becomes prompt for AI targets once the dictation
@@ -295,5 +370,98 @@ mod tests {
     fn counts_words_across_whitespace_kinds() {
         assert_eq!(word_count(" a\u{2028}b\u{a0}c\r\nd "), 4);
         assert_eq!(word_count(""), 0);
+    }
+
+    // Windows identity.
+
+    fn exe(name: &str, title: Option<&str>) -> &'static str {
+        resolve_exe_profile(Some(name), title, None).id
+    }
+
+    #[test]
+    fn every_listed_exe_resolves_to_its_table_profile() {
+        for (id, names) in exe_tables() {
+            for name in names {
+                let got = exe(name, None);
+                let want = if id == "claude-code-terminal" {
+                    "terminal"
+                } else {
+                    id
+                };
+                assert_eq!(got, want, "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn exe_matching_ignores_case() {
+        assert_eq!(exe("WindowsTerminal.exe", None), "terminal");
+        assert_eq!(exe("CODE.EXE", None), "code-editor");
+        assert_eq!(exe("Slack.exe", None), "messenger");
+    }
+
+    #[test]
+    fn a_terminal_with_claude_in_the_title_is_claude_code() {
+        assert_eq!(
+            exe("pwsh.exe", Some("✳ Claude Code")),
+            "claude-code-terminal"
+        );
+        assert_eq!(exe("cmd.exe", Some("CLAUDE")), "claude-code-terminal");
+        assert_eq!(exe("pwsh.exe", Some("pwsh")), "terminal");
+    }
+
+    #[test]
+    fn a_claude_title_does_not_change_a_non_terminal() {
+        assert_eq!(exe("notepad.exe", Some("claude notes")), "notes");
+    }
+
+    #[test]
+    fn unknown_and_missing_exe_are_generic() {
+        assert_eq!(exe("calc.exe", None), "generic");
+        assert_eq!(resolve_exe_profile(None, None, None).id, "generic");
+    }
+
+    #[test]
+    fn macos_bundle_ids_are_generic_here() {
+        assert_eq!(exe("com.apple.Terminal", None), "generic");
+    }
+
+    #[test]
+    fn a_browser_exe_falls_through_to_the_url_host_rules() {
+        let p = |u| resolve_exe_profile(Some("chrome.exe"), None, Some(u)).id;
+        assert_eq!(p("https://claude.ai/new"), "ai-chat");
+        assert_eq!(p("https://mail.google.com/"), "mail");
+        assert_eq!(p("https://sub.mail.google.com/"), "generic");
+        assert_eq!(p("https://docs.google.com/d/1"), "notes");
+        assert_eq!(p("https://example.com/"), "generic");
+    }
+
+    #[test]
+    fn exe_tables_are_lowercase_exe_names_and_disjoint() {
+        let mut seen = std::collections::HashSet::new();
+        let tables = exe_tables();
+        assert!(!tables.is_empty());
+        for (id, names) in tables {
+            for name in names {
+                assert_eq!(*name, name.to_lowercase(), "{id}");
+                assert!(name.ends_with(".exe"), "{name}");
+                assert!(seen.insert(*name), "{name} is listed twice");
+            }
+        }
+    }
+
+    #[test]
+    fn exe_tables_cover_the_planned_profiles() {
+        let ids: Vec<&str> = exe_tables().iter().map(|(id, _)| *id).collect();
+        for want in [
+            "terminal",
+            "ai-chat",
+            "code-editor",
+            "messenger",
+            "mail",
+            "notes",
+        ] {
+            assert!(ids.contains(&want), "{want}");
+        }
     }
 }

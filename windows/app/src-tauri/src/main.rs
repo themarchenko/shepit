@@ -181,10 +181,21 @@ fn controller_loop(
                 wanted.store(runner.wanted(), Ordering::SeqCst);
             }
         }
-        if let Some(text) = runner.take_result() {
-            if let Some(line) = log_line(&text, cfg!(debug_assertions)) {
+        if let Some(job) = runner.take_insert() {
+            if let Some(line) = log_line(&job.text, cfg!(debug_assertions)) {
                 println!("{line}");
             }
+            // Stub until the insert worker is wired (chunk 2): report a paste that did not happen,
+            // which keeps the pre-insertion behaviour (Done with the preview).
+            let fed = runner.step_at(
+                Msg::Inserted {
+                    id: job.id,
+                    result: Ok(shepit_core::insert::InsertOutcome::Pasted),
+                },
+                epoch,
+                Instant::now(),
+            );
+            changed = fed.or(changed);
         }
         let Some(view) = changed else { continue };
         match (view.phase, listening_since) {

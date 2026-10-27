@@ -1,6 +1,9 @@
 //! The controller loop body, free of Tauri and cpal so it runs in tests on any host.
 
-use shepit_core::dictation::{CaptureError, Controller, Job, ModelStatus, Recorder, View};
+use shepit_core::dictation::{
+    CaptureError, Controller, InsertJob, Job, ModelStatus, Recorder, View,
+};
+use shepit_core::insert::InsertOutcome;
 use shepit_core::keys::RawKey;
 use std::time::Instant;
 
@@ -23,6 +26,11 @@ pub enum Msg {
     Recognized {
         id: u64,
         result: Result<String, String>,
+    },
+    /// The insert worker finished dictation `id`.
+    Inserted {
+        id: u64,
+        result: Result<InsertOutcome, String>,
     },
     /// The 100 ms receive timeout: lets the failed state reset.
     Tick,
@@ -54,6 +62,7 @@ impl<R: Recorder> Runner<R> {
             Msg::StreamError(err) => self.controller.on_stream_error(err, now),
             Msg::Model(status) => self.controller.on_model(status),
             Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
+            Msg::Inserted { id, result } => self.controller.on_inserted(id, result, now),
             Msg::Tick => self.controller.poll(now),
         }
         let view = self.controller.view();
@@ -85,9 +94,9 @@ impl<R: Recorder> Runner<R> {
         self.controller.current_job().unwrap_or(0)
     }
 
-    /// The accepted transcript, handed over once.
-    pub fn take_result(&mut self) -> Option<String> {
-        self.controller.take_result()
+    /// The accepted transcript as an insert job, handed over once.
+    pub fn take_insert(&mut self) -> Option<InsertJob> {
+        self.controller.take_insert()
     }
 }
 
@@ -188,7 +197,7 @@ mod tests {
     #[test]
     fn a_result_for_the_job_finishes_it_and_hands_out_the_text() {
         let mut runner = transcribing();
-        let done = runner
+        let inserting = runner
             .step(
                 Msg::Recognized {
                     id: 1,
@@ -197,11 +206,24 @@ mod tests {
                 12.0,
             )
             .expect("view changes");
+        assert_eq!(inserting.stage, Some(Stage::Inserting));
+        assert_eq!(runner.wanted(), 0);
+        assert_eq!(
+            runner.take_insert().map(|j| j.text).as_deref(),
+            Some("hello there")
+        );
+        assert!(runner.take_insert().is_none());
+        let done = runner
+            .step(
+                Msg::Inserted {
+                    id: 1,
+                    result: Ok(InsertOutcome::Pasted),
+                },
+                12.5,
+            )
+            .expect("view changes");
         assert_eq!(done.phase, Phase::Done);
         assert_eq!(done.message, "hello there");
-        assert_eq!(runner.wanted(), 0);
-        assert_eq!(runner.take_result().as_deref(), Some("hello there"));
-        assert!(runner.take_result().is_none());
     }
 
     #[test]
@@ -213,7 +235,7 @@ mod tests {
         };
         assert!(runner.step(stale, 12.0).is_none());
         assert_eq!(runner.wanted(), 1);
-        assert!(runner.take_result().is_none());
+        assert!(runner.take_insert().is_none());
     }
 
     #[test]
@@ -227,7 +249,7 @@ mod tests {
             result: Ok("late".into()),
         };
         assert!(runner.step(late, 12.0).is_none());
-        assert!(runner.take_result().is_none());
+        assert!(runner.take_insert().is_none());
     }
 
     #[test]

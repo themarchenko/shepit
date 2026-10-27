@@ -60,6 +60,7 @@ impl WidgetState {
             stage: view.stage.map(|s| match s {
                 Stage::Loading => "loading",
                 Stage::Transcribing => "transcribing",
+                Stage::Inserting => "inserting",
             }),
             progress: view.progress,
         }
