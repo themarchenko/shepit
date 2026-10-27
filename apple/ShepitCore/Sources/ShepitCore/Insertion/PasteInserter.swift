@@ -49,30 +49,73 @@ struct PasteboardSnapshot {
 /// Inserts text by putting it on the pasteboard and sending ⌘V to the frontmost app, then restores the pasteboard.
 @MainActor
 public final class PasteInserter {
-    public var restoreDelay: Duration = .milliseconds(350)
+    /// Clipboard managers that follow nspasteboard.org skip items that carry these types.
+    static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+    static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
 
-    public init() {}
+    public var restoreDelay: Duration = .milliseconds(350)
+    private let pasteboard: NSPasteboard
+    /// The restore a cancelled paste still owes, after its delay.
+    private var pendingRestore: Task<Void, Never>?
+    // Seams for tests: the real values need Accessibility and a focused app.
+    var isTrusted: () -> Bool = { AXIsProcessTrusted() }
+    var sendPaste: () -> Void = { PasteInserter.postCommandV() }
+
+    public init() {
+        pasteboard = .general
+    }
+
+    init(pasteboard: NSPasteboard) {
+        self.pasteboard = pasteboard
+    }
+
+    /// Puts the dictated text on the pasteboard, marked so clipboard managers do not keep it. Only this write
+    /// is marked; the restore of the user's own contents is not, because that is their data to keep.
+    static func writeDictation(_ text: String, to pasteboard: NSPasteboard) {
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.string, transientType, concealedType], owner: nil)
+        pasteboard.setString(text, forType: .string)
+        pasteboard.setData(Data(), forType: transientType)
+        pasteboard.setData(Data(), forType: concealedType)
+    }
 
     public func insert(_ text: String, context: TargetContext) async throws -> InsertMethod {
         guard !text.isEmpty else { throw InsertError.empty }
         if context.secureInput || IsSecureEventInputEnabled() { throw InsertError.secureInput }
 
-        let pasteboard = NSPasteboard.general
+        // Let a cancelled paste give the clipboard back first, so this snapshot is the user's contents
+        // and not the previous dictation.
+        await pendingRestore?.value
         let snapshot = PasteboardSnapshot(pasteboard)
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        Self.writeDictation(text, to: pasteboard)
         let ourChangeCount = pasteboard.changeCount
 
-        guard AXIsProcessTrusted() else {
+        guard isTrusted() else {
             Log.insert.warning("accessibility not granted; text left on the clipboard")
             return .clipboardOnly
         }
-        Self.postCommandV()
-        try await Task.sleep(for: restoreDelay)
-        if pasteboard.changeCount == ourChangeCount {
+        sendPaste()
+        // A cancelled dictation must still give the clipboard back, but not before the delay: ⌘V is already
+        // on its way, and restoring now could paste the user's own clipboard into the target instead.
+        do {
+            try await Task.sleep(for: restoreDelay)
+        } catch {
+            let delay = restoreDelay
+            pendingRestore = Task { @MainActor in
+                try? await Task.sleep(for: delay)
+                self.restoreIfUntouched(snapshot, ourChangeCount)
+                self.pendingRestore = nil
+            }
+            throw error
+        }
+        restoreIfUntouched(snapshot, ourChangeCount)
+        return .paste
+    }
+
+    private func restoreIfUntouched(_ snapshot: PasteboardSnapshot, _ changeCount: Int) {
+        if pasteboard.changeCount == changeCount {
             snapshot.restore(to: pasteboard)
         }
-        return .paste
     }
 
     static func postCommandV() {

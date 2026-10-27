@@ -8,10 +8,10 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore`. The dictionary is a
 |---|---|---|
 | Recognizer vocabulary | The last 30 entries (the newest). Why: Whisper decodes its prompt token by token and a long list slows every dictation. | Pipeline/DictationSession.swift:81-86 |
 | Local correction (fast path, no agent, agent error) | All entries | Formatting/FormattingService.swift:41-44 |
-| Agent prompt | The first 120 entries (the oldest) as "Dictionary (preferred spellings): a, b, c" | Formatting/PromptBuilder.swift:70-72 |
+| Agent prompt | The last 120 entries (the newest) as "Dictionary (preferred spellings): a, b, c" | Formatting/PromptBuilder.swift:70-74 |
 | Learning | Entries the agent reports (below) | Learning/DictionaryCorrector.swift:226-243 |
 
-The first-120 and last-30 slices are the current code. Whether the prompt should take the newest entries is not settled (README, open points).
+Both slices take the newest entries (last 120 for the prompt, last 30 for the recognizer). Learned terms are appended, so a prompt that took the first 120 would never show the agent a term learned past that point (docs/DECISIONS.md, 2026-10-27).
 
 ## Learning
 

@@ -59,9 +59,8 @@ Things `docs/PLAN.md` describes that the macOS code does not do. The spec follow
 | A modifier key forces prompt mode for one dictation | Absent. `modeOverride` exists (Pipeline/DictationSession.swift:31, 190) but no key sets it |
 | Recent accepted examples sent to the agent | The request field exists and the prompt builder uses it, but the session never passes any (DictationSession.swift:195-196; PromptBuilder.swift:73-78) |
 | Snippets | Absent |
-| "About 50 most relevant" dictionary entries in the prompt | All entries to the local corrector; first 120 to the prompt (PromptBuilder.swift:71); last 30 to the recognizer (DictationSession.swift:86) |
+| "About 50 most relevant" dictionary entries in the prompt | All entries to the local corrector; last 120 to the prompt (PromptBuilder.swift:73); last 30 to the recognizer (DictationSession.swift:86) |
 | Widget as a 40 pt circle, position per display | Flow pill idle shape is 40 x 8; one global anchor (macOS/Shepit/Widget/WidgetModel.swift:89; Settings/AppSettings.swift:183-194) |
-| Context capture respects secure input | Capture reads the focused field's value, caret text and selection without checking secure input first; only the secure-field subrole sets the flag, after the role is read, and the text is still read after it (Context/ContextProbe.swift:33-41). Insertion is refused, capture is not gated. Windows gates it: text is read only when the password flag was read and is false (windows/core/src/context.rs:44). macOS lags |
 | Narrowing what context is shared, in Settings | Absent. Window title, URL, caret text and selection are always sent when known (PromptBuilder.swift:60-65) |
 
 ## Platform-specific and open
