@@ -1,13 +1,23 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import Widget from "./Widget";
+import Widget, { type MockConfig } from "./Widget";
 import "./widget.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");
+const container = root;
 
-createRoot(root).render(
-  <StrictMode>
-    <Widget />
-  </StrictMode>,
-);
+function mount(preset?: MockConfig) {
+  createRoot(container).render(
+    <StrictMode>
+      <Widget preset={preset} />
+    </StrictMode>,
+  );
+}
+
+if (import.meta.env.DEV) {
+  // Dev only: the mock and its fixture are not part of the production bundle.
+  import("./mock").then(({ mockFromLocation }) => mount(mockFromLocation()));
+} else {
+  mount();
+}

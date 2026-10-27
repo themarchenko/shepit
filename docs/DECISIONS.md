@@ -516,6 +516,39 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
   Notepad, Chrome or Edge, Windows Terminal, cmd, password field, held Shift or Alt, elevated terminal,
   Store-app exe names.
 
+## 2026-10-27: Windows widget
+
+Task 7 of PLAN-windows.md: the three styles, drag, saved position, idle fade, click and hold.
+
+- Rust owns every size. The core crate's `layout_for` gives the shape, the caption flag and the window size
+  per style and phase; the payload carries them and the frontend reads them as they are. The table is a
+  fixture (`windows/core/tests/fixtures/widget-layout-windows.json`) because `WidgetLayout` lives in the macOS
+  app target and no Swift runner could read it.
+- The window grows to the union of the current and the next size at once and shrinks 700 ms after the shape
+  has settled. The window is moved and resized with one `SetWindowPos`, and the state is sent after it, so the
+  shape never jumps. The frontend holds a new state until the webview is as large as the payload window
+  (100 ms fallback).
+- No blur (decided with the user today, reversible). A WebView2 `backdrop-filter` cannot see the desktop and
+  Acrylic or Mica would fill the shadow margin too. The glass is black at `glassOpacity` with the hairline and
+  shadow.
+- The spring is a CSS `linear()` easing sampled from the same damped spring as macOS (response 0.4, damping
+  0.72), 40 points over 600 ms.
+- Settings live in `app_config_dir()/settings.json` (docs/spec/settings.md). The anchor is stored in physical
+  pixels of the virtual screen. The core crate parses and serializes the file (`windows/core/src/settings.rs`,
+  tested on the Mac); reading, the atomic write and the `.bak` copy are in the app
+  (`windows/app/src-tauri/src/settings_store.rs`), because only the app knows the config folder. Core stays
+  free of file I/O, as it is for every other module.
+- Captions are one line; live words keep the newest end, results keep the start.
+- Hover and idle widths are wider than on macOS: the Windows key label is "Right Ctrl" and the font is Segoe
+  UI. The new widths (flowPill hover 300, captionBar hover 360, island hover 280, island idle 128) are
+  estimates, because Segoe UI is not available on the Mac. A frontend fallback shrinks the text to 10 px
+  if it still overflows. Check them on a device and change the table if they are off.
+- The layout looked off-centre in headless Chrome at first. The cause was the harness (a minimum viewport
+  width), not the app. The dev mock now sizes the stage to the payload window and checks the rendered shape
+  against the payload; `windows/app/scripts/widget-shots.sh` fails on any mismatch.
+- Gaps: no right-click menu, no live text (task 12), no formatting step (task 9). Not verified: everything
+  that needs a Windows desktop. See PLAN-windows.md task 7.
+
 ## 2026-10-27: macOS privacy follow-ups
 
 Five macOS changes found while porting to Windows. The spec gap rows they closed are gone.
@@ -530,6 +563,64 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
 - Context capture: no text before the caret or selection is read when secure event input is on or the
   focused field has the secure text subrole. App name and window title are still captured.
 - Paste: the clipboard is restored when the dictation is cancelled during the 350 ms wait, still after the full delay, as on Windows. Restoring at once would race the paste already sent and could paste the previous clipboard (a copied password, say) into the target.
+
+## 2026-10-27: Windows release and updater
+
+- Jobs in `release.yml`: `release` (macOS, steps unchanged apart from push-only conditions on the tag
+  check and the publish step), `windows` (build, sign, verify, upload an artifact; read-only token) and
+  `windows-publish` (ubuntu, needs both; the only job that adds Windows files to the release). It never
+  creates or edits the release, so it cannot race the macOS job. A single shared publish job was
+  rejected: a Windows failure would then block a macOS release. Cost: for about a minute after the
+  macOS publish the latest release has no Windows files, and the Windows background check fails
+  silently until they arrive.
+- Re-runs: if Windows fails, the macOS release stands and "Re-run failed jobs" runs the two Windows
+  jobs again. `windows-publish` uploads the installer and checksum first and `latest.json` last, and
+  does nothing when `latest.json` is already there, so a published Windows build is never replaced and
+  the feed never points at a missing installer.
+- Every `v*` tag builds and publishes Windows from this change on. The user chose to ship Windows as a
+  full version with no preview label and no switch variable.
+- Version: one per tag. `version` in `windows/app/src-tauri/Cargo.toml` (Tauri reads it, there is no
+  `version` in `tauri.conf.json`) equals `CFBundleShortVersionString`; aligned to 0.3.1. `ci.yml` checks
+  the pair on every pull request, because tags cannot be taken back.
+- Dry run: `workflow_dispatch` builds and signs both platforms and creates the draft prerelease
+  `dry-run-<run id>`. Drafts and prereleases never serve `releases/latest`, and the name does not match
+  `v*.*.*`. GitHub only offers the trigger once the workflow is on `main`, so the first dry run happens
+  after the merge and must pass before the first tag.
+- Updater key: minisign, made by `scripts/release/new-updater-key.sh` (key id FC48EEB6B111E059). The
+  private key and password are repository secrets `TAURI_SIGNING_PRIVATE_KEY` and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` and are passed to the build step only. The public key is pinned
+  twice: `plugins.updater.pubkey` in `tauri.conf.json` and `PINNED_UPDATER_PUBKEY` in
+  `windows/release-check`, with a test that they are equal. Release verification uses the constant, as
+  the macOS job uses a hard-coded certificate hash. Never replace the key: installed copies would stop
+  updating, exactly as with the "Shepit Release" certificate. The script refuses to overwrite.
+- `requireSignedVersion` is on. `tauri-plugin-updater` 2.14.0 then demands a `version:` field in the
+  signed comment and compares it with the announced version (plugin `src/updater.rs` `verify_signed_version`),
+  which closes the path where a tampered feed offers an older signed installer. The Tauri CLI writes
+  that field during `tauri build` (CLI changelog 2.12.1, and `tauri signer sign --app-version`), but no
+  real `tauri build` has been seen to do it. The dry run settles it: `release-check verify` requires the
+  field and fails there if it is missing.
+- Plugin versions: `tauri-plugin-updater` 2.14.0 (the version that accepts `tauri` 2.12.5),
+  `minisign-verify` 0.3.0 in `release-check`, the same one the plugin resolves. The decode and verify
+  steps in `release-check` copy the plugin's, so the CI check accepts exactly what the installed app
+  accepts.
+- Signing only at release, and not inside the build: the release builds with `tauri.runtime.conf.json`
+  like pull requests (no `createUpdaterArtifacts`, no `plugins`; tests and `check_config` enforce it) and
+  a later step signs the staged installer with `pnpm exec tauri signer sign --app-version <version>`. The
+  two secrets are in the environment of that step only, so the Vite build and every build.rs never see
+  them (security review M1). An earlier draft used a `tauri.release.conf.json` with
+  `createUpdaterArtifacts` and put the secrets on `tauri build`; it was removed.
+- Tag safety: both release jobs fail unless the tagged commit is an ancestor of `origin/main`, because a
+  tag can be pushed from any branch (security review M2).
+- The installer is not code-signed. Claim in the README and `install.ps1`: a browser download carries
+  the Mark of the Web and so triggers SmartScreen, while a file PowerShell downloads does not. This is
+  from general knowledge of Windows and is NOT verified on a device yet. Device check: browser
+  download of `Shepit-setup.exe` (exact SmartScreen wording, whether Defender flags it) and
+  `irm ... | iex` on a non-administrator account (no UAC prompt, no SmartScreen).
+- `install.ps1` always checks the SHA-256 from `<url>.sha256` and has no way to skip it. The
+  checksum guards against a damaged download, not against a tampered release, since both files sit in
+  the same place; the update path has the signature for that.
+- Uninstall: the CI test logs what the uninstaller leaves in `%LOCALAPPDATA%\Shepit` (the models live
+  there). Moving the models out of the install folder is a follow-up.
 
 ## Pending (Phase 0)
 

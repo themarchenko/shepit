@@ -39,7 +39,7 @@ Test data lives in `shared/` (format in `shared/README.md`). The Swift runners a
 | `shared/audio/manifest.json` | dictation.md, Pipeline (recognition) | none (gap: Swift does not read it; Rust only, `windows/engine/tests/transcribe_fixture.rs`, ignored by default) |
 | `shared/prompts/system-prompt.md` (golden) | polishing.md, System prompt | `PromptGoldenTests` |
 
-Rules with no fixture (speech presence, routing, agent limits, widget sizes, settings, update schedule) are described here and tested only in Swift or by hand.
+Rules with no fixture (speech presence, routing, agent limits, widget sizes, settings, update schedule) are described here and tested only in Swift or by hand. The update schedule is also encoded in Rust tests (`windows/core/src/update.rs`) that cite updates-install.md; there is no shared data file, because every fixture would need a Swift runner and so a refactor of the macOS updater.
 
 ## How to change behaviour
 
@@ -72,7 +72,7 @@ Paths below are relative to `apple/` where they point at code.
 | The system prompt says "on macOS" (ShepitCore/Sources/ShepitCore/Formatting/PromptBuilder.swift:7) | Open for Windows task 9. The golden pins the macOS text. |
 | Profiles are keyed by macOS bundle ids (Formatting/Profile.swift:98-112) | Resolved for Windows by exe file name (profiles-modes.md, Windows app identifiers). The shared fixture holds the macOS ids. |
 | Default dictation key | macOS: Right Option. Windows: Right Ctrl, per `docs/PLAN-windows.md`. Key ids and codes are per platform (hotkey.md). |
-| Update and install | macOS: GitHub release, `Shepit.dmg`, code signature check, `install.sh`. Windows: the Tauri updater. Only the version order and the check schedule are shared. |
+| Update and install | macOS: GitHub release, `Shepit.dmg`, code signature check, `install.sh`. Windows: `Shepit-setup.exe` and `latest.json` on the same release, Tauri updater with a minisign key pinned in the app, `install.ps1` (updates-install.md). Only the version order and the check schedule are shared. |
 | Recognizer | macOS: FluidAudio Parakeet v3 and WhisperKit, models fetched by the libraries. Windows: Parakeet v3 int8 through `transcribe-rs`, files pinned by commit and SHA-256 (`windows/engine/src/pins.rs`), stored under `%LOCALAPPDATA%\Shepit\models`. |
 | Parakeet script filter | macOS passes a language hint that filters decoder candidates by script, only for a hard language lock (Speech/ParakeetEngine.swift:34-37). Windows has no such filter. |
 | Insertion | Done on Windows (PLAN-windows task 6, dictation.md step 8). Needs device checks. |

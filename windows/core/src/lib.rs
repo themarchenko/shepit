@@ -11,4 +11,7 @@ pub mod insert;
 pub mod keys;
 pub mod profile;
 pub mod resample;
+pub mod settings;
 pub mod speech;
+pub mod update;
+pub mod widget;

@@ -70,6 +70,10 @@ windows/
    device checks still open. See DECISIONS 2026-10-27: Windows insertion and context.
 7. **Widget**. The three styles in the black glass, live text, position kept. Device check: looks
    and animations at 100% and 150% scaling.
+   Status: code done (three styles, window grows before the shape springs, drag and saved position,
+   tray toggle and reset, idle fade, click and hold). No blur, no right-click menu, no live text yet.
+   Device checks open: looks and spring at 100% and 150%, hover growth, focus stays in the target app,
+   drag across monitors. See DECISIONS 2026-10-27: Windows widget.
 8. **Settings and onboarding**. Same panes and defaults as the spec; microphone permission guidance
    for Windows privacy settings.
 9. **Polishing**. Claude Code and Codex workers, same prompts and protocol. Done: worker tests with a
@@ -79,6 +83,9 @@ windows/
     payload, publishes it to the same GitHub release next to `Shepit.dmg`, `install.ps1`, updater.
     The macOS release flow must keep working unchanged. README gets the Windows install section
     described under Decisions. Device check: install, update to a test version.
+    Status 2026-10-27: workflows, `install.ps1`, release check and docs written; updater wiring and
+    the update card pending; a dry run (Release workflow, Run workflow) and the device checks are open.
+    See DECISIONS 2026-10-27: Windows release and updater.
 12. **Live preview**.
 13. **Whisper turbo** [optional]. Second recognizer for Windows through `transcribe-rs`, chosen in
     Settings, for the Whisper-only cases (language retry). Pinned download like Parakeet. Done: the

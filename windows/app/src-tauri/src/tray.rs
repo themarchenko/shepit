@@ -3,12 +3,16 @@ use shepit_core::dictation::ModelStatus;
 #[derive(Debug, PartialEq, Eq)]
 pub enum MenuAction {
     Quit,
+    ToggleWidget,
+    ResetWidget,
     None,
 }
 
 pub fn action_for(id: &str) -> MenuAction {
     match id {
         "quit" => MenuAction::Quit,
+        "toggle-widget" => MenuAction::ToggleWidget,
+        "reset-widget" => MenuAction::ResetWidget,
         _ => MenuAction::None,
     }
 }
@@ -61,6 +65,22 @@ mod tests {
     #[test]
     fn empty_id_is_none() {
         assert_eq!(action_for(""), MenuAction::None);
+    }
+
+    #[test]
+    fn toggle_widget_id_toggles_the_widget() {
+        assert_eq!(action_for("toggle-widget"), MenuAction::ToggleWidget);
+    }
+
+    #[test]
+    fn reset_widget_id_resets_the_position() {
+        assert_eq!(action_for("reset-widget"), MenuAction::ResetWidget);
+    }
+
+    #[test]
+    fn widget_ids_are_case_sensitive_and_exact() {
+        assert_eq!(action_for("Toggle-Widget"), MenuAction::None);
+        assert_eq!(action_for("reset_widget"), MenuAction::None);
     }
 
     #[test]

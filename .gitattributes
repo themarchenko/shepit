@@ -1,0 +1,2 @@
+# Signed test payloads must keep their exact bytes; a Windows checkout would turn LF into CRLF.
+windows/release-check/tests/fixtures/** -text
