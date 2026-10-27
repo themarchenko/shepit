@@ -70,6 +70,10 @@ windows/
    device checks still open. See DECISIONS 2026-10-27: Windows insertion and context.
 7. **Widget**. The three styles in the black glass, live text, position kept. Device check: looks
    and animations at 100% and 150% scaling.
+   Status: code done (three styles, window grows before the shape springs, drag and saved position,
+   tray toggle and reset, idle fade, click and hold). No blur, no right-click menu, no live text yet.
+   Device checks open: looks and spring at 100% and 150%, hover growth, focus stays in the target app,
+   drag across monitors. See DECISIONS 2026-10-27: Windows widget.
 8. **Settings and onboarding**. Same panes and defaults as the spec; microphone permission guidance
    for Windows privacy settings.
 9. **Polishing**. Claude Code and Codex workers, same prompts and protocol. Done: worker tests with a

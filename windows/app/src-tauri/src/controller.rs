@@ -2,7 +2,7 @@
 
 use shepit_core::context::TargetContext;
 use shepit_core::dictation::{
-    CaptureError, Controller, InsertJob, Job, ModelStatus, Recorder, View,
+    CaptureError, Controller, InsertJob, Job, ModelStatus, Recorder, View, WidgetInput,
 };
 use shepit_core::insert::InsertOutcome;
 use shepit_core::keys::RawKey;
@@ -35,6 +35,8 @@ pub enum Msg {
     },
     /// The insert worker read the target context for dictation `id`.
     Context { id: u64, context: TargetContext },
+    /// A click or hold on the widget.
+    Widget(WidgetInput),
     /// The 100 ms receive timeout: lets the failed state reset.
     Tick,
 }
@@ -67,6 +69,7 @@ impl<R: Recorder> Runner<R> {
             Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
             Msg::Context { id, context } => self.controller.on_context(id, context),
             Msg::Inserted { id, result } => self.controller.on_inserted(id, result, now),
+            Msg::Widget(input) => self.controller.on_widget(input, now),
             Msg::Tick => self.controller.poll(now),
         }
         let view = self.controller.view();

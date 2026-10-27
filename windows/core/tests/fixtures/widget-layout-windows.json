@@ -1,0 +1,541 @@
+{
+  "version": 1,
+  "description": "layout_for: widget style, phase, hands-free, hover and live-text flag in; shape size and radius, flow pill caption row flag and logical window size out. Windows only: WidgetLayout lives in the macOS app target, so no Swift runner reads it. Numbers in points; the window is the shape (plus the 42 pt flow pill caption row, 464 pt wide minimum) and the 28 x 26 shadow margin on each side, rounded up. Radius is half the height for flowPill and captionBar (capsules). Table: docs/spec/widget.md. Hover hint widths and the idle island differ from macOS (flowPill hover 300, captionBar hover 360, island hover 280 instead of 262, 330, 252; island idle 128 instead of 96): the Windows key label is longer (Right Ctrl) and the font is Segoe UI, so the macOS widths clip. All are estimates until a device check.",
+  "source": {
+    "shapes": "apple/macOS/Shepit/Widget/WidgetModel.swift:87-94 (flowPill), :104-110 (captionBar), :112-120 (island)",
+    "caption": "WidgetModel.swift:96-102 (flowPillShowsCaption), :85 (captionMaxWidth 440), :136-140 (width at least 464, height + 8 + 34)",
+    "window": "WidgetModel.swift:84 (margin 28 x 26), :146 (ceil of shape + 2 x margin)",
+    "radius": "WidgetView.swift:229-230 (flowPill Capsule), :323-324 (captionBar Capsule), WidgetModel.swift:112-120 (island radius)",
+    "hover": "Windows only: idle-hover widths and the idle island widened to fit 'Hold [Right Ctrl] to talk · click for hands-free' and the mic icon plus keycap (macOS WidgetModel.swift:87-120 has 262, 330, 252 and 96)"
+  },
+  "cases": [
+    {
+      "name": "flowPill/idle",
+      "input": {
+        "style": "flowPill",
+        "phase": "idle",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 40,
+          "height": 8,
+          "radius": 4.0
+        },
+        "caption": false,
+        "window": {
+          "width": 96,
+          "height": 60
+        }
+      }
+    },
+    {
+      "name": "flowPill/idle-hover",
+      "input": {
+        "style": "flowPill",
+        "phase": "idle",
+        "handsFree": false,
+        "hovering": true,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 300,
+          "height": 28,
+          "radius": 14.0
+        },
+        "caption": false,
+        "window": {
+          "width": 356,
+          "height": 80
+        }
+      }
+    },
+    {
+      "name": "flowPill/ptt",
+      "input": {
+        "style": "flowPill",
+        "phase": "listening",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 132,
+          "height": 32,
+          "radius": 16.0
+        },
+        "caption": false,
+        "window": {
+          "width": 188,
+          "height": 84
+        }
+      }
+    },
+    {
+      "name": "flowPill/hands-free",
+      "input": {
+        "style": "flowPill",
+        "phase": "listening",
+        "handsFree": true,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 166,
+          "height": 32,
+          "radius": 16.0
+        },
+        "caption": false,
+        "window": {
+          "width": 222,
+          "height": 84
+        }
+      }
+    },
+    {
+      "name": "flowPill/listening-live",
+      "input": {
+        "style": "flowPill",
+        "phase": "listening",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": true
+      },
+      "expected": {
+        "shape": {
+          "width": 132,
+          "height": 32,
+          "radius": 16.0
+        },
+        "caption": true,
+        "window": {
+          "width": 520,
+          "height": 126
+        }
+      }
+    },
+    {
+      "name": "flowPill/processing",
+      "input": {
+        "style": "flowPill",
+        "phase": "processing",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 112,
+          "height": 32,
+          "radius": 16.0
+        },
+        "caption": true,
+        "window": {
+          "width": 520,
+          "height": 126
+        }
+      }
+    },
+    {
+      "name": "flowPill/done",
+      "input": {
+        "style": "flowPill",
+        "phase": "done",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 44,
+          "height": 32,
+          "radius": 16.0
+        },
+        "caption": true,
+        "window": {
+          "width": 520,
+          "height": 126
+        }
+      }
+    },
+    {
+      "name": "flowPill/failed",
+      "input": {
+        "style": "flowPill",
+        "phase": "failed",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 44,
+          "height": 32,
+          "radius": 16.0
+        },
+        "caption": true,
+        "window": {
+          "width": 520,
+          "height": 126
+        }
+      }
+    },
+    {
+      "name": "captionBar/idle",
+      "input": {
+        "style": "captionBar",
+        "phase": "idle",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 178,
+          "height": 30,
+          "radius": 15.0
+        },
+        "caption": false,
+        "window": {
+          "width": 234,
+          "height": 82
+        }
+      }
+    },
+    {
+      "name": "captionBar/idle-hover",
+      "input": {
+        "style": "captionBar",
+        "phase": "idle",
+        "handsFree": false,
+        "hovering": true,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 360,
+          "height": 30,
+          "radius": 15.0
+        },
+        "caption": false,
+        "window": {
+          "width": 416,
+          "height": 82
+        }
+      }
+    },
+    {
+      "name": "captionBar/ptt",
+      "input": {
+        "style": "captionBar",
+        "phase": "listening",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 560,
+          "height": 42,
+          "radius": 21.0
+        },
+        "caption": false,
+        "window": {
+          "width": 616,
+          "height": 94
+        }
+      }
+    },
+    {
+      "name": "captionBar/hands-free",
+      "input": {
+        "style": "captionBar",
+        "phase": "listening",
+        "handsFree": true,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 560,
+          "height": 42,
+          "radius": 21.0
+        },
+        "caption": false,
+        "window": {
+          "width": 616,
+          "height": 94
+        }
+      }
+    },
+    {
+      "name": "captionBar/listening-live",
+      "input": {
+        "style": "captionBar",
+        "phase": "listening",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": true
+      },
+      "expected": {
+        "shape": {
+          "width": 560,
+          "height": 42,
+          "radius": 21.0
+        },
+        "caption": false,
+        "window": {
+          "width": 616,
+          "height": 94
+        }
+      }
+    },
+    {
+      "name": "captionBar/processing",
+      "input": {
+        "style": "captionBar",
+        "phase": "processing",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 560,
+          "height": 42,
+          "radius": 21.0
+        },
+        "caption": false,
+        "window": {
+          "width": 616,
+          "height": 94
+        }
+      }
+    },
+    {
+      "name": "captionBar/done",
+      "input": {
+        "style": "captionBar",
+        "phase": "done",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 560,
+          "height": 42,
+          "radius": 21.0
+        },
+        "caption": false,
+        "window": {
+          "width": 616,
+          "height": 94
+        }
+      }
+    },
+    {
+      "name": "captionBar/failed",
+      "input": {
+        "style": "captionBar",
+        "phase": "failed",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 270,
+          "height": 42,
+          "radius": 21.0
+        },
+        "caption": false,
+        "window": {
+          "width": 326,
+          "height": 94
+        }
+      }
+    },
+    {
+      "name": "island/idle",
+      "input": {
+        "style": "island",
+        "phase": "idle",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 128,
+          "height": 26,
+          "radius": 13
+        },
+        "caption": false,
+        "window": {
+          "width": 184,
+          "height": 78
+        }
+      }
+    },
+    {
+      "name": "island/idle-hover",
+      "input": {
+        "style": "island",
+        "phase": "idle",
+        "handsFree": false,
+        "hovering": true,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 280,
+          "height": 30,
+          "radius": 15
+        },
+        "caption": false,
+        "window": {
+          "width": 336,
+          "height": 82
+        }
+      }
+    },
+    {
+      "name": "island/ptt",
+      "input": {
+        "style": "island",
+        "phase": "listening",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 270,
+          "height": 36,
+          "radius": 18
+        },
+        "caption": false,
+        "window": {
+          "width": 326,
+          "height": 88
+        }
+      }
+    },
+    {
+      "name": "island/hands-free",
+      "input": {
+        "style": "island",
+        "phase": "listening",
+        "handsFree": true,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 270,
+          "height": 36,
+          "radius": 18
+        },
+        "caption": false,
+        "window": {
+          "width": 326,
+          "height": 88
+        }
+      }
+    },
+    {
+      "name": "island/listening-live",
+      "input": {
+        "style": "island",
+        "phase": "listening",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": true
+      },
+      "expected": {
+        "shape": {
+          "width": 410,
+          "height": 94,
+          "radius": 24
+        },
+        "caption": false,
+        "window": {
+          "width": 466,
+          "height": 146
+        }
+      }
+    },
+    {
+      "name": "island/processing",
+      "input": {
+        "style": "island",
+        "phase": "processing",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 410,
+          "height": 122,
+          "radius": 26
+        },
+        "caption": false,
+        "window": {
+          "width": 466,
+          "height": 174
+        }
+      }
+    },
+    {
+      "name": "island/done",
+      "input": {
+        "style": "island",
+        "phase": "done",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 410,
+          "height": 94,
+          "radius": 24
+        },
+        "caption": false,
+        "window": {
+          "width": 466,
+          "height": 146
+        }
+      }
+    },
+    {
+      "name": "island/failed",
+      "input": {
+        "style": "island",
+        "phase": "failed",
+        "handsFree": false,
+        "hovering": false,
+        "hasLive": false
+      },
+      "expected": {
+        "shape": {
+          "width": 254,
+          "height": 36,
+          "radius": 18
+        },
+        "caption": false,
+        "window": {
+          "width": 310,
+          "height": 88
+        }
+      }
+    }
+  ]
+}
