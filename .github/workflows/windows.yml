@@ -18,7 +18,7 @@ jobs:
   build:
     name: Windows build and test
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
@@ -69,10 +69,60 @@ jobs:
         working-directory: windows
         run: cargo test --workspace --locked
 
-      # Builds the installer too, so a broken bundle fails here and not at release time.
+      # The model is about 670 MB; the cache key changes only when a pin changes.
+      - name: Cache the speech model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/shepit-models
+          key: parakeet-v3-int8-${{ hashFiles('windows/engine/src/pins.rs') }}
+
+      - name: Transcribe the fixture clips
+        working-directory: windows
+        env:
+          SHEPIT_MODELS_DIR: ${{ runner.temp }}/shepit-models
+        run: cargo test -p shepit-engine --release --locked --test transcribe_fixture -- --ignored --nocapture
+
+      # The pyke ONNX Runtime build is always linked with DirectML
+      # (ort-sys 2.0.0-rc.12 build/static_link/mod.rs:55-61), so the exe imports DirectML.dll. ort
+      # leaves it as a symlink into its download cache next to the exe; the installer needs a real
+      # file. The release test step above built ort-sys, which put the link in place.
+      - name: Stage DirectML.dll for the installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=windows/target/release/DirectML.dll
+          test -e "$src" || { echo "::error::$src missing"; ls -l windows/target/release/*.dll || true; exit 1; }
+          mkdir -p windows/app/src-tauri/runtime
+          cp -L "$src" windows/app/src-tauri/runtime/DirectML.dll
+          ls -l windows/app/src-tauri/runtime
+
+      # Builds the installer too, so a broken bundle fails here and not at release time. The extra
+      # config puts DirectML.dll next to the exe in the install folder.
       - name: Build the app and installer
         working-directory: windows/app
-        run: pnpm tauri build
+        run: pnpm tauri build --config src-tauri/tauri.runtime.conf.json
+
+      # Informational: what the exe needs at start-up and what the build produced.
+      - name: List runtime DLLs and the bundle
+        shell: bash
+        run: |
+          ls -l windows/target/release/*.dll || echo "no DLLs"
+          ls -lR windows/target/release/bundle || true
+          dumpbin=$("$(command -v vswhere || echo "/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe")" -latest -find '**/Hostx64/x64/dumpbin.exe' | head -n 1)
+          if [ -n "$dumpbin" ]; then
+            "$dumpbin" //dependents windows/target/release/shepit-app.exe || true
+          else
+            echo "dumpbin not found"
+          fi
+
+      # Fails when the installer lacks DirectML.dll (a clean machine could not start the app).
+      - name: Check the installer carries DirectML.dll
+        shell: bash
+        run: |
+          set -euo pipefail
+          setup=$(ls windows/target/release/bundle/nsis/*-setup.exe | head -n 1)
+          7z l "$setup" | tee /tmp/installer-list.txt
+          grep -qi 'DirectML\.dll' /tmp/installer-list.txt
 
       - uses: actions/upload-artifact@v4
         with:

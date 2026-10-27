@@ -1,3 +1,5 @@
+use shepit_core::dictation::ModelStatus;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum MenuAction {
     Quit,
@@ -11,9 +13,40 @@ pub fn action_for(id: &str) -> MenuAction {
     }
 }
 
+/// Tray tooltip for the model state: the download percent while it runs, else the app name.
+pub fn tooltip_for(status: ModelStatus) -> String {
+    match status {
+        ModelStatus::Downloading(p) => format!("Downloading model {}%", (p * 100.0).round() as u32),
+        _ => "Shepit".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tooltip_shows_the_download_percent() {
+        assert_eq!(
+            tooltip_for(ModelStatus::Downloading(0.42)),
+            "Downloading model 42%"
+        );
+        assert_eq!(
+            tooltip_for(ModelStatus::Downloading(0.0)),
+            "Downloading model 0%"
+        );
+    }
+
+    #[test]
+    fn tooltip_is_the_name_otherwise() {
+        for s in [
+            ModelStatus::Loading,
+            ModelStatus::Ready,
+            ModelStatus::Failed,
+        ] {
+            assert_eq!(tooltip_for(s), "Shepit");
+        }
+    }
 
     #[test]
     fn quit_id_quits() {

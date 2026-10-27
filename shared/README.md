@@ -22,4 +22,11 @@ Every file in `fixtures/` has this envelope (keys are snake_case, `cases` is nev
 | live-preview-join.json | `{a, b}` | string |
 | app-version.json | `{candidate, installed}` | bool |
 
+## Audio
+
+`audio/` holds short speech clips for recognizer tests (WAV, 16 kHz, mono, 16-bit) and
+`audio/manifest.json` with `{file, language, text, must_contain, source, license}` per clip. Only the
+Rust runner reads it (`windows/engine/tests/transcribe_fixture.rs`); the Swift side has no runner yet.
+It is English only for now; a Ukrainian clip follows. See `audio/README.md`.
+
 Non-ASCII text is stored as UTF-8; the em dash in a window title is the JSON escape text `\u2014`.

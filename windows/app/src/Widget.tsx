@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { BAR_COUNT, IDLE_STATE, WIDGET_EVENT, type WidgetState } from "./widgetState";
 
+// WidgetModel.swift:21-22 words the stages the same way.
+function processingLabel({ stage, progress }: WidgetState): string {
+  if (progress !== null) return `Downloading model ${Math.round(progress * 100)}%`;
+  return stage === "loading" ? "Loading model" : "Transcribing";
+}
+
 export default function Widget() {
   const [state, setState] = useState<WidgetState>(IDLE_STATE);
 
@@ -20,13 +26,19 @@ export default function Widget() {
   }, []);
 
   const { phase, handsFree, message, levels } = state;
+  const caption =
+    phase === "processing"
+      ? { text: processingLabel(state), dim: true }
+      : (phase === "failed" || phase === "done") && message
+        ? { text: message, dim: false }
+        : null;
   const cls = ["pill", phase, phase === "listening" && handsFree ? "hands-free" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
     <>
-      {phase === "failed" && message && <div className="caption">{message}</div>}
+      {caption && <div className={caption.dim ? "caption dim" : "caption"}>{caption.text}</div>}
       <div className={cls}>
         {phase === "listening" &&
           Array.from({ length: BAR_COUNT }, (_, i) => {

@@ -32,3 +32,6 @@ windows/target/
 windows/app/node_modules/
 windows/app/dist/
 windows/app/src-tauri/gen/
+
+# DirectML.dll staged by CI for the installer
+windows/app/src-tauri/runtime/

@@ -36,6 +36,7 @@ Test data lives in `shared/` (format in `shared/README.md`). The Swift runners a
 | `shared/fixtures/retry-language.json` | language.md, Whisper retry | `SharedFixtureTests` |
 | `shared/fixtures/live-preview-join.json` | widget.md, Live preview | `SharedFixtureTests` |
 | `shared/fixtures/app-version.json` | updates-install.md, Version order | `SharedFixtureTests` |
+| `shared/audio/manifest.json` | dictation.md, Pipeline (recognition) | none (gap: Swift does not read it; Rust only, `windows/engine/tests/transcribe_fixture.rs`, ignored by default) |
 | `shared/prompts/system-prompt.md` (golden) | polishing.md, System prompt | `PromptGoldenTests` |
 
 Rules with no fixture (speech presence, routing, agent limits, widget sizes, settings, update schedule) are described here and tested only in Swift or by hand.
@@ -73,6 +74,9 @@ Paths below are relative to `apple/` where they point at code.
 | Profiles are keyed by macOS bundle ids (Formatting/Profile.swift:98-112) | Open for Windows task 6. The fixture holds the macOS ids. |
 | Default dictation key | macOS: Right Option. Windows: Right Ctrl, per `docs/PLAN-windows.md`. Key ids and codes are per platform (hotkey.md). |
 | Update and install | macOS: GitHub release, `Shepit.dmg`, code signature check, `install.sh`. Windows: the Tauri updater. Only the version order and the check schedule are shared. |
+| Recognizer | macOS: FluidAudio Parakeet v3 and WhisperKit, models fetched by the libraries. Windows: Parakeet v3 int8 through `transcribe-rs`, files pinned by commit and SHA-256 (`windows/engine/src/pins.rs`), stored under `%LOCALAPPDATA%\Shepit\models`. |
+| Parakeet script filter | macOS passes a language hint that filters decoder candidates by script, only for a hard language lock (Speech/ParakeetEngine.swift:34-37). Windows has no such filter. |
+| Formatting, insertion, recordings store, history, live preview | Windows lags: PLAN-windows tasks 6, 9, 10 and 12. After recognition the Windows app only shows the preview in the widget. |
 | Text insertion, permissions, executable search paths, widget rendering | Per platform. |
 | Agent transport | Claude Code is driven through its stream-json mode, Codex through `app-server`. A port matches timings and output cleanup (polishing.md), not the transport. |
 | Reply cleanup is written twice (Formatting/ClaudeCodeWorker.swift:218-225 and CodexFormatter.swift:117-127) | Kept as is; the spec describes one rule. |

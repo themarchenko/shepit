@@ -1,11 +1,16 @@
 // Mirrors WidgetState in src-tauri/src/widget.rs (the `widget-state` event payload).
-export type WidgetPhase = "idle" | "listening" | "failed";
+export type WidgetPhase = "idle" | "listening" | "processing" | "done" | "failed";
+export type WidgetStage = "loading" | "transcribing";
 
 export interface WidgetState {
   phase: WidgetPhase;
   handsFree: boolean;
   message: string;
   levels: number[];
+  // Set while processing; null otherwise.
+  stage: WidgetStage | null;
+  // Download fraction 0..1 while a dictation waits for the model; null otherwise.
+  progress: number | null;
 }
 
 export const WIDGET_EVENT = "widget-state";
@@ -16,4 +21,6 @@ export const IDLE_STATE: WidgetState = {
   handsFree: false,
   message: "",
   levels: [],
+  stage: null,
+  progress: null,
 };
