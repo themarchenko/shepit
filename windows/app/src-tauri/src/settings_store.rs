@@ -46,8 +46,13 @@ impl SettingsStore {
         fs::create_dir_all(&self.dir)?;
         let file = self.dir.join(FILE);
         if self.corrupt {
-            // Copy before the rename replaces the only record of what the user had.
-            fs::copy(&file, self.dir.join(BAK))?;
+            // Copy before the rename replaces the only record of what the user had. If the file is
+            // gone by now there is nothing to keep, and failing would block every later save.
+            match fs::copy(&file, self.dir.join(BAK)) {
+                Ok(_) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+            }
             self.corrupt = false;
         }
         let tmp = self.dir.join(TMP);
@@ -193,6 +198,19 @@ mod tests {
         store.save(&changed()).unwrap();
         assert_eq!(fs::read_to_string(t.bak()).unwrap(), "{ this is not json");
         assert_eq!(SettingsStore::new(t.0.clone()).load(), changed());
+    }
+
+    #[test]
+    fn a_corrupt_file_that_vanished_before_the_save_does_not_block_saving() {
+        let t = TempDir::new();
+        t.write("{ this is not json");
+        let mut store = SettingsStore::new(t.0.clone());
+        store.load();
+        fs::remove_file(t.0.join("settings.json")).unwrap();
+        store.save(&changed()).unwrap();
+        assert_eq!(t.names(), ["settings.json"]);
+        store.save(&Settings::default()).unwrap();
+        assert_eq!(SettingsStore::new(t.0.clone()).load(), Settings::default());
     }
 
     #[test]

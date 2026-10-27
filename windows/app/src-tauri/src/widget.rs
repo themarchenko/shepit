@@ -165,10 +165,43 @@ pub fn placement(anchor: Point, size: Size, monitors: &[Monitor]) -> Option<Rect
     ))
 }
 
+/// The bottom centre of the window as `placement` really puts it, so a stored anchor never sits
+/// outside the work area. Unchanged when there is no monitor.
+pub fn clamped_anchor(anchor: Point, size: Size, monitors: &[Monitor]) -> Point {
+    match placement(anchor, size, monitors) {
+        Some(frame) => Point {
+            x: frame.x + frame.width / 2,
+            y: frame.y + frame.height,
+        },
+        None => anchor,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use shepit_core::dictation::Stage;
+
+    #[test]
+    fn the_stored_anchor_is_the_clamped_one() {
+        let size = Size {
+            width: 96.0,
+            height: 60.0,
+        };
+        // Dropped with the window half outside the right edge of the 1920 x 1080 work area.
+        let raw = Point { x: 1915, y: 1032 };
+        let kept = clamped_anchor(raw, size, &monitors());
+        assert_eq!(
+            kept,
+            Point {
+                x: 1920 - 8 - 48,
+                y: 1032
+            }
+        );
+        // Already inside: unchanged.
+        let inside = Point { x: 960, y: 1032 };
+        assert_eq!(clamped_anchor(inside, size, &monitors()), inside);
+    }
 
     fn view(phase: Phase, hands_free: bool, message: &str) -> View {
         View {

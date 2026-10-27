@@ -46,8 +46,8 @@ fn platform_desktop() -> impl insert::Desktop {
     insert::NullDesktop
 }
 
-// The widget commands are async so they run off the main thread: the host asks the main thread
-// for monitor and cursor data and would wait on itself otherwise.
+// `widget_ready` is async so it runs off the main thread: the host asks the main thread for monitor
+// data and would wait on itself otherwise.
 
 #[tauri::command]
 async fn widget_ready(host: State<'_, WidgetHost>) -> Result<(), String> {
@@ -55,15 +55,16 @@ async fn widget_ready(host: State<'_, WidgetHost>) -> Result<(), String> {
     Ok(())
 }
 
+// Sync on purpose: Tauri runs sync commands on the main thread in the order the IPC messages arrive,
+// and these only queue the event, so a click's down can never be handled after its up.
 #[tauri::command]
-async fn widget_hover(host: State<'_, WidgetHost>, hovering: bool) -> Result<(), String> {
-    host.hover(hovering);
-    Ok(())
+fn widget_hover(host: State<'_, WidgetHost>, hovering: bool) {
+    host.push_hover(hovering);
 }
 
 #[tauri::command]
-async fn widget_pointer(host: State<'_, WidgetHost>, kind: String) -> Result<(), String> {
-    host.pointer(&kind)
+fn widget_pointer(host: State<'_, WidgetHost>, kind: String) -> Result<(), String> {
+    host.push_pointer(&kind)
 }
 
 fn main() {

@@ -5,20 +5,23 @@
 //! places the window first and emits the state second, so the frontend never gets a shape that the
 //! window cannot hold yet.
 //!
+//! Hover and pointer events arrive through sync commands, which Tauri runs in IPC order, and are only
+//! queued there. One thread drains the queue, so a fast click's down is always handled before its up.
+//!
 //! The window must never be queried from the main thread while a worker holds the lock and waits
 //! for the main thread (monitor and cursor queries block on it). Menu handlers therefore hand their
 //! work to a thread instead of calling in directly.
 
 use crate::controller::Msg;
 use crate::settings_store::SettingsStore;
-use crate::widget::{self, Presentation, WidgetState};
+use crate::widget::{self, clamped_anchor, Presentation, WidgetState};
 use shepit_core::dictation::{View, WidgetInput};
 use shepit_core::settings::Settings;
 use shepit_core::widget::{
     default_anchor, resolve_anchor, Fitter, Monitor, Point, PointerGesture, PointerOut, Rect,
     Shrink, Size, HOLD_SECS, SHRINK_DELAY_SECS,
 };
-use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
@@ -29,6 +32,51 @@ const LABEL: &str = "widget";
 pub struct WidgetHost {
     inner: Arc<Mutex<Inner>>,
     msgs: SyncSender<Msg>,
+    /// Hover and pointer events from the frontend, in arrival order.
+    ui: Sender<UiEvent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointerKind {
+    Down,
+    Move,
+    Up,
+}
+
+impl PointerKind {
+    pub fn parse(kind: &str) -> Option<Self> {
+        match kind {
+            "down" => Some(Self::Down),
+            "move" => Some(Self::Move),
+            "up" => Some(Self::Up),
+            _ => None,
+        }
+    }
+}
+
+enum UiEvent {
+    Hover(bool),
+    Pointer(PointerKind),
+}
+
+/// Feeds one pointer event to the gesture. The flag is true when a press began and the hold timer
+/// must start.
+fn step_gesture(
+    gesture: &mut PointerGesture,
+    kind: PointerKind,
+    at: f64,
+    x: f64,
+    y: f64,
+    scale: f64,
+) -> (PointerOut, bool) {
+    match kind {
+        PointerKind::Down => {
+            *gesture = PointerGesture::new(scale);
+            (gesture.down(at, x, y), true)
+        }
+        PointerKind::Move => (gesture.moved(x, y), false),
+        PointerKind::Up => (gesture.up(at), false),
+    }
 }
 
 struct Inner {
@@ -70,9 +118,38 @@ impl WidgetHost {
             anchor,
             gesture: PointerGesture::new(1.0),
         };
-        Self {
+        let (ui, queue) = mpsc::channel();
+        let host = Self {
             inner: Arc::new(Mutex::new(inner)),
             msgs,
+            ui,
+        };
+        let worker = host.clone();
+        std::thread::spawn(move || worker.drain(queue));
+        host
+    }
+
+    /// Queues a hover change. Never blocks, so it is safe on the main thread.
+    pub fn push_hover(&self, hovering: bool) {
+        let _ = self.ui.send(UiEvent::Hover(hovering));
+    }
+
+    /// Queues a pointer event ("down", "move" or "up"). Never blocks.
+    pub fn push_pointer(&self, kind: &str) -> Result<(), String> {
+        let kind =
+            PointerKind::parse(kind).ok_or_else(|| format!("unknown pointer event: {kind}"))?;
+        let _ = self.ui.send(UiEvent::Pointer(kind));
+        Ok(())
+    }
+
+    /// The one thread that handles frontend events. It may block on the main thread (cursor and
+    /// monitor queries) and on the controller channel; the main thread never waits for it.
+    fn drain(&self, queue: Receiver<UiEvent>) {
+        for event in queue {
+            match event {
+                UiEvent::Hover(hovering) => self.hover(hovering),
+                UiEvent::Pointer(kind) => self.pointer(kind),
+            }
         }
     }
 
@@ -136,33 +213,31 @@ impl WidgetHost {
         inner.post_full();
     }
 
-    /// `kind` is "down", "move" or "up". The cursor is read here, in physical pixels, because the
-    /// window moves under a drag and event coordinates would shift with it.
-    pub fn pointer(&self, kind: &str) -> Result<(), String> {
-        if !matches!(kind, "down" | "move" | "up") {
-            return Err(format!("unknown pointer event: {kind}"));
-        }
+    /// The cursor is read here, in physical pixels, because the window moves under a drag and event
+    /// coordinates would shift with it.
+    fn pointer(&self, kind: PointerKind) {
         let app = lock(&self.inner).app.clone();
-        let cursor = app.cursor_position().map_err(|e| e.to_string())?;
-        let (x, y) = (cursor.x, cursor.y);
+        let cursor = match app.cursor_position() {
+            Ok(c) => c,
+            Err(err) => {
+                eprintln!("could not read the cursor: {err}");
+                return;
+            }
+        };
         let (out, pressed) = {
             let mut inner = lock(&self.inner);
             let at = inner.epoch.elapsed().as_secs_f64();
-            match kind {
-                "down" => {
-                    let scale = inner.scale();
-                    inner.gesture = PointerGesture::new(scale);
-                    (inner.gesture.down(at, x, y), true)
-                }
-                "move" => (inner.gesture.moved(x, y), false),
-                _ => (inner.gesture.up(at), false),
-            }
+            let scale = if kind == PointerKind::Down {
+                inner.scale()
+            } else {
+                1.0
+            };
+            step_gesture(&mut inner.gesture, kind, at, cursor.x, cursor.y, scale)
         };
         if pressed {
             self.spawn_hold_timer();
         }
         self.finish(out);
-        Ok(())
     }
 
     fn finish(&self, out: PointerOut) {
@@ -312,10 +387,17 @@ impl Inner {
             }
             PointerOut::DragEnded => {
                 // Dropped off every monitor: back to the default spot rather than out of reach.
-                self.anchor = resolve_anchor(Some(self.anchor), &self.monitors());
+                let monitors = self.monitors();
+                let size = self.fitter.current();
+                // Store where the window really sits, clamped into the work area, as macOS stores the
+                // clamped frame (WidgetController.swift:187-190).
+                self.anchor = clamped_anchor(
+                    resolve_anchor(Some(self.anchor), &monitors),
+                    size,
+                    &monitors,
+                );
                 self.settings.widget_anchor = Some(self.anchor);
                 self.save();
-                let size = self.fitter.current();
                 self.post_frame(size, None);
                 None
             }
@@ -380,4 +462,56 @@ fn set_frame(window: &WebviewWindow, frame: Rect) -> Result<(), String> {
     window
         .set_position(PhysicalPosition::new(frame.x, frame.y))
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(events: &[(PointerKind, f64, f64, f64)]) -> Vec<PointerOut> {
+        let mut gesture = PointerGesture::new(1.0);
+        events
+            .iter()
+            .map(|&(kind, at, x, y)| step_gesture(&mut gesture, kind, at, x, y, 1.0).0)
+            .collect()
+    }
+
+    #[test]
+    fn kinds_parse_and_unknown_ones_are_refused() {
+        assert_eq!(PointerKind::parse("down"), Some(PointerKind::Down));
+        assert_eq!(PointerKind::parse("move"), Some(PointerKind::Move));
+        assert_eq!(PointerKind::parse("up"), Some(PointerKind::Up));
+        assert_eq!(PointerKind::parse("click"), None);
+    }
+
+    #[test]
+    fn a_fast_down_then_up_is_one_click_and_leaves_no_press() {
+        let mut gesture = PointerGesture::new(1.0);
+        let (out, pressed) = step_gesture(&mut gesture, PointerKind::Down, 1.0, 5.0, 5.0, 1.0);
+        assert_eq!((out, pressed), (PointerOut::None, true));
+        let (out, pressed) = step_gesture(&mut gesture, PointerKind::Up, 1.05, 5.0, 5.0, 1.0);
+        assert_eq!((out, pressed), (PointerOut::Click, false));
+        // The 0.35 s timer of that press fires later and finds nothing to begin.
+        assert_eq!(gesture.tick(1.4), PointerOut::None);
+    }
+
+    #[test]
+    fn a_held_press_begins_and_ends_once() {
+        let mut gesture = PointerGesture::new(1.0);
+        step_gesture(&mut gesture, PointerKind::Down, 1.0, 5.0, 5.0, 1.0);
+        assert_eq!(gesture.tick(1.4), PointerOut::HoldBegan);
+        let (out, _) = step_gesture(&mut gesture, PointerKind::Up, 2.0, 5.0, 5.0, 1.0);
+        assert_eq!(out, PointerOut::HoldEnded);
+    }
+
+    #[test]
+    fn a_drag_reports_the_move_and_its_end() {
+        let out = run(&[
+            (PointerKind::Down, 1.0, 0.0, 0.0),
+            (PointerKind::Move, 1.1, 20.0, 0.0),
+            (PointerKind::Up, 1.2, 20.0, 0.0),
+        ]);
+        assert_eq!(out[1], PointerOut::Dragged { dx: 20.0, dy: 0.0 });
+        assert_eq!(out[2], PointerOut::DragEnded);
+    }
 }
