@@ -28,7 +28,12 @@ const PORTED: [&str; 11] = [
 ];
 
 /// Fixture files whose Rust port is still to do. Move a name to PORTED with its runner.
-const PENDING: [&str; 0] = [];
+const PENDING: [&str; 4] = [
+    "prompt-message.json",
+    "reply-parse.json",
+    "reply-finish.json",
+    "polish-routing.json",
+];
 
 fn json_files() -> BTreeSet<String> {
     std::fs::read_dir(support::fixtures_dir())

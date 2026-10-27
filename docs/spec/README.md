@@ -36,10 +36,14 @@ Test data lives in `shared/` (format in `shared/README.md`). The Swift runners a
 | `shared/fixtures/retry-language.json` | language.md, Whisper retry | `SharedFixtureTests` |
 | `shared/fixtures/live-preview-join.json` | widget.md, Live preview | `SharedFixtureTests` |
 | `shared/fixtures/app-version.json` | updates-install.md, Version order | `SharedFixtureTests` |
+| `shared/fixtures/prompt-message.json` | polishing.md, Message per dictation | `SharedFixtureTests` |
+| `shared/fixtures/reply-parse.json` | polishing.md, Reply handling | `SharedFixtureTests` |
+| `shared/fixtures/reply-finish.json` | polishing.md, Reply handling | `SharedFixtureTests` |
+| `shared/fixtures/polish-routing.json` | local-cleanup.md, Routing | `SharedFixtureTests` (secure cases red until the macOS privacy change merges) |
 | `shared/audio/manifest.json` | dictation.md, Pipeline (recognition) | none (gap: Swift does not read it; Rust only, `windows/engine/tests/transcribe_fixture.rs`, ignored by default) |
 | `shared/prompts/system-prompt.md` (golden) | polishing.md, System prompt | `PromptGoldenTests` |
 
-Rules with no fixture (speech presence, routing, agent limits, widget sizes, settings, update schedule) are described here and tested only in Swift or by hand. The update schedule is also encoded in Rust tests (`windows/core/src/update.rs`) that cite updates-install.md; there is no shared data file, because every fixture would need a Swift runner and so a refactor of the macOS updater.
+Rules with no fixture (speech presence, agent limits, widget sizes, settings, update schedule) are described here and tested only in Swift or by hand. The update schedule is also encoded in Rust tests (`windows/core/src/update.rs`) that cite updates-install.md; there is no shared data file, because every fixture would need a Swift runner and so a refactor of the macOS updater.
 
 ## How to change behaviour
 

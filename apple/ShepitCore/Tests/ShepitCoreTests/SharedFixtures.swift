@@ -47,6 +47,10 @@ enum SharedFixtures {
         "retry-language.json",
         "live-preview-join.json",
         "app-version.json",
+        "prompt-message.json",
+        "reply-parse.json",
+        "reply-finish.json",
+        "polish-routing.json",
     ]
 
     static func load<I: Decodable, E: Decodable>(_ fileName: String, minimumCases: Int) throws -> FixtureFile<I, E> {
@@ -143,4 +147,84 @@ struct VersionInput: Decodable {
     let candidate: String
     let installed: String
     private enum CodingKeys: String, CodingKey { case candidate, installed }
+}
+
+struct PromptContextInput: Decodable {
+    let app: String?
+    let bundleID: String?
+    let windowTitle: String?
+    let url: String?
+    let textBeforeCaret: String?
+    let selectedText: String?
+    private enum CodingKeys: String, CodingKey {
+        case app, url
+        case bundleID = "bundle_id"
+        case windowTitle = "window_title"
+        case textBeforeCaret = "text_before_caret"
+        case selectedText = "selected_text"
+    }
+}
+
+struct ExampleInput: Decodable {
+    let raw: String
+    let final: String
+    private enum CodingKeys: String, CodingKey { case raw, final }
+}
+
+struct PromptMessageInput: Decodable {
+    let transcript: String
+    let languageHint: String?
+    let mode: String
+    let profile: String
+    let context: PromptContextInput
+    let dictionary: [String]?
+    let examples: [ExampleInput]?
+    private enum CodingKeys: String, CodingKey {
+        case transcript, mode, profile, context, dictionary, examples
+        case languageHint = "language_hint"
+    }
+}
+
+struct ReplyInput: Decodable {
+    let reply: String
+    private enum CodingKeys: String, CodingKey { case reply }
+}
+
+struct ParsedReplyExpected: Decodable, Equatable {
+    let text: String
+    let language: String?
+    let newTerms: [String]
+    private enum CodingKeys: String, CodingKey {
+        case text, language
+        case newTerms = "new_terms"
+    }
+}
+
+struct FinishInput: Decodable {
+    let text: String
+    let profile: String
+    private enum CodingKeys: String, CodingKey { case text, profile }
+}
+
+struct RoutingInput: Decodable {
+    let mode: String
+    let profile: String
+    let transcript: String
+    let fastPathMaxWords: Int
+    let dictionary: [String]
+    let agent: String
+    let agentText: String?
+    /// Missing means false.
+    let secure: Bool?
+    private enum CodingKeys: String, CodingKey {
+        case mode, profile, transcript, dictionary, agent, secure
+        case fastPathMaxWords = "fast_path_max_words"
+        case agentText = "agent_text"
+    }
+}
+
+struct RoutingExpected: Decodable, Equatable {
+    let source: String
+    let text: String
+    private enum CodingKeys: String, CodingKey { case source, text }
 }

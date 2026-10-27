@@ -126,9 +126,81 @@ final class SharedFixtureTests: XCTestCase {
         }
     }
 
+    // PromptBuilder.userMessage(_ r: FormatRequest) -> String
+    func testPromptMessage() throws {
+        let f: FixtureFile<PromptMessageInput, String> = try SharedFixtures.load("prompt-message.json", minimumCases: 12)
+        for c in f.cases {
+            let x = c.input.context
+            let ctx = TargetContext(bundleID: x.bundleID, appName: x.app, windowTitle: x.windowTitle, url: x.url,
+                                    textBeforeCaret: x.textBeforeCaret, selectedText: x.selectedText)
+            let profile = try XCTUnwrap(BuiltInProfiles.byID(c.input.profile), "\(c.name): profile \(c.input.profile)")
+            let mode = try XCTUnwrap(Mode(rawValue: c.input.mode), "\(c.name): mode \(c.input.mode)")
+            let request = FormatRequest(transcript: c.input.transcript, languageHint: c.input.languageHint, mode: mode,
+                                        profile: profile, context: ctx, dictionary: c.input.dictionary ?? [],
+                                        examples: (c.input.examples ?? []).map { ($0.raw, $0.final) })
+            XCTAssertEqual(PromptBuilder.userMessage(request), c.expected, c.name)
+        }
+    }
+
+    // PromptBuilder.parseReply(_ text: String) -> (text, language, newTerms)?
+    func testReplyParse() throws {
+        let f: FixtureFile<ReplyInput, ParsedReplyExpected?> = try SharedFixtures.load("reply-parse.json", minimumCases: 14)
+        for c in f.cases {
+            let parsed = PromptBuilder.parseReply(c.input.reply)
+            let got = parsed.map { ParsedReplyExpected(text: $0.text, language: $0.language, newTerms: $0.newTerms) }
+            XCTAssertEqual(got, c.expected, c.name)
+        }
+    }
+
+    // CodexFormatter.finish(_ raw: String, profile: Profile) -> String
+    func testReplyFinish() throws {
+        let f: FixtureFile<FinishInput, String> = try SharedFixtures.load("reply-finish.json", minimumCases: 9)
+        for c in f.cases {
+            let profile = try XCTUnwrap(BuiltInProfiles.byID(c.input.profile), "\(c.name): profile \(c.input.profile)")
+            XCTAssertEqual(CodexFormatter.finish(c.input.text, profile: profile), c.expected, c.name)
+        }
+    }
+
+    // FormattingService.format(_ request: FormatRequest) -> FormatResult, with a stub agent.
+    // The cases with secure true need the macOS rule "skip the agent when context.secureInput" from the
+    // fix/macos-polish-privacy PR; they are red until that PR is merged into this branch.
+    func testPolishRouting() async throws {
+        let f: FixtureFile<RoutingInput, RoutingExpected> = try SharedFixtures.load("polish-routing.json", minimumCases: 11)
+        for c in f.cases {
+            let claude: ShepitCore.Formatter?
+            switch c.input.agent {
+            case "none": claude = nil
+            case "reply": claude = StubAgent(reply: c.input.agentText ?? "")
+            case "error": claude = StubAgent(reply: nil)
+            default: throw FixtureError(description: "\(c.name): agent \(c.input.agent)")
+            }
+            let service = FormattingService(claude: claude)
+            await service.setFastPath(maxWords: c.input.fastPathMaxWords)
+            let profile = try XCTUnwrap(BuiltInProfiles.byID(c.input.profile), "\(c.name): profile \(c.input.profile)")
+            let mode = try XCTUnwrap(Mode(rawValue: c.input.mode), "\(c.name): mode \(c.input.mode)")
+            let request = FormatRequest(transcript: c.input.transcript, languageHint: nil, mode: mode, profile: profile,
+                                        context: TargetContext(secureInput: c.input.secure ?? false),
+                                        dictionary: c.input.dictionary)
+            let result = await service.format(request)
+            XCTAssertEqual(RoutingExpected(source: result.source.rawValue, text: result.text), c.expected, c.name)
+        }
+    }
+
     func testEveryFixtureFileHasARunner() throws {
         let dir = SharedFixtures.fixturesDirectory
         let found = try FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".json") }
         XCTAssertEqual(Set(found), Set(SharedFixtures.fileNames), "fixtures in \(dir.path)")
     }
+}
+
+/// Stands in for Claude or Codex: returns `reply` as the final text, or throws when `reply` is nil.
+private struct StubAgent: ShepitCore.Formatter {
+    let reply: String?
+
+    func format(_ request: FormatRequest) async throws -> FormatResult {
+        guard let reply else { throw WorkerError.timeout }
+        return FormatResult(text: reply, source: .claude)
+    }
+
+    func warmUp() async {}
 }

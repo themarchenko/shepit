@@ -30,7 +30,7 @@ Golden: `shared/prompts/system-prompt.md`, the exact output of `systemPrompt(spe
 
 ## Message per dictation
 
-Source: Formatting/PromptBuilder.swift:54-81. Not covered by a fixture yet.
+Source: Formatting/PromptBuilder.swift:54-81. Fixture: `shared/fixtures/prompt-message.json` (input: transcript, optional `language_hint`, mode, profile id, context keys, optional dictionary and `{raw, final}` examples; expected: the whole message string). The expected strings are Swift output; the context object is Foundation JSON, which writes `/` as `\/`, so a port builds it with its own escaper.
 
 ```
 Context:
@@ -79,6 +79,7 @@ Limits are in graphemes: the last 500 before the caret; the field value is read 
 ## Reply handling
 
 - The reply is trimmed; if it then starts with a code fence, every ```` ```json ```` and ```` ``` ```` in it is removed. The candidate is the text from the first `{` to the last `}`, and the first `{` must come before the last `}` (Formatting/Formatter.swift:75-79). The JSON must have a string `text`. `language` and `new_terms` are optional (PromptBuilder.swift:83-88; Formatting/Formatter.swift:73-80). If the first parse fails, the same object text is tried again with every raw newline and tab replaced by `\n` and `\t`, because replies sometimes hold raw line breaks inside strings (Formatting/Formatter.swift:75-93; the retry is at :86-92). No JSON object or no `text` after that: the dictation counts as a failure and falls back to local text (local-cleanup.md).
+- Fixtures: `shared/fixtures/reply-parse.json` (reply text to `{text, language, new_terms}` or null) and `shared/fixtures/reply-finish.json` (the cleanup below). A `new_terms` that is not an array of strings counts as empty; a `language` that is not a string counts as missing.
 - Cleanup of the agent text, the same for both agents: trim newlines at both ends; if the profile strips trailing newlines, remove trailing newlines again; if the first character is a lowercase letter, uppercase it (CodexFormatter.swift:117-127; the Claude copy is Formatting/ClaudeCodeWorker.swift:218-225).
 
 ## Privacy rules

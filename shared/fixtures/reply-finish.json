@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "description": "Cleanup of the agent text before insertion: trim newlines, strip trailing newlines, uppercase a lowercase first letter. CodexFormatter.finish; the Claude copy is the same.",
+  "cases": [
+    {
+      "name": "Finish/1_TrimsNewlinesAndUppercases",
+      "input": {
+        "text": "\nзроби це\n\n",
+        "profile": "claude-code-terminal"
+      },
+      "expected": "Зроби це"
+    },
+    {
+      "name": "Finish/2_BracketStaysAsIs",
+      "input": {
+        "text": "[thr] ok",
+        "profile": "generic"
+      },
+      "expected": "[thr] ok"
+    },
+    {
+      "name": "Finish/3_CrLfEdges",
+      "input": {
+        "text": "\r\nhello\r\n",
+        "profile": "generic"
+      },
+      "expected": "Hello"
+    },
+    {
+      "name": "Finish/4_LineSeparatorLead",
+      "input": {
+        "text": " hello",
+        "profile": "generic"
+      },
+      "expected": "Hello"
+    },
+    {
+      "name": "Finish/5_LeadingSpacesKept",
+      "input": {
+        "text": "  hi",
+        "profile": "generic"
+      },
+      "expected": "  hi"
+    },
+    {
+      "name": "Finish/6_EszettFirst",
+      "input": {
+        "text": "ßa",
+        "profile": "generic"
+      },
+      "expected": "SSa"
+    },
+    {
+      "name": "Finish/7_CombiningMarkFirst",
+      "input": {
+        "text": "éa",
+        "profile": "generic"
+      },
+      "expected": "Éa"
+    },
+    {
+      "name": "Finish/8_DigitFirst",
+      "input": {
+        "text": "1 thing",
+        "profile": "generic"
+      },
+      "expected": "1 thing"
+    },
+    {
+      "name": "Finish/9_Empty",
+      "input": {
+        "text": "",
+        "profile": "generic"
+      },
+      "expected": ""
+    },
+    {
+      "name": "Finish/10_OnlyNewlines",
+      "input": {
+        "text": "\n\n",
+        "profile": "generic"
+      },
+      "expected": ""
+    },
+    {
+      "name": "Finish/11_InnerBlankLine",
+      "input": {
+        "text": "first\n\nsecond",
+        "profile": "generic"
+      },
+      "expected": "First\n\nsecond"
+    },
+    {
+      "name": "Finish/12_CyrillicLower",
+      "input": {
+        "text": "привіт світе",
+        "profile": "messenger"
+      },
+      "expected": "Привіт світе"
+    },
+    {
+      "name": "Finish/13_AlreadyUpper",
+      "input": {
+        "text": "Hello",
+        "profile": "mail"
+      },
+      "expected": "Hello"
+    }
+  ]
+}
