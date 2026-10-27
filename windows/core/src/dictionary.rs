@@ -429,8 +429,13 @@ pub fn new_entries(reported: &[String], existing: &[String]) -> Vec<String> {
 /// item is split on `\r\n`, `\r` or `\n`, trimmed, and empty pieces are dropped. Order and duplicates
 /// are kept and there is no cap, as on macOS.
 pub fn normalize_terms(items: &[String]) -> Vec<String> {
-    let _ = items;
-    todo!("dictionary::normalize_terms")
+    items
+        .iter()
+        .flat_map(|item| item.split(['\r', '\n']))
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 #[cfg(test)]

@@ -421,8 +421,7 @@ pub fn changes(old: &Settings, new: &Settings) -> Changes {
             || old.prompt_mode_min_words != new.prompt_mode_min_words
             || old.dictionary != new.dictionary,
         updates: old.check_for_updates != new.check_for_updates,
-        // Stub until the history work lands.
-        dictionary: false,
+        dictionary: old.dictionary != new.dictionary,
     }
 }
 
@@ -434,8 +433,9 @@ fn patch_string(value: &Value, key: &str) -> Result<String, String> {
 }
 
 /// Applies a UI edit. The patch is a JSON object with any of `widgetStyle`, `glassOpacity`,
-/// `fadeWhenIdle`, `widgetVisible`, `hotkey`, `checkForUpdates` and the polishing keys (not
-/// `dictionary`, `skippedUpdate` or `lastUpdateCheck`, which only the updater writes). An unknown
+/// `fadeWhenIdle`, `widgetVisible`, `hotkey`, `checkForUpdates` and the polishing keys and
+/// `dictionary`, which is split on line ends, trimmed and cleared of blanks (not
+/// `skippedUpdate` or `lastUpdateCheck`, which only the updater writes). An unknown
 /// key, a wrong type or a bad id rejects the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
 pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String> {
     let Value::Object(map) = patch else {
@@ -514,7 +514,15 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
                 out.speaker_notes = patch_string(value, KEY_NOTES)?;
             }
             KEY_DICTIONARY => {
-                return Err(format!("{KEY_DICTIONARY}: cannot be patched here"));
+                let items = value
+                    .as_array()
+                    .and_then(|a| {
+                        a.iter()
+                            .map(|v| v.as_str().map(str::to_string))
+                            .collect::<Option<Vec<String>>>()
+                    })
+                    .ok_or_else(|| format!("{KEY_DICTIONARY}: not an array of strings"))?;
+                out.dictionary = crate::dictionary::normalize_terms(&items);
             }
             KEY_CHECK_UPDATES => {
                 out.check_for_updates = value

@@ -5,7 +5,8 @@
 use crate::audio::{is_digital_silence, is_long_enough, smooth_level, LevelHistory};
 use crate::context::TargetContext;
 use crate::gesture::{HotkeyGesture, Output};
-use crate::insert::{clipboard_only_message, InsertOutcome};
+use crate::history::{insert_method_id, status_id};
+use crate::insert::{clipboard_only_message, InsertOutcome, PASSWORD_REFUSED};
 use crate::keys::{Hotkey, KeyEvent, KeyFilter, RawKey};
 use crate::polish::route::Source;
 use crate::speech::{done_preview, has_enough_speech, is_junk};
@@ -258,6 +259,20 @@ pub enum WidgetInput {
     HoldEnded,
 }
 
+/// The `engine` column; Windows has one recognizer.
+const ENGINE_ID: &str = "parakeet-v3";
+
+/// What the live dictation keeps from the moment its audio is accepted for processing until it
+/// ends. The audio stays here (not in the job) so a failed dictation can still be saved.
+struct Run {
+    id: u64,
+    samples: Vec<f32>,
+    raw_text: String,
+    stt_ms: u64,
+    /// The final text and what the polish worker reported, once formatted with `on_formatted_with`.
+    formatted: Option<(String, FormatMeta)>,
+}
+
 pub struct Controller<R: Recorder> {
     recorder: R,
     filter: KeyFilter,
@@ -280,6 +295,9 @@ pub struct Controller<R: Recorder> {
     insert_preview: String,
     smoothed: f32,
     history: LevelHistory,
+    run: Option<Run>,
+    finished: Option<Finished>,
+    new_terms: Vec<String>,
 }
 
 impl<R: Recorder> Controller<R> {
@@ -303,6 +321,9 @@ impl<R: Recorder> Controller<R> {
             insert_preview: String::new(),
             smoothed: 0.0,
             history: LevelHistory::new(),
+            run: None,
+            finished: None,
+            new_terms: Vec::new(),
         }
     }
 
@@ -365,22 +386,73 @@ impl<R: Recorder> Controller<R> {
         self.capture = None;
         self.pending_format = None;
         self.pending_insert = None;
+        self.new_terms.clear();
+        self.finish(None, false);
+    }
+
+    /// Ends the current run, if any, into `finished`. `inserted` is the outcome when the text
+    /// reached the target; without it only the audio is kept. A dictation into a password field
+    /// keeps neither (the flag is the one captured when recording started), and neither does one
+    /// whose insert was refused for that reason.
+    fn finish(&mut self, inserted: Option<InsertOutcome>, refused: bool) {
+        let Some(run) = self.run.take() else { return };
+        let password = self.context.as_ref().and_then(|c| c.password) == Some(true);
+        if password || refused {
+            return;
+        }
+        let record = match (inserted, run.formatted) {
+            (Some(outcome), Some((formatted_text, meta))) => {
+                let ctx = self.context.as_ref();
+                Some(RecordDraft {
+                    app_id: ctx.and_then(|c| c.app_id.clone()),
+                    app_name: ctx.and_then(|c| c.app_name.clone()),
+                    window_title: ctx.and_then(|c| c.window_title.clone()),
+                    profile: meta.profile,
+                    mode: meta.mode,
+                    engine: ENGINE_ID.to_string(),
+                    raw_text: run.raw_text,
+                    formatted_text,
+                    language: meta.language,
+                    audio_seconds: run.samples.len() as f64 / 16_000.0,
+                    stt_ms: run.stt_ms,
+                    llm_ms: meta.llm_ms,
+                    formatter_source: meta.source.as_str().to_string(),
+                    insert_method: insert_method_id(outcome).to_string(),
+                    status: status_id(outcome).to_string(),
+                })
+            }
+            _ => None,
+        };
+        self.finished = Some(Finished {
+            id: run.id,
+            audio: Some(run.samples),
+            record,
+        });
     }
 
     /// The speech gate, then a job for the recognizer (DictationSession.swift:176-190).
     fn begin_processing(&mut self, samples: Vec<f32>, at: f64) {
+        // The dictation id doubles as the job id; a start that never opened has none to reuse.
+        let id = self.live.unwrap_or_else(|| self.alloc_id());
+        self.run = Some(Run {
+            id,
+            samples: samples.clone(),
+            raw_text: String::new(),
+            stt_ms: 0,
+            formatted: None,
+        });
         // Exact zeros mean a muted or blocked microphone, not a quiet room, so say that instead of
         // "Nothing recognized". Checked first: the speech gate would swallow it.
         if is_digital_silence(&samples) {
             self.fail(format!("Microphone: {}", CaptureError::Silent), at);
+            self.finish(None, false);
             return;
         }
         if !has_enough_speech(&samples) {
             self.fail(NOTHING_RECOGNIZED.to_string(), at);
+            self.finish(None, false);
             return;
         }
-        // The dictation id doubles as the job id; a start that never opened has none to reuse.
-        let id = self.live.unwrap_or_else(|| self.alloc_id());
         self.current_job = Some(id);
         self.pending_job = Some(Job { id, samples });
         self.state = if self.model == ModelStatus::Ready {
@@ -412,9 +484,13 @@ impl<R: Recorder> Controller<R> {
         match result {
             // Empty and junk transcripts fail the same way (DictationSession.swift:194).
             Ok(text) if text.trim().is_empty() || is_junk(&text) => {
-                self.fail(NOTHING_RECOGNIZED.to_string(), at)
+                self.fail(NOTHING_RECOGNIZED.to_string(), at);
+                self.finish(None, false);
             }
             Ok(text) => {
+                if let Some(run) = self.run.as_mut().filter(|r| r.id == id) {
+                    run.raw_text = text.clone();
+                }
                 self.pending_format = Some(FormatJob {
                     id,
                     transcript: text,
@@ -422,7 +498,10 @@ impl<R: Recorder> Controller<R> {
                 });
                 self.state = State::Formatting;
             }
-            Err(message) => self.fail(message, at),
+            Err(message) => {
+                self.fail(message, at);
+                self.finish(None, false);
+            }
         }
     }
 
@@ -460,27 +539,36 @@ impl<R: Recorder> Controller<R> {
 
     /// How long the recognizer took on dictation `id`, in ms. Dropped unless `id` is the live one.
     pub fn on_stt_ms(&mut self, id: u64, ms: u64) {
-        // Stub: the history work stores it.
-        let _ = (id, ms);
+        if self.live != Some(id) {
+            return;
+        }
+        if let Some(run) = self.run.as_mut().filter(|r| r.id == id) {
+            run.stt_ms = ms;
+        }
     }
 
     /// `on_formatted` with what the history needs. The same drop rules apply.
     pub fn on_formatted_with(&mut self, id: u64, text: String, meta: FormatMeta, at: f64) {
-        // Stub: the history work keeps the meta.
-        let _ = meta;
+        if self.live != Some(id) || self.state != State::Formatting {
+            return;
+        }
+        self.new_terms = meta.new_terms.clone();
+        if let Some(run) = self.run.as_mut().filter(|r| r.id == id) {
+            run.formatted = Some((text.clone(), meta));
+        }
         self.on_formatted(id, text, at);
     }
 
     /// The end of the last dictation that passed the length check, handed over once. Esc while
     /// recording and a recording that was too short give nothing.
     pub fn take_finished(&mut self) -> Option<Finished> {
-        None
+        self.finished.take()
     }
 
     /// The terms the agent reported for the live dictation, handed over once. Esc or a stale id
     /// gives none.
     pub fn take_new_terms(&mut self) -> Vec<String> {
-        Vec::new()
+        std::mem::take(&mut self.new_terms)
     }
 
     /// The job created by the last stop, handed over once.
@@ -522,6 +610,10 @@ impl<R: Recorder> Controller<R> {
         if self.live != Some(id) || self.state != State::Inserting {
             return;
         }
+        match &result {
+            Ok(outcome) => self.finish(Some(*outcome), false),
+            Err(m) => self.finish(None, m == PASSWORD_REFUSED),
+        }
         match result {
             Ok(InsertOutcome::Pasted) => {
                 self.state = State::Done {
@@ -540,6 +632,8 @@ impl<R: Recorder> Controller<R> {
     }
 
     fn start(&mut self, at: f64, hands_free: bool) {
+        self.run = None;
+        self.new_terms.clear();
         self.pending_format = None;
         self.pending_insert = None;
         self.live = None;
@@ -2344,6 +2438,9 @@ mod tests {
         let (mut c, shared) = setup_ready();
         press(&mut c, 0.0);
         esc(&mut c, 0.5);
+        // The key comes up before the next press, as it does on a keyboard; the gesture ignores a
+        // second down without an up as auto-repeat.
+        release(&mut c, 0.6);
         assert_eq!(c.take_finished(), None, "esc while recording");
         shared.stop_len.set(6399);
         begin(&mut c, None);

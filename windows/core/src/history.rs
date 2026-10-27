@@ -7,42 +7,117 @@ use crate::insert::InsertOutcome;
 /// How many recordings are kept (RecordingStore.swift:7).
 pub const KEEP_RECORDINGS: usize = 200;
 
+/// Days since 1970-01-01 for a proleptic Gregorian date (Hinnant's days-from-civil).
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+fn days_in_month(y: i64, m: i64) -> i64 {
+    match m {
+        2 if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// (year, month, day, hour, minute, second, millisecond) in UTC.
+fn civil(ms: i64) -> (i64, i64, i64, i64, i64, i64, i64) {
+    let days = ms.div_euclid(86_400_000);
+    let rem = ms.rem_euclid(86_400_000);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    (
+        y,
+        m,
+        d,
+        rem / 3_600_000,
+        rem / 60_000 % 60,
+        rem / 1000 % 60,
+        rem % 1000,
+    )
+}
+
 /// GRDB's text form of a date: `YYYY-MM-DD HH:MM:SS.SSS` in UTC.
 pub fn grdb_timestamp(ms: i64) -> String {
-    let _ = ms;
-    todo!("history::grdb_timestamp")
+    let (y, mo, d, h, mi, s, milli) = civil(ms);
+    format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:{s:02}.{milli:03}")
 }
 
 /// The inverse of `grdb_timestamp`. `None` for anything else.
 pub fn parse_grdb_timestamp(text: &str) -> Option<i64> {
-    let _ = text;
-    todo!("history::parse_grdb_timestamp")
+    let b = text.as_bytes();
+    if b.len() != 23 {
+        return None;
+    }
+    for (i, c) in b.iter().enumerate() {
+        let ok = match i {
+            4 | 7 => *c == b'-',
+            10 => *c == b' ',
+            13 | 16 => *c == b':',
+            19 => *c == b'.',
+            _ => c.is_ascii_digit(),
+        };
+        if !ok {
+            return None;
+        }
+    }
+    let n = |a: usize, z: usize| text[a..z].parse::<i64>().ok();
+    let (y, mo, d) = (n(0, 4)?, n(5, 7)?, n(8, 10)?);
+    let (h, mi, s, milli) = (n(11, 13)?, n(14, 16)?, n(17, 19)?, n(20, 23)?);
+    if !(1..=12).contains(&mo) || h > 23 || mi > 59 || s > 59 {
+        return None;
+    }
+    if d < 1 || d > days_in_month(y, mo) {
+        return None;
+    }
+    let days = days_from_civil(y, mo, d);
+    Some(((days * 24 + h) * 60 + mi) * 60_000 + s * 1000 + milli)
 }
 
 /// `yyyyMMdd-HHmmss-SSS.wav` in UTC (RecordingStore.swift:10-15 uses local time; UTC keeps the
 /// sort order through a daylight-saving change).
 pub fn recording_file_name(ms: i64) -> String {
-    let _ = ms;
-    todo!("history::recording_file_name")
+    let (y, mo, d, h, mi, s, milli) = civil(ms);
+    format!("{y:04}{mo:02}{d:02}-{h:02}{mi:02}{s:02}-{milli:03}.wav")
 }
 
 /// The `.wav` names to delete so that `keep` remain: the oldest in name order. Other files are
 /// never named.
 pub fn to_prune(names: &[String], keep: usize) -> Vec<String> {
-    let _ = (names, keep);
-    todo!("history::to_prune")
+    let mut wavs: Vec<&String> = names.iter().filter(|n| n.ends_with(".wav")).collect();
+    wavs.sort();
+    let excess = wavs.len().saturating_sub(keep);
+    wavs.into_iter().take(excess).cloned().collect()
 }
 
 /// `InsertMethod.rawValue` for the outcomes Windows has (PasteInserter.swift:6-10).
 pub fn insert_method_id(outcome: InsertOutcome) -> &'static str {
-    let _ = outcome;
-    todo!("history::insert_method_id")
+    match outcome {
+        InsertOutcome::Pasted => "paste",
+        InsertOutcome::ClipboardOnly => "clipboardOnly",
+    }
 }
 
 /// The row status (DictationSession.swift:215).
 pub fn status_id(outcome: InsertOutcome) -> &'static str {
-    let _ = outcome;
-    todo!("history::status_id")
+    match outcome {
+        InsertOutcome::Pasted => "inserted",
+        InsertOutcome::ClipboardOnly => "clipboard",
+    }
 }
 
 #[cfg(test)]
