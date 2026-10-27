@@ -46,6 +46,7 @@ enum SharedFixtures {
         "hallucination-filter.json",
         "retry-language.json",
         "live-preview-join.json",
+        "live-preview-split.json",
         "app-version.json",
         "prompt-message.json",
         "reply-parse.json",
@@ -141,6 +142,18 @@ struct JoinInput: Decodable {
     let a: String
     let b: String
     private enum CodingKeys: String, CodingKey { case a, b }
+}
+
+struct SplitInput: Decodable {
+    let frozen: String
+    let current: String
+    private enum CodingKeys: String, CodingKey { case frozen, current }
+}
+
+struct SplitExpected: Decodable {
+    let stable: String
+    let unstable: String
+    private enum CodingKeys: String, CodingKey { case stable, unstable }
 }
 
 struct VersionInput: Decodable {

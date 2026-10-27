@@ -20,6 +20,7 @@ Every file in `fixtures/` has this envelope (keys are snake_case, `cases` is nev
 | hallucination-filter.json | `{text}` | bool |
 | retry-language.json | `{detected: string or null, text}` | language string or null |
 | live-preview-join.json | `{a, b}` | string |
+| live-preview-split.json | `{frozen, current}` | `{stable, unstable}`; the last two words of `current` are unstable, the rest is joined to `frozen` |
 | app-version.json | `{candidate, installed}` | bool |
 | prompt-message.json | `{transcript, language_hint?, mode, profile, context{app?, bundle_id?, window_title?, url?, text_before_caret?, selected_text?}, dictionary?:[string], examples?:[{raw, final}]}` | the user message string (Swift output, Foundation JSON escaping) |
 | reply-parse.json | `{reply}` | `{text, language: string or null, new_terms:[string]}`, or null when the reply has no usable object |
