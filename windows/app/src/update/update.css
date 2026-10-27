@@ -1,0 +1,118 @@
+/* The update card: black glass like the widget, bottom right of the work area. The window is the card
+   plus a 20 px transparent margin and is sized from the card's own height (UpdateCard.tsx). */
+html body.sp-update-page,
+body.sp-update-page #root {
+  background: transparent;
+  overflow: hidden;
+}
+
+.up-window {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.up-card {
+  box-sizing: border-box;
+  width: 380px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: up-enter 0.35s var(--ease) both;
+}
+
+@keyframes up-enter {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+.up-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.up-mark {
+  flex: none;
+}
+
+.up-detail {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: rgba(244, 242, 238, 0.65);
+  overflow-wrap: anywhere;
+}
+
+.up-link {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12.5px;
+  text-decoration: underline;
+  color: rgba(244, 242, 238, 0.8);
+  cursor: pointer;
+}
+
+.up-link:hover {
+  color: var(--ink);
+}
+
+.up-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  position: relative;
+}
+
+.up-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s var(--ease);
+}
+
+/* No known size: a short bar sweeps across. */
+.up-bar.indeterminate i {
+  position: absolute;
+  width: 35%;
+  animation: up-sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes up-sweep {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.up-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.up-lead,
+.up-rest {
+  display: flex;
+  gap: 4px;
+}

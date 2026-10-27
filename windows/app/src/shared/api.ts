@@ -41,6 +41,8 @@ export interface SettingsData {
   fastPathMaxWords: number;
   promptModeMinWords: number;
   speakerNotes: string;
+  // The daily update check (docs/spec/settings.md). The skipped version and the last check are not exposed.
+  checkForUpdates: boolean;
 }
 
 // What `detect_agents` returns: the resolved path of each agent that was found (null when missing) and the
@@ -66,6 +68,7 @@ export interface SettingsPatch {
   fastPathMaxWords?: number;
   promptModeMinWords?: number;
   speakerNotes?: string;
+  checkForUpdates?: boolean;
 }
 
 export type MicResult = "ok" | "silent" | "denied" | "noDevice" | "failed";
@@ -82,6 +85,43 @@ export interface PickEvent {
 export interface DemoStep {
   state: WidgetState;
   seconds: number;
+}
+
+export type UpdateStateId =
+  | "idle"
+  | "checking"
+  | "upToDate"
+  | "available"
+  | "downloading"
+  | "installing"
+  | "failed"
+  | "installFailed";
+
+// What `get_update_status` and the `update-status` event carry (src-tauri/src/updater.rs StatusPayload).
+export interface UpdateStatus {
+  state: UpdateStateId;
+  label: string;
+  // The error text for failed and installFailed, else null.
+  message: string | null;
+  // Unix seconds of the last check, null when there was none.
+  lastCheck: number | null;
+}
+
+export interface CardButton {
+  id: string;
+  label: string;
+  kind: "quiet" | "primary";
+  // Sits at the left edge, the rest at the right.
+  lead: boolean;
+}
+
+// The update card, computed in Rust (CardPayload). A null fraction draws an indeterminate bar.
+export interface CardPayload {
+  title: string;
+  detail: string | null;
+  progress: { fraction: number | null } | null;
+  link: CardButton | null;
+  buttons: CardButton[];
 }
 
 export interface Backend {
@@ -117,6 +157,17 @@ export const detectAgents = () => backend.invoke<AgentsInfo>("detect_agents");
 export const finishTour = () => backend.invoke<void>("finish_tour");
 export const showTour = () => backend.invoke<void>("show_tour");
 
+export const getUpdateStatus = () => backend.invoke<UpdateStatus>("get_update_status");
+export const checkUpdatesNow = () => backend.invoke<void>("check_updates_now");
+export const showUpdateCard = () => backend.invoke<void>("show_update_card");
+// The update window only. Returns the card to draw first; later ones arrive as `update-card`.
+export const updateCardReady = () => backend.invoke<CardPayload>("update_card_ready");
+export const updateAction = (action: string) => backend.invoke<void>("update_action", { action });
+// Logical px: the card height plus its 20 px margins.
+export const updateResize = (height: number) => backend.invoke<void>("update_resize", { height });
+
 export const onSettingsChanged = (fn: (s: SettingsData) => void) => backend.listen<SettingsData>("settings-changed", fn);
 export const onModelStatus = (fn: (m: ModelInfo) => void) => backend.listen<ModelInfo>("model-status", fn);
 export const onHotkeyPick = (fn: (p: PickEvent) => void) => backend.listen<PickEvent>("hotkey-pick", fn);
+export const onUpdateStatus = (fn: (s: UpdateStatus) => void) => backend.listen<UpdateStatus>("update-status", fn);
+export const onUpdateCard = (fn: (c: CardPayload) => void) => backend.listen<CardPayload>("update-card", fn);

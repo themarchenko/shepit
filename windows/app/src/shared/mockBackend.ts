@@ -1,11 +1,13 @@
 // Dev only (see installDevBackendIfNeeded): answers the commands in a plain browser so every Settings and
 // tour state can be rendered and checked, and scripts a few clicks for states that need them. Not part of
 // the production bundle. States: ?mock=settings-{general,general-downloading,general-picking,
-// general-rightalt,general-mic-silent,appearance-<style>,polishing,polishing-none,polishing-codex,about} or
-// ?mock=tour-{1,2,2-denied,3,4,5,5-downloading}.
+// general-rightalt,general-mic-silent,appearance-<style>,polishing,polishing-none,polishing-codex,about,
+// about-available,about-checking,about-failed}, ?mock=tour-{1,2,2-denied,3,4,5,5-downloading} or
+// ?mock=update-<case> for every case of the update card fixture (update-cards.json, the file Rust is tested against).
 import fixture from "../../../core/tests/fixtures/widget-layout-windows.json";
 import type { WidgetPhase, WidgetStage, WidgetState, WidgetStyle } from "../widgetState";
-import type { AgentsInfo, Backend, DemoStep, HotkeyInfo, MicCheck, MicResult, ModelInfo, PickEvent, Polishing, SettingsData, SettingsPatch } from "./api";
+import cards from "../../src-tauri/tests/fixtures/update-cards.json";
+import type { AgentsInfo, Backend, CardPayload, DemoStep, HotkeyInfo, MicCheck, MicResult, ModelInfo, PickEvent, Polishing, SettingsData, SettingsPatch, UpdateStatus } from "./api";
 
 const HOTKEYS: Record<string, string> = {
   rightCtrl: "Right Ctrl",
@@ -60,6 +62,23 @@ function demoSteps(style: WidgetStyle, key: HotkeyInfo): DemoStep[] {
     make("processing", 0.4, "inserting"),
     make("done", 2.6, null, DEMO_TEXT),
   ];
+}
+
+const CARDS = cards.cases as Record<string, { card: CardPayload }>;
+
+// The About pane's update row for the three scripted states; other mocks show an idle app, checked 3 h ago.
+function aboutStatus(name: string): UpdateStatus {
+  const ago = Math.floor(Date.now() / 1000) - 3 * 3600;
+  switch (name) {
+    case "settings-about-available":
+      return { state: "available", label: "Shepit 0.4.0 is out", message: null, lastCheck: ago };
+    case "settings-about-checking":
+      return { state: "checking", label: "Checking GitHub\u2026", message: null, lastCheck: ago };
+    case "settings-about-failed":
+      return { state: "failed", label: "Last check failed", message: "Could not reach GitHub.", lastCheck: ago };
+    default:
+      return { state: "upToDate", label: "Up to date", message: null, lastCheck: ago };
+  }
 }
 
 const STYLES: WidgetStyle[] = ["flowPill", "captionBar", "island"];
@@ -126,6 +145,9 @@ function scenario(name: string): Scenario {
       s.clicks.push("[data-tab=polishing]");
       break;
     case "settings-about":
+    case "settings-about-available":
+    case "settings-about-checking":
+    case "settings-about-failed":
       s.clicks.push("[data-tab=about]");
       break;
     default: {
@@ -159,16 +181,49 @@ function runClicks(selectors: string[], done: () => void) {
   window.setTimeout(attempt, 150);
 }
 
+// The update card: it must ask for its own height plus the margins, fit the 420x320 window, and draw the
+// indeterminate bar exactly when Rust sends a null fraction.
+function cardProblems(resizes: number[], expected: CardPayload): string[] {
+  const problems: string[] = [];
+  const card = document.querySelector<HTMLElement>(".up-card");
+  if (!card) return ["no card drawn"];
+  const h = Math.ceil(card.offsetHeight);
+  if (resizes.length === 0) problems.push("update_resize was never called");
+  else if (resizes[resizes.length - 1] !== h + 40) problems.push(`update_resize ${resizes[resizes.length - 1]} != card ${h} + 40`);
+  if (h + 40 > 320) problems.push(`card ${h} + 40 does not fit 320`);
+  if (card.offsetWidth !== 380) problems.push(`card is ${card.offsetWidth} wide, not 380`);
+  const bar = document.querySelector(".up-bar");
+  const wantBar = expected.progress !== null;
+  if (!!bar !== wantBar) problems.push(wantBar ? "progress bar missing" : "progress bar not expected");
+  const indeterminate = !!bar?.classList.contains("indeterminate");
+  if (wantBar && indeterminate !== (expected.progress?.fraction === null)) problems.push(`indeterminate bar is ${indeterminate}`);
+  const title = card.querySelector(".up-title")?.textContent;
+  if (title !== expected.title) problems.push(`title "${title}" != "${expected.title}"`);
+  const shown = [...card.querySelectorAll("button")].map((b) => b.textContent);
+  const want = [...(expected.link ? [expected.link.label] : []), ...[...expected.buttons].sort((a, b) => Number(b.lead) - Number(a.lead)).map((b) => b.label)];
+  if (shown.join("|") !== want.join("|")) problems.push(`buttons ${shown.join(",")} != ${want.join(",")}`);
+  for (const el of card.querySelectorAll<HTMLElement>("*")) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.right > card.getBoundingClientRect().right - 15) {
+      problems.push(`${el.tagName.toLowerCase()}.${el.className} crowds the card edge`);
+      break;
+    }
+  }
+  return problems;
+}
+
 // Publishes <html data-layout-check="PASS ..."|"FAIL ..."> for settings-shots.sh (read with --dump-dom):
 // nothing may overflow sideways, and a tour step must fit its window.
-function scheduleLayoutCheck() {
+function scheduleLayoutCheck(resizes: number[], expectCard: CardPayload | null) {
   window.setTimeout(() => {
     const problems: string[] = [];
+    if (expectCard) problems.push(...cardProblems(resizes, expectCard));
     const doc = document.documentElement;
     const root = document.getElementById("root");
     const width = root?.clientWidth ?? window.innerWidth;
     const height = root?.clientHeight ?? window.innerHeight;
-    if (doc.scrollWidth > width + 1) problems.push(`sideways overflow ${doc.scrollWidth} > ${width}`);
+    // Headless Chrome will not make a window narrower than 500 px, so the card page is judged by its own edges.
+    if (!expectCard && doc.scrollWidth > width + 1) problems.push(`sideways overflow ${doc.scrollWidth} > ${width}`);
     const step = document.querySelector<HTMLElement>(".sp-tour-step");
     if (step && step.scrollHeight > step.clientHeight + 1) problems.push(`tour step too tall by ${step.scrollHeight - step.clientHeight}px`);
     const tour = document.querySelector<HTMLElement>(".sp-tour");
@@ -193,7 +248,9 @@ function scheduleLayoutCheck() {
 // The real window sizes (logical). Headless Chrome's viewport is shorter than the window it is given, so the
 // page is forced to the size the native window would have.
 function forceWindowSize(name: string) {
-  const [width, height] = name.startsWith("tour") ? [620, 540] : [620, 600];
+  const [width, height] = name.startsWith("update") ? [420, 320] : name.startsWith("tour") ? [620, 540] : [620, 600];
+  // The card window is transparent; a mid-grey desktop behind it shows the glass.
+  if (name.startsWith("update")) document.documentElement.style.background = "#4a5568";
   for (const el of [document.documentElement, document.body, document.getElementById("root")]) {
     if (!el) continue;
     el.style.width = `${width}px`;
@@ -230,7 +287,12 @@ export function createMockBackend(): Backend {
     fastPathMaxWords: 8,
     promptModeMinWords: 40,
     speakerNotes: "",
+    checkForUpdates: true,
+    update: aboutStatus(name),
   };
+  const resizes: number[] = [];
+  const cardName = /^update-(.+)$/.exec(name)?.[1];
+  const card = cardName ? CARDS[cardName]?.card ?? null : null;
   const data = (): SettingsData => ({
     widgetStyle: state.widgetStyle,
     glassOpacity: state.glassOpacity,
@@ -247,6 +309,7 @@ export function createMockBackend(): Backend {
     fastPathMaxWords: state.fastPathMaxWords,
     promptModeMinWords: state.promptModeMinWords,
     speakerNotes: state.speakerNotes,
+    checkForUpdates: state.checkForUpdates,
   });
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(v)));
 
@@ -283,6 +346,7 @@ export function createMockBackend(): Backend {
       if (patch.fastPathMaxWords !== undefined) state.fastPathMaxWords = clamp(patch.fastPathMaxWords, 0, 30);
       if (patch.promptModeMinWords !== undefined) state.promptModeMinWords = clamp(patch.promptModeMinWords, 10, 200);
       if (patch.speakerNotes !== undefined) state.speakerNotes = patch.speakerNotes;
+      if (patch.checkForUpdates !== undefined) state.checkForUpdates = patch.checkForUpdates;
       return data();
     },
     // The real command runs the same fallback rule server-side and re-sends the settings.
@@ -303,11 +367,25 @@ export function createMockBackend(): Backend {
     },
     check_microphone: () =>
       new Promise<MicCheck>((resolve) => window.setTimeout(() => resolve({ result: sc.mic, detail: null }), 300)),
+    get_update_status: () => state.update,
+    // A click shows the working state, then the result a moment later, like the real check.
+    check_updates_now: () => {
+      state.update = { state: "checking", label: "Checking GitHub\u2026", message: null, lastCheck: state.update.lastCheck };
+      emit("update-status", state.update);
+      window.setTimeout(() => {
+        state.update = { state: "upToDate", label: "Up to date", message: null, lastCheck: Math.floor(Date.now() / 1000) };
+        emit("update-status", state.update);
+      }, 1200);
+    },
+    update_card_ready: () => card,
+    update_resize: (args) => {
+      resizes.push(Number(args?.height));
+    },
     widget_demo: (args) => demoSteps(String(args?.style) as WidgetStyle, hotkey(state.hotkeyId)),
   };
 
   // The check runs once the scripted clicks are done and the last animation has settled.
-  runClicks(sc.clicks, scheduleLayoutCheck);
+  runClicks(sc.clicks, () => scheduleLayoutCheck(resizes, card));
 
   return {
     invoke: async <T>(command: string, args?: Record<string, unknown>) => {
