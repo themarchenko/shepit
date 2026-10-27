@@ -1,13 +1,18 @@
 //! Runs the Claude Code and Codex processes behind `shepit_core::polish::pipeline::Polisher`.
 //! The wire formats, timings and rotation rules live in `shepit-core`; this crate owns the
 //! processes: spawning, the Job object on Windows, the reader and writer threads, the deadline.
-//!
-//! Skeleton: every body is `todo!()` until the implementation lands.
-#![allow(unused_variables, clippy::diverging_sub_expression, unreachable_code)]
+
+mod claude;
+mod codex;
+pub mod env;
+#[cfg(windows)]
+mod job_win;
+mod process;
+
+pub use claude::ClaudeWorker;
+pub use codex::CodexWorker;
 
 use shepit_core::polish::lifecycle;
-use shepit_core::polish::pipeline::{PolishError, Polisher};
-use shepit_core::polish::route::Source;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -17,7 +22,11 @@ pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// The process creation flags every agent is spawned with. `CREATE_NO_WINDOW` on Windows, 0 elsewhere.
 pub fn creation_flags() -> u32 {
-    todo!()
+    if cfg!(windows) {
+        CREATE_NO_WINDOW
+    } else {
+        0
+    }
 }
 
 /// Timeouts and turn limits. Injectable so tests run in seconds; `Default` is the macOS values.
@@ -45,22 +54,22 @@ impl Default for Timings {
 
 /// `<base>\Shepit\claude-work`, next to the models folder.
 pub fn claude_work_dir_in(base: &Path) -> PathBuf {
-    todo!()
+    base.join("Shepit").join("claude-work")
 }
 
 /// `<base>\Shepit\codex-work`.
 pub fn codex_work_dir_in(base: &Path) -> PathBuf {
-    todo!()
+    base.join("Shepit").join("codex-work")
 }
 
 /// `claude_work_dir_in(%LOCALAPPDATA%)`.
 pub fn default_claude_work_dir() -> Option<PathBuf> {
-    todo!()
+    dirs::data_local_dir().map(|d| claude_work_dir_in(&d))
 }
 
 /// `codex_work_dir_in(%LOCALAPPDATA%)`.
 pub fn default_codex_work_dir() -> Option<PathBuf> {
-    todo!()
+    dirs::data_local_dir().map(|d| codex_work_dir_in(&d))
 }
 
 #[derive(Debug, Clone)]
@@ -96,42 +105,6 @@ impl ClaudeConfig {
     }
 }
 
-/// One persistent `claude -p --input-format stream-json` process at a time, with a standby that
-/// takes over at the turn limit. One request in flight.
-pub struct ClaudeWorker {
-    _config: ClaudeConfig,
-}
-
-impl ClaudeWorker {
-    pub fn new(config: ClaudeConfig) -> Self {
-        ClaudeWorker { _config: config }
-    }
-
-    /// Starts the process and sends the warm-up turn. A failure counts toward the pause.
-    pub fn warm_up(&mut self) -> Result<(), PolishError> {
-        todo!()
-    }
-
-    /// Closes stdin and kills the whole process tree of the active and standby processes.
-    pub fn shutdown(&mut self) {
-        todo!()
-    }
-}
-
-impl Polisher for ClaudeWorker {
-    fn source(&self) -> Source {
-        Source::Claude
-    }
-
-    fn polish(
-        &mut self,
-        message: &str,
-        cancelled: &dyn Fn() -> bool,
-    ) -> Result<String, PolishError> {
-        todo!()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct CodexConfig {
     pub executable: PathBuf,
@@ -162,39 +135,5 @@ impl CodexConfig {
             timings: Timings::default(),
             extra_env: Vec::new(),
         }
-    }
-}
-
-/// One `codex app-server` process; threads rotate on it. One request in flight.
-pub struct CodexWorker {
-    _config: CodexConfig,
-}
-
-impl CodexWorker {
-    pub fn new(config: CodexConfig) -> Self {
-        CodexWorker { _config: config }
-    }
-
-    /// Starts the process, the handshake, a thread and the warm-up turn.
-    pub fn warm_up(&mut self) -> Result<(), PolishError> {
-        todo!()
-    }
-
-    pub fn shutdown(&mut self) {
-        todo!()
-    }
-}
-
-impl Polisher for CodexWorker {
-    fn source(&self) -> Source {
-        Source::Codex
-    }
-
-    fn polish(
-        &mut self,
-        message: &str,
-        cancelled: &dyn Fn() -> bool,
-    ) -> Result<String, PolishError> {
-        todo!()
     }
 }
