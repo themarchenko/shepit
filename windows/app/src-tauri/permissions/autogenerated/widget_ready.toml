@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-widget-ready"
+description = "Enables the widget_ready command without any pre-configured scope."
+commands.allow = ["widget_ready"]
+
+[[permission]]
+identifier = "deny-widget-ready"
+description = "Denies the widget_ready command without any pre-configured scope."
+commands.deny = ["widget_ready"]

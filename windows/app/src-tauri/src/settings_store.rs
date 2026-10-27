@@ -2,10 +2,14 @@
 //! renamed over the real one. A file that failed to parse is copied to `settings.json.bak` before
 //! the first write replaces it.
 
-use shepit_core::settings::Settings;
+use crate::controller::Msg;
+use crate::widget_host::WidgetHost;
+use crate::{commands, tray, ui};
+use shepit_core::settings::{Changes, Settings};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
 
 const FILE: &str = "settings.json";
 const TMP: &str = "settings.json.tmp";
@@ -61,6 +65,52 @@ impl SettingsStore {
             let _ = fs::remove_file(&tmp);
         })
     }
+}
+
+/// The one write path for the settings the UI can change. `edit` makes the new settings from the
+/// current ones (an `Err` changes nothing). Returns the settings now in force and what changed. Then it saves, tells the widget (look and key label),
+/// sets the tray "Show widget" check, tells the open Settings and tour windows with
+/// `settings-changed`, and sends the controller `Msg::Hotkey` reliably (see `WidgetHost::send_reliably`).
+pub fn apply(
+    app: &AppHandle,
+    edit: impl FnOnce(&Settings) -> Result<Settings, String>,
+) -> Result<(Settings, Changes), String> {
+    apply_inner(app, edit, true)
+}
+
+/// `apply` for the controller thread, which switches its own key directly: sending to its own
+/// bounded channel would block it forever once the channel is full.
+pub fn apply_on_controller(
+    app: &AppHandle,
+    edit: impl FnOnce(&Settings) -> Result<Settings, String>,
+) -> Result<(Settings, Changes), String> {
+    apply_inner(app, edit, false)
+}
+
+fn apply_inner(
+    app: &AppHandle,
+    edit: impl FnOnce(&Settings) -> Result<Settings, String>,
+    tell_controller: bool,
+) -> Result<(Settings, Changes), String> {
+    let host = app.state::<WidgetHost>();
+    let (settings, changes) = host.update(edit)?;
+    if changes.visible {
+        if let Some(item) = app.try_state::<tray::ShowWidgetItem>() {
+            let _ = item.0.set_checked(settings.widget_visible);
+        }
+    }
+    if changes.any() {
+        ui::emit_to_windows(
+            app,
+            "settings-changed",
+            commands::payload_of(app, &settings),
+        );
+    }
+    if changes.hotkey && tell_controller {
+        // Reliable: if this were dropped, the saved key and the one the hook listens for would differ.
+        host.send_reliably(Msg::Hotkey(settings.hotkey));
+    }
+    Ok((settings, changes))
 }
 
 #[cfg(test)]

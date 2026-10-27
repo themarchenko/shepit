@@ -3,13 +3,17 @@
 //! the configured hotkey and Esc are ever copied out of the proc.
 
 use crate::controller::Msg;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::SyncSender;
+
+/// Index into `Hotkey::ALL`.
+static HOTKEY: AtomicU8 = AtomicU8::new(0);
+static PICKING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(windows)]
 mod imp {
     use super::*;
     use shepit_core::keys::{is_accepted, RawKey};
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::OnceLock;
     use std::time::Instant;
     use windows::core::PCWSTR;
@@ -20,8 +24,6 @@ mod imp {
     };
 
     static SENDER: OnceLock<SyncSender<Msg>> = OnceLock::new();
-    /// The configured hotkey's virtual-key code, set once by the app before the hook installs.
-    static HOTKEY_VK: AtomicU32 = AtomicU32::new(0);
 
     /// The hook callback runs on the hook thread inside the system's input path, so it does no
     /// work beyond a copy and a channel send.
@@ -32,7 +34,7 @@ mod imp {
                 // KBDLLHOOKSTRUCT that lives for the duration of this call.
                 let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
                 // Any other key stays inside the proc: nothing about it is stored or sent.
-                if is_accepted(info.vkCode, info.flags.0, HOTKEY_VK.load(Ordering::Relaxed)) {
+                if is_accepted(info.vkCode, info.flags.0, super::hotkey(), super::picking()) {
                     let raw = RawKey {
                         message: wparam.0 as u32,
                         vk: info.vkCode,
@@ -48,8 +50,7 @@ mod imp {
         unsafe { CallNextHookEx(None, code, wparam, lparam) }
     }
 
-    pub fn start(tx: SyncSender<Msg>, hotkey_vk: u32) {
-        HOTKEY_VK.store(hotkey_vk, Ordering::Relaxed);
+    pub fn start(tx: SyncSender<Msg>) {
         if SENDER.set(tx).is_err() {
             eprintln!("keyboard hook already started");
             return;
@@ -80,9 +81,64 @@ mod imp {
     }
 }
 
-#[cfg(windows)]
-pub use imp::start;
+/// Starts the hook on `hotkey` (from the settings).
+pub fn start(tx: SyncSender<Msg>, hotkey: shepit_core::keys::Hotkey) {
+    set_hotkey(hotkey);
+    #[cfg(windows)]
+    imp::start(tx);
+    // The hook exists only on Windows; elsewhere the app runs without a hotkey.
+    #[cfg(not(windows))]
+    let _ = tx;
+}
 
-/// The hook exists only on Windows; elsewhere the app runs without a hotkey.
-#[cfg(not(windows))]
-pub fn start(_tx: SyncSender<Msg>, _hotkey_vk: u32) {}
+/// The hotkey the hook proc filters on. Only the controller thread writes it; the proc reads it.
+/// Lives outside `imp` so every host compiles and tests it.
+pub fn hotkey() -> shepit_core::keys::Hotkey {
+    shepit_core::keys::Hotkey::ALL
+        .get(HOTKEY.load(Ordering::Relaxed) as usize)
+        .copied()
+        .unwrap_or_default()
+}
+
+pub fn set_hotkey(hotkey: shepit_core::keys::Hotkey) {
+    let index = shepit_core::keys::Hotkey::ALL
+        .iter()
+        .position(|h| *h == hotkey)
+        .unwrap_or(0);
+    HOTKEY.store(index as u8, Ordering::Relaxed);
+}
+
+/// While true the proc also lets every candidate key out, for the picker.
+pub fn picking() -> bool {
+    PICKING.load(Ordering::Relaxed)
+}
+
+pub fn set_picking(picking: bool) {
+    PICKING.store(picking, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shepit_core::keys::Hotkey;
+
+    // One test: the statics are process-wide, so parallel tests would race.
+    #[test]
+    fn the_hook_state_round_trips_every_hotkey_and_the_picking_flag() {
+        assert_eq!(
+            hotkey(),
+            Hotkey::RightCtrl,
+            "the default before anything is set"
+        );
+        assert!(!picking());
+        for h in Hotkey::ALL {
+            set_hotkey(h);
+            assert_eq!(hotkey(), h);
+        }
+        set_picking(true);
+        assert!(picking());
+        set_picking(false);
+        assert!(!picking());
+        set_hotkey(Hotkey::RightCtrl);
+    }
+}

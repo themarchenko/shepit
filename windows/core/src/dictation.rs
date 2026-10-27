@@ -2,11 +2,11 @@
 //! docs/spec/hotkey.md:43-56, then the recognition states of DictationSession.swift:140-185 and
 //! 218-221. The controller owns no engine: it hands out a `Job` and takes the result back. No paste.
 
-use crate::audio::{is_long_enough, smooth_level, LevelHistory};
+use crate::audio::{is_digital_silence, is_long_enough, smooth_level, LevelHistory};
 use crate::context::TargetContext;
 use crate::gesture::{HotkeyGesture, Output};
 use crate::insert::{clipboard_only_message, InsertOutcome};
-use crate::keys::{KeyEvent, KeyFilter, RawKey};
+use crate::keys::{Hotkey, KeyEvent, KeyFilter, RawKey};
 use crate::speech::{done_preview, has_enough_speech, is_junk};
 
 /// Failed state resets to idle after 4 s (DictationSession.swift:234).
@@ -22,6 +22,8 @@ const NOTHING_RECOGNIZED: &str = "Nothing recognized";
 pub enum CaptureError {
     NoDevice,
     AccessDenied,
+    /// The device opened but delivered only digital silence (muted, or blocked by Windows).
+    Silent,
     Other(String),
 }
 
@@ -33,6 +35,9 @@ impl std::fmt::Display for CaptureError {
                 f,
                 "access denied, check Windows microphone privacy settings"
             ),
+            CaptureError::Silent => {
+                write!(f, "no sound, check Windows microphone privacy settings")
+            }
             CaptureError::Other(text) => write!(f, "{text}"),
         }
     }
@@ -248,6 +253,18 @@ impl<R: Recorder> Controller<R> {
         self
     }
 
+    /// Starts on `hotkey` instead of Right Ctrl.
+    pub fn with_hotkey(mut self, hotkey: Hotkey) -> Self {
+        self.set_hotkey(hotkey);
+        self
+    }
+
+    /// Switches the key. A new filter and gesture drop a half-finished press of the old key.
+    pub fn set_hotkey(&mut self, hotkey: Hotkey) {
+        self.filter = KeyFilter::for_hotkey(hotkey);
+        self.gesture = HotkeyGesture::new();
+    }
+
     /// `at` is seconds on a monotonic clock, taken in the hook callback.
     pub fn on_key(&mut self, raw: RawKey, at: f64) {
         let event = match self.filter.filter(raw) {
@@ -291,6 +308,12 @@ impl<R: Recorder> Controller<R> {
 
     /// The speech gate, then a job for the recognizer (DictationSession.swift:176-190).
     fn begin_processing(&mut self, samples: Vec<f32>, at: f64) {
+        // Exact zeros mean a muted or blocked microphone, not a quiet room, so say that instead of
+        // "Nothing recognized". Checked first: the speech gate would swallow it.
+        if is_digital_silence(&samples) {
+            self.fail(format!("Microphone: {}", CaptureError::Silent), at);
+            return;
+        }
         if !has_enough_speech(&samples) {
             self.fail(NOTHING_RECOGNIZED.to_string(), at);
             return;
@@ -547,6 +570,8 @@ mod tests {
         start_error: RefCell<Option<CaptureError>>,
         stop_len: Cell<usize>,
         silent: Cell<bool>,
+        /// Non-zero but too quiet to be speech.
+        quiet: Cell<bool>,
     }
 
     struct FakeRecorder(Rc<Shared>);
@@ -566,6 +591,9 @@ mod tests {
             let n = self.0.stop_len.get();
             if self.0.silent.get() {
                 return vec![0.0; n];
+            }
+            if self.0.quiet.get() {
+                return vec![1e-4; n];
             }
             let mut v = vec![0.0; n / 2];
             v.extend(vec![0.1; n - n / 2]);
@@ -969,9 +997,9 @@ mod tests {
     }
 
     #[test]
-    fn silence_fails_with_nothing_recognized_and_makes_no_job() {
+    fn quiet_audio_fails_with_nothing_recognized_and_makes_no_job() {
         let (mut c, shared) = setup_ready();
-        shared.silent.set(true);
+        shared.quiet.set(true);
         dictate(&mut c, 0.0);
         let v = c.view();
         assert_eq!(
@@ -982,6 +1010,116 @@ mod tests {
         c.poll(4.9);
         assert_eq!(c.view().phase, Phase::Failed);
         c.poll(5.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn digital_silence_fails_with_the_microphone_hint_and_makes_no_job() {
+        let (mut c, shared) = setup_ready();
+        shared.silent.set(true);
+        dictate(&mut c, 0.0);
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.message.as_str()),
+            (
+                Phase::Failed,
+                "Microphone: no sound, check Windows microphone privacy settings"
+            )
+        );
+        assert_eq!(c.take_job(), None);
+        c.poll(5.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    #[test]
+    fn digital_silence_is_reported_before_the_model_is_ready() {
+        let (mut c, shared) = setup();
+        shared.silent.set(true);
+        dictate(&mut c, 0.0);
+        assert_eq!(c.view().phase, Phase::Failed);
+        assert_eq!(c.take_job(), None);
+    }
+
+    #[test]
+    fn the_silent_error_reads_like_the_access_denied_one() {
+        assert_eq!(
+            CaptureError::Silent.to_string(),
+            "no sound, check Windows microphone privacy settings"
+        );
+    }
+
+    // A chosen hotkey.
+
+    fn alt_key(c: &mut Controller<FakeRecorder>, message: u32, at: f64) {
+        c.on_key(
+            RawKey {
+                message,
+                vk: 0xA5,
+                flags: LLKHF_EXTENDED,
+            },
+            at,
+        );
+    }
+
+    #[test]
+    fn with_hotkey_right_alt_starts_on_right_alt_and_ignores_right_ctrl() {
+        let (c, _shared) = setup_ready();
+        let mut c = c.with_hotkey(Hotkey::RightAlt);
+        press(&mut c, 0.0);
+        release(&mut c, 0.5);
+        assert_eq!(c.view().phase, Phase::Idle);
+        alt_key(&mut c, WM_KEYDOWN, 1.0);
+        assert_eq!(c.view().phase, Phase::Listening);
+        alt_key(&mut c, WM_KEYUP, 2.0);
+        assert_eq!(c.view().phase, Phase::Processing);
+    }
+
+    #[test]
+    fn set_hotkey_switches_the_key_for_the_next_press() {
+        let (mut c, _shared) = setup_ready();
+        c.set_hotkey(Hotkey::RightAlt);
+        press(&mut c, 0.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+        alt_key(&mut c, WM_KEYDOWN, 1.0);
+        assert_eq!(c.view().phase, Phase::Listening);
+    }
+
+    #[test]
+    fn set_hotkey_drops_a_half_finished_gesture() {
+        let (mut c, _shared) = setup_ready();
+        // Right Ctrl goes down and Esc cancels the recording; the release is never seen.
+        press(&mut c, 0.0);
+        esc(&mut c, 0.5);
+        assert_eq!(c.view().phase, Phase::Idle);
+        c.set_hotkey(Hotkey::RightAlt);
+        alt_key(&mut c, WM_KEYDOWN, 1.0);
+        assert_eq!(c.view().phase, Phase::Listening);
+    }
+
+    #[test]
+    fn set_hotkey_to_the_same_key_mid_press_does_not_stick() {
+        let (mut c, _shared) = setup_ready();
+        press(&mut c, 0.0);
+        esc(&mut c, 0.5);
+        c.set_hotkey(Hotkey::RightCtrl);
+        press(&mut c, 1.0);
+        assert_eq!(c.view().phase, Phase::Listening);
+    }
+
+    #[test]
+    fn esc_still_cancels_after_the_hotkey_changed() {
+        let (mut c, _shared) = setup_ready();
+        c.set_hotkey(Hotkey::F13);
+        c.on_key(
+            RawKey {
+                message: WM_KEYDOWN,
+                vk: 0x7C,
+                flags: 0,
+            },
+            0.0,
+        );
+        assert_eq!(c.view().phase, Phase::Listening);
+        esc(&mut c, 0.5);
         assert_eq!(c.view().phase, Phase::Idle);
     }
 

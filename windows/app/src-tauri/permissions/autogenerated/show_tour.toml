@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-show-tour"
+description = "Enables the show_tour command without any pre-configured scope."
+commands.allow = ["show_tour"]
+
+[[permission]]
+identifier = "deny-show-tour"
+description = "Denies the show_tour command without any pre-configured scope."
+commands.deny = ["show_tour"]

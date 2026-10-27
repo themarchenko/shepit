@@ -1,5 +1,6 @@
 use serde::Serialize;
 use shepit_core::dictation::{Phase, Stage, View};
+use shepit_core::keys::Hotkey;
 use shepit_core::widget::{
     frame_for, layout_for, monitor_for, LayoutInput, Monitor, Point, Rect, Size, Style,
 };
@@ -24,6 +25,8 @@ pub struct Presentation {
     pub glass_opacity: f64,
     pub fade_when_idle: bool,
     pub hovering: bool,
+    /// Its label is the `keyLabel` of the payload.
+    pub hotkey: Hotkey,
 }
 
 impl Default for Presentation {
@@ -33,6 +36,7 @@ impl Default for Presentation {
             glass_opacity: 0.7,
             fade_when_idle: true,
             hovering: false,
+            hotkey: Hotkey::RightCtrl,
         }
     }
 }
@@ -105,7 +109,7 @@ impl WidgetState {
             style: presentation.style.id().to_string(),
             glass_opacity: presentation.glass_opacity,
             fade_when_idle: presentation.fade_when_idle,
-            key_label: KEY_LABEL.to_string(),
+            key_label: presentation.hotkey.label().to_string(),
             hovering: presentation.hovering,
             target: view.target.clone(),
             // Stays empty until the live preview exists (task 12).
@@ -127,8 +131,58 @@ impl WidgetState {
     }
 }
 
-/// The hotkey's name as the widget shows it. Fixed until the hotkey can be chosen.
-const KEY_LABEL: &str = "Right Ctrl";
+/// One step of the Settings demo: the widget state to show and how long to show it.
+#[derive(Debug, Clone, Serialize)]
+pub struct DemoStep {
+    pub state: WidgetState,
+    pub seconds: f64,
+}
+
+/// The demo loop of Settings and the tour (WidgetDemo.swift:41-72 without the formatting stage):
+/// idle 1.6 s, hover 1.3 s, listening 4.1 s, transcribing 0.75 s, inserting 0.4 s, done 2.6 s.
+/// Built with the real layout, fade off, `hotkey`'s label on the keycap.
+pub fn demo_script(style: Style, hotkey: Hotkey) -> Vec<DemoStep> {
+    let presentation = |hovering: bool| Presentation {
+        style,
+        fade_when_idle: false,
+        hovering,
+        hotkey,
+        ..Presentation::default()
+    };
+    let view = |phase: Phase, stage: Option<Stage>, message: &str| View {
+        phase,
+        hands_free: false,
+        message: message.to_string(),
+        // The frontend animates the bars; the script only fixes the shape.
+        levels: vec![0.0; 32],
+        stage,
+        progress: None,
+        target: (phase != Phase::Idle).then(|| DEMO_TARGET.to_string()),
+    };
+    let step = |view: View, hovering: bool, seconds: f64| DemoStep {
+        state: WidgetState::new(&view, &presentation(hovering)),
+        seconds,
+    };
+    vec![
+        step(view(Phase::Idle, None, ""), false, 1.6),
+        step(view(Phase::Idle, None, ""), true, 1.3),
+        step(view(Phase::Listening, None, ""), false, 4.1),
+        step(
+            view(Phase::Processing, Some(Stage::Transcribing), ""),
+            false,
+            0.75,
+        ),
+        step(
+            view(Phase::Processing, Some(Stage::Inserting), ""),
+            false,
+            0.4,
+        ),
+        step(view(Phase::Done, None, DEMO_TEXT), false, 2.6),
+    ]
+}
+
+const DEMO_TARGET: &str = "Notepad";
+const DEMO_TEXT: &str = "Зустрінемось завтра о десятій, I'll send the notes.";
 
 fn layout_input(view: &View, presentation: &Presentation) -> LayoutInput {
     LayoutInput {
@@ -281,6 +335,7 @@ mod tests {
             glass_opacity: 0.55,
             fade_when_idle: false,
             hovering: true,
+            hotkey: Hotkey::RightCtrl,
         };
         let json = payload(&view(Phase::Idle, false, ""), &p);
         assert_eq!(json["style"], "island");
@@ -386,6 +441,144 @@ mod tests {
         let mut v = view(Phase::Processing, false, "");
         v.stage = Some(Stage::Inserting);
         assert_eq!(state(&v).stage, Some("inserting"));
+    }
+
+    #[test]
+    fn the_key_label_follows_the_hotkey() {
+        for (hotkey, label) in [
+            (Hotkey::RightCtrl, "Right Ctrl"),
+            (Hotkey::RightAlt, "Right Alt"),
+            (Hotkey::F13, "F13"),
+            (Hotkey::F24, "F24"),
+        ] {
+            let p = Presentation {
+                hotkey,
+                ..Presentation::default()
+            };
+            let json = payload(&view(Phase::Idle, false, ""), &p);
+            assert_eq!(json["keyLabel"], label);
+        }
+    }
+
+    // The demo.
+
+    fn script(style: Style) -> Vec<DemoStep> {
+        demo_script(style, Hotkey::RightCtrl)
+    }
+
+    #[test]
+    fn the_demo_has_six_steps_in_order() {
+        let steps = script(Style::FlowPill);
+        let seen: Vec<(String, Option<&str>, bool)> = steps
+            .iter()
+            .map(|s| (s.state.phase.clone(), s.state.stage, s.state.hovering))
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                ("idle".to_string(), None, false),
+                ("idle".to_string(), None, true),
+                ("listening".to_string(), None, false),
+                ("processing".to_string(), Some("transcribing"), false),
+                ("processing".to_string(), Some("inserting"), false),
+                ("done".to_string(), None, false),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_demo_timings_follow_the_mac_demo() {
+        let seconds: Vec<f64> = script(Style::Island).iter().map(|s| s.seconds).collect();
+        assert_eq!(seconds, [1.6, 1.3, 4.1, 0.75, 0.4, 2.6]);
+    }
+
+    #[test]
+    fn the_demo_keeps_the_widget_on_screen() {
+        for style in [Style::FlowPill, Style::CaptionBar, Style::Island] {
+            for step in script(style) {
+                assert!(!step.state.fade_when_idle, "{style:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_demo_uses_the_style_it_was_asked_for() {
+        for style in [Style::FlowPill, Style::CaptionBar, Style::Island] {
+            for step in script(style) {
+                assert_eq!(step.state.style, style.id());
+            }
+        }
+    }
+
+    #[test]
+    fn the_demo_passes_the_key_label_through() {
+        for step in demo_script(Style::FlowPill, Hotkey::RightAlt) {
+            assert_eq!(step.state.key_label, "Right Alt");
+        }
+        for step in demo_script(Style::FlowPill, Hotkey::F13) {
+            assert_eq!(step.state.key_label, "F13");
+        }
+    }
+
+    #[test]
+    fn the_demo_steps_carry_the_real_layout() {
+        for style in [Style::FlowPill, Style::CaptionBar, Style::Island] {
+            for step in script(style) {
+                let want = layout_for(&LayoutInput {
+                    style,
+                    phase: match step.state.phase.as_str() {
+                        "idle" => Phase::Idle,
+                        "listening" => Phase::Listening,
+                        "processing" => Phase::Processing,
+                        "done" => Phase::Done,
+                        other => panic!("phase {other}"),
+                    },
+                    hands_free: step.state.hands_free,
+                    hovering: step.state.hovering,
+                    has_live: false,
+                });
+                assert_eq!(step.state.shape.width, want.shape.width, "{style:?}");
+                assert_eq!(step.state.shape.height, want.shape.height, "{style:?}");
+                assert_eq!(step.state.window.width, want.window.width, "{style:?}");
+                assert_eq!(step.state.window.height, want.window.height, "{style:?}");
+                assert_eq!(step.state.caption, want.caption, "{style:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_demo_dictates_into_notepad_and_shows_the_text_when_done() {
+        let steps = script(Style::FlowPill);
+        for step in &steps[2..] {
+            assert_eq!(step.state.target.as_deref(), Some("Notepad"));
+        }
+        assert_eq!(
+            steps[5].state.message,
+            "Зустрінемось завтра о десятій, I'll send the notes."
+        );
+    }
+
+    #[test]
+    fn the_demo_listens_push_to_talk_with_no_live_text() {
+        let listening = &script(Style::FlowPill)[2].state;
+        assert!(!listening.hands_free);
+        assert_eq!(listening.live.stable, "");
+        assert_eq!(listening.live.unstable, "");
+    }
+
+    #[test]
+    fn a_demo_step_serializes_as_state_and_seconds() {
+        let json = serde_json::to_value(&script(Style::FlowPill)[0]).unwrap();
+        let mut keys: Vec<&str> = json
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort();
+        assert_eq!(keys, ["seconds", "state"]);
+        assert_eq!(json["seconds"], 1.6);
+        assert_eq!(json["state"]["phase"], "idle");
     }
 
     fn monitors() -> Vec<Monitor> {

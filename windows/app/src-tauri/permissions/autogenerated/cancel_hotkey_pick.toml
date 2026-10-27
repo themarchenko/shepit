@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-hotkey-pick"
+description = "Enables the cancel_hotkey_pick command without any pre-configured scope."
+commands.allow = ["cancel_hotkey_pick"]
+
+[[permission]]
+identifier = "deny-cancel-hotkey-pick"
+description = "Denies the cancel_hotkey_pick command without any pre-configured scope."
+commands.deny = ["cancel_hotkey_pick"]

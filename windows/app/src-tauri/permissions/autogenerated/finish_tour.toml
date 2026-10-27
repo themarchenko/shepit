@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-finish-tour"
+description = "Enables the finish_tour command without any pre-configured scope."
+commands.allow = ["finish_tour"]
+
+[[permission]]
+identifier = "deny-finish-tour"
+description = "Denies the finish_tour command without any pre-configured scope."
+commands.deny = ["finish_tour"]

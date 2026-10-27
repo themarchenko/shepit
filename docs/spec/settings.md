@@ -5,7 +5,7 @@ Source: `apple/ShepitCore/Sources/ShepitCore/Settings/AppSettings.swift`. Keys a
 | Key | Type | Default | Values | Line |
 |---|---|---|---|---|
 | `engine` | id | `parakeet-v3` | `parakeet-v3`, `parakeet-ultra`, `whisper-turbo` | :156; Speech/SpeechEngine.swift:3-6 |
-| `hotkey` | id | `rightOption` | `rightOption`, `rightCommand`, `fn` | :3-6, 157 |
+| `hotkey` | id | `rightOption` | `rightOption`, `rightCommand`, `fn`. Windows: default `rightCtrl`; `rightCtrl`, `rightAlt`, `f13` to `f24` (hotkey.md, Windows) | :3-6, 157 |
 | `polishing` | id | `claude` (see polishing.md for the legacy switch) | `claude`, `codex`, `off` | :34-37, 160 |
 | `claudeModel` | id | `haiku` | `haiku`, `sonnet` | :26-29, 167 |
 | `claudeExecutable` | string | empty (search) | path | :168 |
@@ -45,3 +45,15 @@ Notes:
   replaces it.
 - Speaker notes go into the system prompt (polishing.md).
 - Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are kept in `settings.json` under `%APPDATA%\com.themarchenko.shepit`, with the same key names. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.
+- Windows panes: General (dictation key, recognizer status, show widget, microphone test), Appearance (style, glass,
+  fade when idle, reset position) and About (version, the Parakeet CC-BY-4.0 credit, show the welcome tour again).
+  Language lock, polishing, dictionary, history, live preview, recognizer choice, What's new, updates and launch at login are
+  not shown until their tasks land (README, Platform-specific). Settings opens on General.
+- Windows `hotkey` is stored as the choice id above. A bad id falls back to `rightCtrl`. `onboardingCompleted` defaults
+  to false and is set by every way of closing the tour (finish, Skip, Esc, Alt+F4).
+- Windows edits from the UI go through one strict patch: an object with any of `widgetStyle`, `glassOpacity`
+  (clamped to 0.5-0.9), `fadeWhenIdle`, `widgetVisible` and `hotkey`. An unknown key, a wrong type or a bad id rejects the
+  whole patch and changes nothing. `widgetAnchor` and `onboardingCompleted` cannot be patched; they have their own commands.
+  Loading the file stays lenient, key by key.
+- Windows tour: if the app quits while the tour is open, the flag is not set and the tour shows again on the next
+  launch. Accepted.

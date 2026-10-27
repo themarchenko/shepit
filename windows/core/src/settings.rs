@@ -1,6 +1,7 @@
 //! The settings file of the Windows port: the widget keys of docs/spec/settings.md, read leniently
 //! (each key falls back to its default on its own) and written with every other key kept.
 
+use crate::keys::Hotkey;
 use crate::widget::{Point, Style};
 use serde_json::{Map, Value};
 
@@ -13,7 +14,17 @@ const KEY_OPACITY: &str = "glassOpacity";
 const KEY_FADE: &str = "fadeWhenIdle";
 const KEY_VISIBLE: &str = "widgetVisible";
 const KEY_ANCHOR: &str = "widgetAnchor";
-const KNOWN_KEYS: [&str; 5] = [KEY_STYLE, KEY_OPACITY, KEY_FADE, KEY_VISIBLE, KEY_ANCHOR];
+const KEY_HOTKEY: &str = "hotkey";
+const KEY_ONBOARDING: &str = "onboardingCompleted";
+const KNOWN_KEYS: [&str; 7] = [
+    KEY_STYLE,
+    KEY_OPACITY,
+    KEY_FADE,
+    KEY_VISIBLE,
+    KEY_ANCHOR,
+    KEY_HOTKEY,
+    KEY_ONBOARDING,
+];
 
 /// macOS does not clamp (AppSettings.swift:163); the Windows widget needs the glass readable
 /// and never fully opaque, so a hand-edited value is pulled into the slider's range.
@@ -37,6 +48,11 @@ pub struct Settings {
     pub widget_visible: bool,
     /// Bottom centre of the widget, physical pixels. `None` means the default position.
     pub widget_anchor: Option<Point>,
+    /// The dictation key. Persisted as `hotkey`: "rightCtrl", "rightAlt", "f13" to "f24".
+    pub hotkey: Hotkey,
+    /// Set once the welcome tour was finished, skipped or closed. Persisted as
+    /// `onboardingCompleted`.
+    pub onboarding_completed: bool,
     /// Keys this version does not know, written back unchanged.
     pub extra: Map<String, Value>,
 }
@@ -49,6 +65,8 @@ impl Default for Settings {
             fade_when_idle: true,
             widget_visible: true,
             widget_anchor: None,
+            hotkey: Hotkey::RightCtrl,
+            onboarding_completed: false,
             extra: Map::new(),
         }
     }
@@ -89,6 +107,15 @@ impl Settings {
                 .and_then(Value::as_bool)
                 .unwrap_or(d.widget_visible),
             widget_anchor: map.get(KEY_ANCHOR).and_then(parse_anchor),
+            hotkey: map
+                .get(KEY_HOTKEY)
+                .and_then(Value::as_str)
+                .and_then(Hotkey::from_id)
+                .unwrap_or(d.hotkey),
+            onboarding_completed: map
+                .get(KEY_ONBOARDING)
+                .and_then(Value::as_bool)
+                .unwrap_or(d.onboarding_completed),
             extra: map
                 .into_iter()
                 .filter(|(k, _)| !KNOWN_KEYS.contains(&k.as_str()))
@@ -111,6 +138,11 @@ impl Settings {
         );
         map.insert(KEY_FADE.into(), Value::from(self.fade_when_idle));
         map.insert(KEY_VISIBLE.into(), Value::from(self.widget_visible));
+        map.insert(KEY_HOTKEY.into(), Value::from(self.hotkey.id()));
+        map.insert(
+            KEY_ONBOARDING.into(),
+            Value::from(self.onboarding_completed),
+        );
         match self.widget_anchor {
             Some(p) => {
                 let mut anchor = Map::new();
@@ -125,6 +157,80 @@ impl Settings {
         // A map of plain values always serializes.
         serde_json::to_string_pretty(&Value::Object(map)).unwrap_or_default()
     }
+}
+
+/// What a settings write changed, so the app only touches what it must.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Changes {
+    /// `widgetStyle`, `glassOpacity` or `fadeWhenIdle`.
+    pub look: bool,
+    /// `hotkey`. The widget label and the hook follow it.
+    pub hotkey: bool,
+    /// `widgetVisible`.
+    pub visible: bool,
+}
+
+impl Changes {
+    pub fn any(&self) -> bool {
+        self.look || self.hotkey || self.visible
+    }
+}
+
+/// Which of the UI-relevant settings differ between `old` and `new`.
+pub fn changes(old: &Settings, new: &Settings) -> Changes {
+    Changes {
+        look: old.widget_style != new.widget_style
+            || old.glass_opacity != new.glass_opacity
+            || old.fade_when_idle != new.fade_when_idle,
+        hotkey: old.hotkey != new.hotkey,
+        visible: old.widget_visible != new.widget_visible,
+    }
+}
+
+/// Applies a UI edit. The patch is a JSON object with any of `widgetStyle`, `glassOpacity`,
+/// `fadeWhenIdle`, `widgetVisible` and `hotkey`. An unknown key, a wrong type or a bad id rejects
+/// the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
+pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String> {
+    let Value::Object(map) = patch else {
+        return Err("the patch must be an object".into());
+    };
+    // Built on a copy so a rejected patch leaves `current` untouched.
+    let mut out = current.clone();
+    for (key, value) in map {
+        match key.as_str() {
+            KEY_STYLE => {
+                out.widget_style = value
+                    .as_str()
+                    .and_then(Style::from_id)
+                    .ok_or_else(|| format!("{KEY_STYLE}: unknown style"))?;
+            }
+            KEY_OPACITY => {
+                out.glass_opacity = value
+                    .as_f64()
+                    .map(clamp_opacity)
+                    .ok_or_else(|| format!("{KEY_OPACITY}: not a number"))?;
+            }
+            KEY_FADE => {
+                out.fade_when_idle = value
+                    .as_bool()
+                    .ok_or_else(|| format!("{KEY_FADE}: not a boolean"))?;
+            }
+            KEY_VISIBLE => {
+                out.widget_visible = value
+                    .as_bool()
+                    .ok_or_else(|| format!("{KEY_VISIBLE}: not a boolean"))?;
+            }
+            KEY_HOTKEY => {
+                out.hotkey = value
+                    .as_str()
+                    .and_then(Hotkey::from_id)
+                    .ok_or_else(|| format!("{KEY_HOTKEY}: unknown key"))?;
+            }
+            // widgetAnchor and onboardingCompleted have their own commands.
+            other => return Err(format!("unknown setting: {other}")),
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -326,5 +432,334 @@ mod tests {
     fn valid_json_is_not_corrupt() {
         assert!(!Settings::parse("{}").corrupt);
         assert!(!Settings::parse(r#"{"widgetStyle":5}"#).corrupt);
+    }
+
+    // Hotkey and onboarding.
+
+    #[test]
+    fn the_hotkey_defaults_to_right_ctrl_and_the_tour_is_not_done() {
+        let d = Settings::default();
+        assert_eq!(d.hotkey, Hotkey::RightCtrl);
+        assert!(!d.onboarding_completed);
+        assert_eq!(parse("{}").hotkey, Hotkey::RightCtrl);
+        assert!(!parse("{}").onboarding_completed);
+    }
+
+    #[test]
+    fn a_stored_hotkey_is_read_for_every_id() {
+        for h in Hotkey::ALL {
+            let s = parse(&format!(r#"{{"hotkey":"{}"}}"#, h.id()));
+            assert_eq!(s.hotkey, h);
+        }
+    }
+
+    #[test]
+    fn a_bad_hotkey_falls_back_alone() {
+        for bad in [
+            "5",
+            "\"bogus\"",
+            "\"RightCtrl\"",
+            "\"leftCtrl\"",
+            "null",
+            "true",
+            "[]",
+        ] {
+            let s = parse(&format!(r#"{{"hotkey":{bad},"fadeWhenIdle":false}}"#));
+            assert_eq!(s.hotkey, Hotkey::RightCtrl, "{bad}");
+            assert!(!s.fade_when_idle, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn onboarding_completed_is_read_and_a_wrong_type_falls_back_alone() {
+        assert!(parse(r#"{"onboardingCompleted":true}"#).onboarding_completed);
+        for bad in ["\"yes\"", "1", "null", "[]"] {
+            let s = parse(&format!(
+                r#"{{"onboardingCompleted":{bad},"widgetVisible":false}}"#
+            ));
+            assert!(!s.onboarding_completed, "{bad}");
+            assert!(!s.widget_visible, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn the_new_keys_are_written_with_the_spec_names() {
+        let s = Settings {
+            hotkey: Hotkey::F17,
+            onboarding_completed: true,
+            ..Settings::default()
+        };
+        let out = written(&s);
+        assert_eq!(out["hotkey"], "f17");
+        assert_eq!(out["onboardingCompleted"], true);
+        let d = written(&Settings::default());
+        assert_eq!(d["hotkey"], "rightCtrl");
+        assert_eq!(d["onboardingCompleted"], false);
+    }
+
+    #[test]
+    fn the_new_keys_are_not_kept_as_extras() {
+        let s = parse(r#"{"hotkey":"rightAlt","onboardingCompleted":true,"engine":"x"}"#);
+        assert!(!s.extra.contains_key("hotkey"));
+        assert!(!s.extra.contains_key("onboardingCompleted"));
+        assert!(s.extra.contains_key("engine"));
+    }
+
+    #[test]
+    fn write_then_parse_keeps_the_hotkey_and_the_tour_flag() {
+        let s = Settings {
+            hotkey: Hotkey::RightAlt,
+            onboarding_completed: true,
+            ..Settings::default()
+        };
+        assert_eq!(parse(&s.to_json()), s);
+    }
+
+    // apply_patch.
+
+    fn patch(current: &Settings, text: &str) -> Result<Settings, String> {
+        apply_patch(current, &serde_json::from_str::<Value>(text).unwrap())
+    }
+
+    #[test]
+    fn an_empty_patch_changes_nothing() {
+        let s = Settings {
+            widget_style: Style::Island,
+            widget_anchor: Some(Point { x: 1, y: 2 }),
+            ..Settings::default()
+        };
+        assert_eq!(patch(&s, "{}"), Ok(s));
+    }
+
+    #[test]
+    fn a_patch_sets_the_widget_style() {
+        let out = patch(&Settings::default(), r#"{"widgetStyle":"captionBar"}"#).unwrap();
+        assert_eq!(out.widget_style, Style::CaptionBar);
+    }
+
+    #[test]
+    fn a_patch_sets_the_glass_opacity() {
+        let out = patch(&Settings::default(), r#"{"glassOpacity":0.55}"#).unwrap();
+        assert_eq!(out.glass_opacity, 0.55);
+    }
+
+    #[test]
+    fn a_patch_sets_fade_when_idle() {
+        let out = patch(&Settings::default(), r#"{"fadeWhenIdle":false}"#).unwrap();
+        assert!(!out.fade_when_idle);
+    }
+
+    #[test]
+    fn a_patch_sets_widget_visible() {
+        let out = patch(&Settings::default(), r#"{"widgetVisible":false}"#).unwrap();
+        assert!(!out.widget_visible);
+    }
+
+    #[test]
+    fn a_patch_sets_the_hotkey_for_every_id() {
+        for h in Hotkey::ALL {
+            let out = patch(
+                &Settings::default(),
+                &format!(r#"{{"hotkey":"{}"}}"#, h.id()),
+            );
+            assert_eq!(out.unwrap().hotkey, h);
+        }
+    }
+
+    #[test]
+    fn a_patch_touches_only_the_keys_it_names() {
+        let mut current = Settings {
+            widget_style: Style::Island,
+            glass_opacity: 0.6,
+            fade_when_idle: false,
+            widget_visible: false,
+            widget_anchor: Some(Point { x: 9, y: 8 }),
+            hotkey: Hotkey::F14,
+            onboarding_completed: true,
+            ..Settings::default()
+        };
+        current
+            .extra
+            .insert("engine".into(), Value::from("parakeet-v3"));
+        let out = patch(&current, r#"{"fadeWhenIdle":true}"#).unwrap();
+        assert_eq!(
+            out,
+            Settings {
+                fade_when_idle: true,
+                ..current
+            }
+        );
+    }
+
+    #[test]
+    fn a_patch_clamps_the_glass_opacity() {
+        let high = patch(&Settings::default(), r#"{"glassOpacity":3}"#).unwrap();
+        assert_eq!(high.glass_opacity, 0.9);
+        let low = patch(&Settings::default(), r#"{"glassOpacity":-1.5}"#).unwrap();
+        assert_eq!(low.glass_opacity, 0.5);
+    }
+
+    #[test]
+    fn an_unknown_key_rejects_the_whole_patch() {
+        let r = patch(&Settings::default(), r#"{"widgetVisible":false,"bogus":1}"#);
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn the_anchor_and_the_tour_flag_cannot_be_patched() {
+        let anchor = patch(&Settings::default(), r#"{"widgetAnchor":{"x":1,"y":2}}"#);
+        assert!(anchor.is_err());
+        let tour = patch(&Settings::default(), r#"{"onboardingCompleted":true}"#);
+        assert!(tour.is_err());
+    }
+
+    #[test]
+    fn a_wrong_type_rejects_the_whole_patch() {
+        for bad in [
+            r#"{"widgetStyle":5}"#,
+            r#"{"widgetStyle":null}"#,
+            r#"{"glassOpacity":"0.7"}"#,
+            r#"{"glassOpacity":null}"#,
+            r#"{"fadeWhenIdle":"no"}"#,
+            r#"{"fadeWhenIdle":0}"#,
+            r#"{"widgetVisible":null}"#,
+            r#"{"widgetVisible":[]}"#,
+            r#"{"hotkey":5}"#,
+            r#"{"hotkey":null}"#,
+            r#"{"hotkey":["f13"]}"#,
+        ] {
+            assert!(patch(&Settings::default(), bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_bad_id_rejects_the_whole_patch() {
+        for bad in [
+            r#"{"widgetStyle":"bogus"}"#,
+            r#"{"hotkey":"leftCtrl"}"#,
+            r#"{"hotkey":"f12"}"#,
+            r#"{"hotkey":"RightCtrl"}"#,
+            r#"{"hotkey":""}"#,
+        ] {
+            assert!(patch(&Settings::default(), bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn one_bad_value_rejects_the_good_ones_beside_it() {
+        let r = patch(
+            &Settings::default(),
+            r#"{"widgetVisible":false,"hotkey":"nope","fadeWhenIdle":false}"#,
+        );
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn a_patch_that_is_not_an_object_is_rejected() {
+        for bad in ["null", "[]", "5", "\"x\"", "true"] {
+            assert!(patch(&Settings::default(), bad).is_err(), "{bad}");
+        }
+    }
+
+    // changes.
+
+    #[test]
+    fn identical_settings_change_nothing() {
+        let s = Settings::default();
+        assert_eq!(changes(&s, &s.clone()), Changes::default());
+        assert!(!changes(&s, &s.clone()).any());
+    }
+
+    #[test]
+    fn each_look_setting_flags_look_only() {
+        let old = Settings::default();
+        let edits = [
+            Settings {
+                widget_style: Style::Island,
+                ..old.clone()
+            },
+            Settings {
+                glass_opacity: 0.55,
+                ..old.clone()
+            },
+            Settings {
+                fade_when_idle: false,
+                ..old.clone()
+            },
+        ];
+        for new in edits {
+            assert_eq!(
+                changes(&old, &new),
+                Changes {
+                    look: true,
+                    ..Changes::default()
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn a_new_hotkey_flags_hotkey_only() {
+        let old = Settings::default();
+        let new = Settings {
+            hotkey: Hotkey::RightAlt,
+            ..old.clone()
+        };
+        assert_eq!(
+            changes(&old, &new),
+            Changes {
+                hotkey: true,
+                ..Changes::default()
+            }
+        );
+    }
+
+    #[test]
+    fn a_visibility_change_flags_visible_only() {
+        let old = Settings::default();
+        let new = Settings {
+            widget_visible: false,
+            ..old.clone()
+        };
+        let c = changes(&old, &new);
+        assert_eq!(
+            c,
+            Changes {
+                visible: true,
+                ..Changes::default()
+            }
+        );
+        assert!(c.any());
+    }
+
+    #[test]
+    fn the_anchor_the_tour_flag_and_extras_flag_nothing() {
+        let old = Settings::default();
+        let mut new = Settings {
+            widget_anchor: Some(Point { x: 3, y: 4 }),
+            onboarding_completed: true,
+            ..old.clone()
+        };
+        new.extra.insert("engine".into(), Value::from("x"));
+        assert_eq!(changes(&old, &new), Changes::default());
+    }
+
+    #[test]
+    fn several_edits_flag_several_fields() {
+        let old = Settings::default();
+        let new = Settings {
+            widget_style: Style::CaptionBar,
+            hotkey: Hotkey::F20,
+            widget_visible: false,
+            ..old.clone()
+        };
+        assert_eq!(
+            changes(&old, &new),
+            Changes {
+                look: true,
+                hotkey: true,
+                visible: true
+            }
+        );
     }
 }

@@ -14,7 +14,8 @@ shepit-core = { path = "../../core" }
 shepit-engine = { path = "../../engine" }
 cpal = "=0.18.2"
 serde = { version = "=1.0.229", features = ["derive"] }
-# tauri.conf.json carries a plugins section, and generate_context! expands to serde_json calls.
+# tauri.conf.json carries a plugins section, and generate_context! expands to serde_json calls;
+# update_settings also takes a JSON patch.
 serde_json = "=1.0.154"
 
 [target.'cfg(windows)'.dependencies]
@@ -29,6 +30,7 @@ windows = { version = "=0.62.2", features = [
     "Win32_System_Ole",
     "Win32_System_Variant",
     "Win32_UI_Accessibility",
+    "Win32_UI_Shell",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_Storage_FileSystem",
     "Win32_Security",

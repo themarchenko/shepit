@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import CaptionBar from "./CaptionBar";
 import { formatElapsed } from "./captionContent";
-import FlowPill from "./FlowPill";
-import Island from "./Island";
 import { SPRING, SPRING_MS } from "./spring";
+import WidgetView from "./WidgetView";
 import { MARGIN, WIDGET_EVENT, type WidgetState } from "./widgetState";
 
 // Commands only exist inside the Tauri webview; the dev page runs in a plain browser.
@@ -155,7 +153,6 @@ export default function Widget({ preset }: { preset?: MockConfig }) {
 
   if (!state || !view) return null;
 
-  const props = { s: state, elapsed: formatElapsed(now - view.startedAt) };
   const opacity = faded ? FADED_OPACITY : 1;
   return (
     <div
@@ -181,13 +178,7 @@ export default function Widget({ preset }: { preset?: MockConfig }) {
       onMouseLeave={() => send("widget_hover", { hovering: false })}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {state.style === "captionBar" ? (
-        <CaptionBar {...props} />
-      ) : state.style === "island" ? (
-        <Island {...props} />
-      ) : (
-        <FlowPill {...props} />
-      )}
+      <WidgetView state={state} elapsed={formatElapsed(now - view.startedAt)} />
     </div>
   );
 }

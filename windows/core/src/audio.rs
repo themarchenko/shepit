@@ -42,6 +42,12 @@ pub fn is_long_enough(samples: usize) -> bool {
     samples >= MIN_SAMPLES
 }
 
+/// True for no samples, or when every sample is within 1e-6 of zero: a muted or blocked
+/// microphone delivers exact zeros, while a quiet room still has noise above that.
+pub fn is_digital_silence(samples: &[f32]) -> bool {
+    samples.iter().all(|s| s.abs() <= 1e-6)
+}
+
 /// The last `LEVEL_HISTORY_LEN` levels, oldest first, zero-filled until full.
 #[derive(Debug, Clone)]
 pub struct LevelHistory {
@@ -218,5 +224,39 @@ mod tests {
         let mut buf = CaptureBuffer::new(48_000, 1).unwrap();
         feed(&mut buf, 19_199, 19_199, 1);
         assert_eq!(buf.finish().len(), 6399);
+    }
+
+    #[test]
+    fn no_samples_is_digital_silence() {
+        assert!(is_digital_silence(&[]));
+    }
+
+    #[test]
+    fn exact_zeros_are_digital_silence() {
+        assert!(is_digital_silence(&[0.0; 16_000]));
+        assert!(is_digital_silence(&[-0.0, 0.0]));
+    }
+
+    #[test]
+    fn samples_up_to_1e_minus_6_in_magnitude_are_still_silence() {
+        assert!(is_digital_silence(&[1e-6, -1e-6, 0.5e-6]));
+    }
+
+    #[test]
+    fn a_sample_above_1e_minus_6_is_not_silence() {
+        assert!(!is_digital_silence(&[0.0, 0.0, 2e-6]));
+        assert!(!is_digital_silence(&[-2e-6]));
+    }
+
+    #[test]
+    fn quiet_noise_is_not_silence() {
+        assert!(!is_digital_silence(&[1e-4; 512]));
+    }
+
+    #[test]
+    fn one_loud_sample_among_zeros_is_not_silence() {
+        let mut v = vec![0.0; 16_000];
+        v[9_000] = 0.3;
+        assert!(!is_digital_silence(&v));
     }
 }

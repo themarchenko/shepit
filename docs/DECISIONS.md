@@ -622,6 +622,35 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
 - Uninstall: the CI test logs what the uninstaller leaves in `%LOCALAPPDATA%\Shepit` (the models live
   there). Moving the models out of the install folder is a follow-up.
 
+## 2026-10-27: Windows settings and tour (task 8)
+
+- Panes: General, Appearance and About, only for what works on Windows. Left out because nothing is behind them yet:
+  language lock (the engine takes no language hint), polishing, dictionary and history, live preview, recognizer
+  choice, What's new, updates and launch at login (the Run key needs the installed exe path, task 11).
+- Dictation key: Right Ctrl (default), Right Alt, F13 to F24. The hook never swallows a key, so only keys with no action of
+  their own qualify. Left Ctrl is out (it is one of two defences against our own paste keys), Shift is out (8 s of Right Shift
+  opens Filter Keys), and so are Win, Caps Lock, Apps, Scroll Lock, F1 to F12 and Pause. Right Alt shows an AltGr note.
+- The picker goes through the hook (the user's choice). While picking, only candidate keys and Esc leave the hook proc, so
+  letters stay unseen. 15 s timeout. The new key reaches the hook and the controller live; that message is sent on a
+  short-lived blocking thread so a full queue cannot leave the saved key and the live key different.
+- One write path (`settings_store::apply`) saves, updates the widget and the tray check, and emits `settings-changed`. UI edits
+  are a strict patch (unknown key, wrong type or bad id rejects all).
+- Microphone test: one second on the default input, only when the user clicks, samples dropped. A stream error is also
+  written to a slot that cannot overflow, so a broken stream is never reported as fine. One test at a time, and none while a
+  dictation runs ("busy"). Digital silence in a real dictation fails with its own message (dictation.md, Windows only).
+- Tour: 4 steps, normal window level, shown in the taskbar, no title bar (drag by the background). Every way of closing
+  it sets `onboardingCompleted`. Accepted gap: if the app quits while the tour is open, it shows again at the next launch.
+- Tray: a left click opens Settings and a right click shows the menu, the Windows convention. This replaced a
+  double-click handler. Windows 11 hides new tray icons, so a second launch also opens Settings.
+- Commands are scoped per window: an app manifest in `build.rs` lists them, `capabilities/default.json` gives the widget
+  its three and `capabilities/settings.json` gives Settings and the tour theirs.
+- The look: the grey window of `docs/design/settings-onboarding.html` with every blue accent changed to off-white
+  `#f4f2ee`, primary buttons off-white with dark text, Segoe UI Variable. The tour is opaque black glass (no blur, as the widget).
+- Device checks still open: the picker with real keys (Right Alt with AltGr layouts, F13 through a remap), change of key
+  during a hands-free dictation, Right Alt tap on a US layout, hook behaviour over an elevated window, the microphone
+  results with each Windows privacy switch, dark title bar and no white flash, dragging the tour, one Settings window,
+  100% and 150% scaling.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

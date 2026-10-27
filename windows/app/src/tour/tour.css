@@ -1,0 +1,157 @@
+/* The welcome tour: opaque black glass with a hairline, like the widget but without blur. */
+html body.sp-tour-page,
+body.sp-tour-page #root {
+  background: #0e0e10;
+}
+
+.sp-tour {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 28px 18px;
+  border: 1px solid var(--hair);
+  color: var(--accent);
+  position: relative;
+}
+
+.sp-tour-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.sp-tour-skip {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+}
+
+.sp-tour-step {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: sp-step-in 0.45s var(--ease);
+}
+
+@keyframes sp-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.sp-tour-step h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sp-tour-text {
+  margin: 0;
+  color: rgba(244, 242, 238, 0.7);
+  line-height: 1.5;
+}
+
+/* Text-sized, so it lines up with the paragraphs above it. */
+.sp-tour-link .sp-btn {
+  margin-left: -12px;
+}
+
+.sp-tour-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sp-tour-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.sp-tour-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.2);
+  transition:
+    width 0.35s var(--ease),
+    background 0.2s;
+}
+
+.sp-tour-dots i.on {
+  width: 18px;
+  background: var(--accent);
+}
+
+.sp-tour-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.sp-field {
+  background: #fbfaf7;
+  color: #2c2b28;
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-height: 64px;
+  font-size: 14px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  user-select: text;
+}
+
+.sp-field-caret {
+  width: 1.5px;
+  height: 18px;
+  background: #2c2b28;
+  flex: none;
+  animation: sp-blink 1s steps(1) infinite;
+}
+
+@keyframes sp-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+textarea.sp-field {
+  width: 100%;
+  height: 120px;
+  resize: none;
+  border: 0;
+  font: 14px/1.45 var(--ui-font);
+}
+
+textarea.sp-field:focus-visible {
+  outline: 2px solid rgba(244, 242, 238, 0.8);
+  outline-offset: 2px;
+}
+
+.sp-tour-model {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* While the model downloads, the whole step reads as not ready yet, not only the box. */
+.sp-tour-waiting h1,
+.sp-tour-waiting .sp-tour-text {
+  opacity: 0.5;
+}
+
+textarea.sp-field:disabled {
+  background: #fbfaf7;
+  color: #2c2b28;
+  opacity: 0.4;
+}

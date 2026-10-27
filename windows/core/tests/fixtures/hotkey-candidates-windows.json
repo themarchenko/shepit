@@ -1,0 +1,374 @@
+{
+  "version": 1,
+  "description": "Hotkey::candidate: raw virtual-key code and LLKHF flags (1 = extended) in, the hotkey id out, or null when the picker refuses the key. Windows only: the picker lives in the Windows port, so no Swift runner reads it. Ids: rightCtrl, rightAlt, f13 to f24. Table: docs/spec/hotkey.md (Windows section).",
+  "cases": [
+    {
+      "name": "right ctrl",
+      "input": {
+        "vk": 163,
+        "flags": 1
+      },
+      "expected": "rightCtrl"
+    },
+    {
+      "name": "right ctrl without extended flag",
+      "input": {
+        "vk": 163,
+        "flags": 0
+      },
+      "expected": "rightCtrl"
+    },
+    {
+      "name": "generic ctrl with extended flag is right ctrl",
+      "input": {
+        "vk": 17,
+        "flags": 1
+      },
+      "expected": "rightCtrl"
+    },
+    {
+      "name": "generic ctrl without extended flag is left ctrl",
+      "input": {
+        "vk": 17,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "left ctrl",
+      "input": {
+        "vk": 162,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "left ctrl with extended flag",
+      "input": {
+        "vk": 162,
+        "flags": 1
+      },
+      "expected": null
+    },
+    {
+      "name": "right alt",
+      "input": {
+        "vk": 165,
+        "flags": 1
+      },
+      "expected": "rightAlt"
+    },
+    {
+      "name": "right alt without extended flag",
+      "input": {
+        "vk": 165,
+        "flags": 0
+      },
+      "expected": "rightAlt"
+    },
+    {
+      "name": "generic alt with extended flag is right alt (AltGr)",
+      "input": {
+        "vk": 18,
+        "flags": 1
+      },
+      "expected": "rightAlt"
+    },
+    {
+      "name": "generic alt without extended flag is left alt",
+      "input": {
+        "vk": 18,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "left alt",
+      "input": {
+        "vk": 164,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "f13",
+      "input": {
+        "vk": 124,
+        "flags": 0
+      },
+      "expected": "f13"
+    },
+    {
+      "name": "f14",
+      "input": {
+        "vk": 125,
+        "flags": 0
+      },
+      "expected": "f14"
+    },
+    {
+      "name": "f15",
+      "input": {
+        "vk": 126,
+        "flags": 0
+      },
+      "expected": "f15"
+    },
+    {
+      "name": "f16",
+      "input": {
+        "vk": 127,
+        "flags": 0
+      },
+      "expected": "f16"
+    },
+    {
+      "name": "f17",
+      "input": {
+        "vk": 128,
+        "flags": 0
+      },
+      "expected": "f17"
+    },
+    {
+      "name": "f18",
+      "input": {
+        "vk": 129,
+        "flags": 0
+      },
+      "expected": "f18"
+    },
+    {
+      "name": "f19",
+      "input": {
+        "vk": 130,
+        "flags": 0
+      },
+      "expected": "f19"
+    },
+    {
+      "name": "f20",
+      "input": {
+        "vk": 131,
+        "flags": 0
+      },
+      "expected": "f20"
+    },
+    {
+      "name": "f21",
+      "input": {
+        "vk": 132,
+        "flags": 0
+      },
+      "expected": "f21"
+    },
+    {
+      "name": "f22",
+      "input": {
+        "vk": 133,
+        "flags": 0
+      },
+      "expected": "f22"
+    },
+    {
+      "name": "f23",
+      "input": {
+        "vk": 134,
+        "flags": 0
+      },
+      "expected": "f23"
+    },
+    {
+      "name": "f24",
+      "input": {
+        "vk": 135,
+        "flags": 0
+      },
+      "expected": "f24"
+    },
+    {
+      "name": "f24 with extended flag",
+      "input": {
+        "vk": 135,
+        "flags": 1
+      },
+      "expected": "f24"
+    },
+    {
+      "name": "f1",
+      "input": {
+        "vk": 112,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "f11",
+      "input": {
+        "vk": 122,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "f12",
+      "input": {
+        "vk": 123,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "vk just above f24",
+      "input": {
+        "vk": 136,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "left shift",
+      "input": {
+        "vk": 160,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "right shift",
+      "input": {
+        "vk": 161,
+        "flags": 1
+      },
+      "expected": null
+    },
+    {
+      "name": "generic shift",
+      "input": {
+        "vk": 16,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "left win",
+      "input": {
+        "vk": 91,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "right win",
+      "input": {
+        "vk": 92,
+        "flags": 1
+      },
+      "expected": null
+    },
+    {
+      "name": "apps key",
+      "input": {
+        "vk": 93,
+        "flags": 1
+      },
+      "expected": null
+    },
+    {
+      "name": "caps lock",
+      "input": {
+        "vk": 20,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "scroll lock",
+      "input": {
+        "vk": 145,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "pause",
+      "input": {
+        "vk": 19,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "escape",
+      "input": {
+        "vk": 27,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "space",
+      "input": {
+        "vk": 32,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "letter a",
+      "input": {
+        "vk": 65,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "digit 1",
+      "input": {
+        "vk": 49,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "enter",
+      "input": {
+        "vk": 13,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "tab",
+      "input": {
+        "vk": 9,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "num lock",
+      "input": {
+        "vk": 144,
+        "flags": 1
+      },
+      "expected": null
+    },
+    {
+      "name": "vk 0",
+      "input": {
+        "vk": 0,
+        "flags": 0
+      },
+      "expected": null
+    },
+    {
+      "name": "vk 255",
+      "input": {
+        "vk": 255,
+        "flags": 0
+      },
+      "expected": null
+    }
+  ]
+}

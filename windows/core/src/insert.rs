@@ -167,7 +167,7 @@ pub fn document_too_long(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::keys::{
-        is_accepted, KeyFilter, RawKey, LLKHF_EXTENDED, LLKHF_INJECTED, VK_CONTROL, VK_RCONTROL,
+        is_accepted, Hotkey, KeyFilter, RawKey, LLKHF_EXTENDED, LLKHF_INJECTED, VK_CONTROL,
         WM_KEYDOWN, WM_KEYUP,
     };
 
@@ -304,27 +304,35 @@ mod tests {
 
     #[test]
     fn the_hook_accepts_none_of_the_paste_keys() {
-        for k in paste_keys() {
-            for injected in [false, true] {
-                assert!(
-                    !is_accepted(k.vk as u32, k.hook_flags(injected), VK_RCONTROL),
-                    "{k:?}"
-                );
+        // For every key the user can pick, while picking and not: the chord never reaches the
+        // dictation controller or the picker.
+        for hotkey in Hotkey::ALL {
+            for picking in [false, true] {
+                for k in paste_keys() {
+                    for injected in [false, true] {
+                        assert!(
+                            !is_accepted(k.vk as u32, k.hook_flags(injected), hotkey, picking),
+                            "{k:?} with {hotkey:?}, picking {picking}"
+                        );
+                    }
+                }
             }
         }
     }
 
     #[test]
     fn the_key_filter_drops_every_injected_paste_key() {
-        let mut f = KeyFilter::new();
-        for k in paste_keys() {
-            let message = if k.key_up { WM_KEYUP } else { WM_KEYDOWN };
-            let raw = RawKey {
-                message,
-                vk: k.vk as u32,
-                flags: k.hook_flags(true),
-            };
-            assert_eq!(f.filter(raw), None, "{k:?}");
+        for hotkey in Hotkey::ALL {
+            let mut f = KeyFilter::for_hotkey(hotkey);
+            for k in paste_keys() {
+                let message = if k.key_up { WM_KEYUP } else { WM_KEYDOWN };
+                let raw = RawKey {
+                    message,
+                    vk: k.vk as u32,
+                    flags: k.hook_flags(true),
+                };
+                assert_eq!(f.filter(raw), None, "{k:?} with {hotkey:?}");
+            }
         }
     }
 
