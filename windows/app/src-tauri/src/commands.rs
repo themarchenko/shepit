@@ -295,6 +295,7 @@ mod tests {
         assert_eq!(
             keys,
             [
+                "checkForUpdates",
                 "claudeExecutable",
                 "claudeModel",
                 "codexExecutable",
@@ -312,6 +313,20 @@ mod tests {
                 "widgetVisible"
             ]
         );
+    }
+
+    #[test]
+    fn the_payload_carries_the_daily_update_switch() {
+        let on = json(&Settings::default(), ModelStatus::Ready);
+        assert_eq!(on["checkForUpdates"], true);
+        let off = Settings {
+            check_for_updates: false,
+            ..Settings::default()
+        };
+        assert_eq!(json(&off, ModelStatus::Ready)["checkForUpdates"], false);
+        // The skipped version and the last check time stay inside the app.
+        assert!(on.get("skippedUpdate").is_none());
+        assert!(on.get("lastUpdateCheck").is_none());
     }
 
     #[test]

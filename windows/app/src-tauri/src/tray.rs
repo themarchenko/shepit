@@ -1,4 +1,5 @@
 use shepit_core::dictation::ModelStatus;
+use shepit_core::update::UpdateState;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MenuAction {
@@ -6,6 +7,7 @@ pub enum MenuAction {
     OpenSettings,
     ToggleWidget,
     ResetWidget,
+    CheckUpdates,
     None,
 }
 
@@ -20,6 +22,12 @@ pub fn action_for(id: &str) -> MenuAction {
         "reset-widget" => MenuAction::ResetWidget,
         _ => MenuAction::None,
     }
+}
+
+/// The tray item next to Settings: offers the release when one is found, else starts a check.
+#[allow(dead_code)]
+pub fn update_label(state: &UpdateState) -> String {
+    todo!()
 }
 
 /// Tray tooltip for the model state: the download percent while it runs, else the app name.
@@ -97,6 +105,38 @@ mod tests {
     fn widget_ids_are_case_sensitive_and_exact() {
         assert_eq!(action_for("Toggle-Widget"), MenuAction::None);
         assert_eq!(action_for("reset_widget"), MenuAction::None);
+    }
+
+    #[test]
+    fn check_updates_id_checks_for_updates() {
+        assert_eq!(action_for("check-updates"), MenuAction::CheckUpdates);
+    }
+
+    #[test]
+    fn check_updates_id_is_case_sensitive_and_exact() {
+        assert_eq!(action_for("Check-Updates"), MenuAction::None);
+        assert_eq!(action_for("check_updates"), MenuAction::None);
+        assert_eq!(action_for("check-updates "), MenuAction::None);
+    }
+
+    #[test]
+    fn the_update_item_asks_to_check_until_a_release_is_found() {
+        for state in [
+            UpdateState::Idle,
+            UpdateState::Checking,
+            UpdateState::UpToDate,
+            UpdateState::Failed("offline".into()),
+        ] {
+            assert_eq!(update_label(&state), "Check for updates...", "{state:?}");
+        }
+    }
+
+    #[test]
+    fn the_update_item_names_the_release_that_is_out() {
+        assert_eq!(
+            update_label(&UpdateState::Available("0.4.0".into())),
+            "Update to 0.4.0..."
+        );
     }
 
     #[test]

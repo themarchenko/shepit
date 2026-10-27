@@ -1,0 +1,184 @@
+{
+  "installed": "0.3.1",
+  "cases": {
+    "checking": {
+      "input": {
+        "state": "checking"
+      },
+      "card": {
+        "title": "Checking for updates",
+        "detail": null,
+        "progress": {
+          "fraction": null
+        },
+        "link": null,
+        "buttons": [
+          {
+            "id": "dismiss",
+            "label": "Close",
+            "kind": "quiet",
+            "lead": false
+          }
+        ]
+      }
+    },
+    "upToDate": {
+      "input": {
+        "state": "upToDate"
+      },
+      "card": {
+        "title": "Shepit is up to date",
+        "detail": "You have the latest version, 0.3.1.",
+        "progress": null,
+        "link": null,
+        "buttons": [
+          {
+            "id": "dismiss",
+            "label": "OK",
+            "kind": "primary",
+            "lead": false
+          }
+        ]
+      }
+    },
+    "available": {
+      "input": {
+        "state": "available",
+        "version": "0.4.0"
+      },
+      "card": {
+        "title": "Shepit 0.4.0 is out",
+        "detail": "You have 0.3.1. Shepit downloads the new version from GitHub, checks that it is signed like this one, runs the installer and opens again.",
+        "progress": null,
+        "link": {
+          "id": "whatChanged",
+          "label": "What changed",
+          "kind": "quiet",
+          "lead": false
+        },
+        "buttons": [
+          {
+            "id": "skip",
+            "label": "Skip this version",
+            "kind": "quiet",
+            "lead": true
+          },
+          {
+            "id": "dismiss",
+            "label": "Later",
+            "kind": "quiet",
+            "lead": false
+          },
+          {
+            "id": "install",
+            "label": "Install and reopen",
+            "kind": "primary",
+            "lead": false
+          }
+        ]
+      }
+    },
+    "downloading": {
+      "input": {
+        "state": "downloading",
+        "version": "0.4.0",
+        "fraction": 0.25,
+        "total": 48000000
+      },
+      "card": {
+        "title": "Updating to 0.4.0",
+        "detail": "Downloading... 12 of 48 MB",
+        "progress": {
+          "fraction": 0.25
+        },
+        "link": null,
+        "buttons": []
+      }
+    },
+    "downloadingNoSize": {
+      "input": {
+        "state": "downloading",
+        "version": "0.4.0",
+        "fraction": 0.0,
+        "total": null
+      },
+      "card": {
+        "title": "Updating to 0.4.0",
+        "detail": "Downloading...",
+        "progress": {
+          "fraction": null
+        },
+        "link": null,
+        "buttons": []
+      }
+    },
+    "installing": {
+      "input": {
+        "state": "installing",
+        "version": "0.4.0"
+      },
+      "card": {
+        "title": "Updating to 0.4.0",
+        "detail": "Checking the signature and starting the installer. Shepit reopens on its own.",
+        "progress": {
+          "fraction": null
+        },
+        "link": null,
+        "buttons": []
+      }
+    },
+    "checkFailed": {
+      "input": {
+        "state": "failed",
+        "message": "Could not reach GitHub."
+      },
+      "card": {
+        "title": "Could not check for updates",
+        "detail": "Could not reach GitHub.",
+        "progress": null,
+        "link": null,
+        "buttons": [
+          {
+            "id": "dismiss",
+            "label": "Close",
+            "kind": "quiet",
+            "lead": false
+          },
+          {
+            "id": "releasePage",
+            "label": "Open release page",
+            "kind": "primary",
+            "lead": false
+          }
+        ]
+      }
+    },
+    "installFailed": {
+      "input": {
+        "state": "installFailed",
+        "version": "0.4.0",
+        "message": "The installer did not start."
+      },
+      "card": {
+        "title": "The update did not install",
+        "detail": "The installer did not start.",
+        "progress": null,
+        "link": null,
+        "buttons": [
+          {
+            "id": "dismiss",
+            "label": "Close",
+            "kind": "quiet",
+            "lead": false
+          },
+          {
+            "id": "releasePage",
+            "label": "Open release page",
+            "kind": "primary",
+            "lead": false
+          }
+        ]
+      }
+    }
+  }
+}

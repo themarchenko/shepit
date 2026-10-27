@@ -5,6 +5,17 @@
 #[cfg_attr(not(windows), allow(dead_code))]
 pub const MIC_PRIVACY_URI: &str = "ms-settings:privacy-microphone";
 
+/// Where Shepit releases live.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const RELEASES_URL: &str = "https://github.com/themarchenko/shepit/releases";
+
+/// The page of one release, or the latest releases page. A version that is not digits and dots
+/// (`0.4.0/../x`, `0.4.0-rc1`, empty) gets the latest page, so no feed text reaches the URL.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn release_page_url(version: Option<&str>) -> String {
+    todo!()
+}
+
 /// Opens the Windows microphone privacy page.
 #[cfg(windows)]
 pub fn open_microphone_privacy() -> Result<(), String> {
@@ -45,6 +56,36 @@ pub fn open_microphone_privacy() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const LATEST: &str = "https://github.com/themarchenko/shepit/releases/latest";
+
+    #[test]
+    fn a_plain_version_gets_its_release_page() {
+        assert_eq!(
+            release_page_url(Some("0.4.0")),
+            "https://github.com/themarchenko/shepit/releases/tag/v0.4.0"
+        );
+    }
+
+    #[test]
+    fn anything_but_digits_and_dots_gets_the_latest_page() {
+        for bad in [
+            "0.4.0-rc1",
+            "0.4.0/../x",
+            "",
+            "v0.4.0",
+            "0.4.0?x=1",
+            "0.4.0 ",
+            "0,4",
+        ] {
+            assert_eq!(release_page_url(Some(bad)), LATEST, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn no_version_gets_the_latest_page() {
+        assert_eq!(release_page_url(None), LATEST);
+    }
 
     #[test]
     fn the_privacy_uri_is_the_microphone_page() {

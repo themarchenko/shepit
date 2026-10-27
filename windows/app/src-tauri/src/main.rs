@@ -14,6 +14,8 @@ mod settings_store;
 mod shell;
 mod tray;
 mod ui;
+mod update_card;
+mod updater;
 mod widget;
 mod widget_host;
 
@@ -156,6 +158,8 @@ fn main() {
                             std::thread::spawn(move || host.reset_position());
                         }
                         tray::MenuAction::OpenSettings => open_settings_later(app),
+                        // Not wired yet: the updater worker takes this (task 11, C3b).
+                        tray::MenuAction::CheckUpdates => {}
                         tray::MenuAction::None => {}
                     },
                 )

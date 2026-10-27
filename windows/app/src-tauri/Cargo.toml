@@ -10,6 +10,7 @@ tauri-build = "=2.7.4"
 [dependencies]
 tauri = { version = "=2.12.5", features = ["tray-icon"] }
 tauri-plugin-single-instance = "=2.5.4"
+tauri-plugin-updater = "=2.14.0"
 shepit-core = { path = "../../core" }
 shepit-engine = { path = "../../engine" }
 shepit-agent = { path = "../../agent" }
@@ -18,6 +19,10 @@ serde = { version = "=1.0.229", features = ["derive"] }
 # tauri.conf.json carries a plugins section, and generate_context! expands to serde_json calls;
 # update_settings also takes a JSON patch.
 serde_json = "=1.0.154"
+
+[dev-dependencies]
+# The functional updater tests build a mock app; the feature is test-only.
+tauri = { version = "=2.12.5", features = ["tray-icon", "test"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "=0.62.2", features = [

@@ -73,18 +73,133 @@ fn every_command_is_in_the_build_manifest() {
     }
 }
 
+/// Every capabilities/*.json, parsed, with its file name.
+fn capabilities() -> Vec<(String, serde_json::Value)> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities");
+    let mut files: Vec<_> = fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("json"))
+        .collect();
+    files.sort();
+    files
+        .into_iter()
+        .map(|p| {
+            let text = fs::read_to_string(&p).unwrap();
+            let json =
+                serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", p.display()));
+            (p.file_name().unwrap().to_string_lossy().into_owned(), json)
+        })
+        .collect()
+}
+
+fn permissions(capability: &serde_json::Value) -> Vec<String> {
+    capability["permissions"]
+        .as_array()
+        .expect("permissions array")
+        .iter()
+        .map(|p| p.as_str().expect("permission string").to_string())
+        .collect()
+}
+
+fn permission_of(command: &str) -> String {
+    format!("allow-{}", command.replace('_', "-"))
+}
+
+const CARD_COMMANDS: [&str; 3] = ["update_card_ready", "update_action", "update_resize"];
+
 #[test]
 fn every_command_is_granted_to_a_window() {
-    let caps = format!(
-        "{}{}",
-        read("capabilities/default.json"),
-        read("capabilities/settings.json")
-    );
+    let granted: Vec<String> = capabilities()
+        .iter()
+        .flat_map(|(_, c)| permissions(c))
+        .collect();
     for name in command_names() {
-        let permission = format!("\"allow-{}\"", name.replace('_', "-"));
+        let permission = permission_of(&name);
         assert!(
-            caps.contains(&permission),
-            "{permission} is in no capability file"
+            granted.contains(&permission),
+            "\"{permission}\" is in no capability file"
         );
+    }
+}
+
+#[test]
+fn the_scan_reads_every_capability_file() {
+    let names: Vec<String> = capabilities().into_iter().map(|(n, _)| n).collect();
+    for expected in ["default.json", "settings.json", "update.json"] {
+        assert!(names.contains(&expected.to_string()), "{names:?}");
+    }
+}
+
+#[test]
+fn the_update_commands_are_in_the_scan() {
+    let names = command_names();
+    for name in [
+        "get_update_status",
+        "check_updates_now",
+        "show_update_card",
+        "update_card_ready",
+        "update_action",
+        "update_resize",
+    ] {
+        assert!(names.contains(&name.to_string()), "{name} is not a command");
+    }
+}
+
+#[test]
+fn the_update_window_gets_only_the_card_commands() {
+    let caps = capabilities();
+    let (_, update) = caps
+        .iter()
+        .find(|(n, _)| n == "update.json")
+        .expect("capabilities/update.json");
+    assert_eq!(update["windows"], serde_json::json!(["update"]));
+    let mut got = permissions(update);
+    got.sort();
+    let mut want: Vec<String> = CARD_COMMANDS.iter().map(|c| permission_of(c)).collect();
+    want.push("core:event:default".into());
+    want.sort();
+    assert_eq!(got, want);
+}
+
+#[test]
+fn the_card_commands_are_granted_to_no_other_window() {
+    for (file, cap) in capabilities() {
+        if file == "update.json" {
+            continue;
+        }
+        for command in CARD_COMMANDS {
+            assert!(
+                !permissions(&cap).contains(&permission_of(command)),
+                "{file} grants {command}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_settings_window_gets_the_update_commands_but_not_the_card_ones() {
+    let caps = capabilities();
+    let (_, settings) = caps.iter().find(|(n, _)| n == "settings.json").unwrap();
+    let got = permissions(settings);
+    for command in ["get_update_status", "check_updates_now", "show_update_card"] {
+        assert!(got.contains(&permission_of(command)), "{command}");
+    }
+}
+
+#[test]
+fn no_window_can_call_a_plugin_command() {
+    // The updater plugin registers check/download/install for JS. Its permissions, and those of
+    // the plugins that could open or run things, are granted to no window: every call is Rust.
+    let banned = ["updater:", "opener:", "shell:", "process:", "fs:", "http:"];
+    for (file, cap) in capabilities() {
+        for permission in permissions(&cap) {
+            for prefix in banned {
+                assert!(
+                    !permission.starts_with(prefix),
+                    "{file} grants {permission}"
+                );
+            }
+        }
     }
 }
