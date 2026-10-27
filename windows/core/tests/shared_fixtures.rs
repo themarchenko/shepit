@@ -9,6 +9,7 @@ use shepit_core::app_version::is_newer;
 use shepit_core::cleanup::passthrough_clean;
 use shepit_core::dictionary::{correct, new_entries};
 use shepit_core::gesture::{HotkeyGesture, Output};
+use shepit_core::live::split;
 use shepit_core::polish::pipeline::{format_request, PolishError, Polisher};
 use shepit_core::polish::prompt::{user_message, FormatRequest, PromptContext};
 use shepit_core::polish::reply::{finish, parse_reply};
@@ -17,7 +18,7 @@ use shepit_core::profile::{profile_by_id, resolve_mode, resolve_profile, word_co
 use shepit_core::speech::{is_junk, join, retry_language};
 
 /// Fixture files that have a Rust runner in this file.
-const PORTED: [&str; 15] = [
+const PORTED: [&str; 16] = [
     "app-version.json",
     "dictionary-correction.json",
     "dictionary-learning.json",
@@ -29,6 +30,7 @@ const PORTED: [&str; 15] = [
     "hallucination-filter.json",
     "retry-language.json",
     "live-preview-join.json",
+    "live-preview-split.json",
     "prompt-message.json",
     "reply-parse.json",
     "reply-finish.json",
@@ -293,6 +295,33 @@ fn live_preview_join_matches_shared_fixture() {
 }
 
 #[derive(Deserialize)]
+struct SplitInput {
+    frozen: String,
+    current: String,
+}
+
+#[derive(Deserialize)]
+struct SplitExpected {
+    stable: String,
+    unstable: String,
+}
+
+#[test]
+fn live_preview_split_matches_shared_fixture() {
+    let f = support::load::<SplitInput, SplitExpected>("live-preview-split.json", 10).unwrap();
+    let failing: Vec<&str> = f
+        .cases
+        .iter()
+        .filter(|c| {
+            let got = split(&c.input.frozen, &c.input.current);
+            got.stable != c.expected.stable || got.unstable != c.expected.unstable
+        })
+        .map(|c| c.name.as_str())
+        .collect();
+    assert!(failing.is_empty(), "failing cases: {failing:?}");
+}
+
+#[derive(Deserialize)]
 struct PromptExample {
     raw: String,
     #[serde(rename = "final")]
@@ -490,7 +519,7 @@ fn polish_routing_matches_shared_fixture() {
 #[test]
 fn every_fixture_file_has_the_envelope() {
     let files = json_files();
-    assert!(files.len() >= 11, "only {} fixture files", files.len());
+    assert!(files.len() >= 16, "only {} fixture files", files.len());
     for name in &files {
         support::load::<Value, Value>(name, 1).unwrap();
     }

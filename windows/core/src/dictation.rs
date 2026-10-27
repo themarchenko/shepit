@@ -8,6 +8,7 @@ use crate::gesture::{HotkeyGesture, Output};
 use crate::history::{insert_method_id, status_id};
 use crate::insert::{clipboard_only_message, InsertOutcome, PASSWORD_REFUSED};
 use crate::keys::{Hotkey, KeyEvent, KeyFilter, RawKey};
+use crate::live::{Config as LiveConfig, LivePreview, LiveSource, LiveText};
 use crate::polish::route::Source;
 use crate::speech::{done_preview, has_enough_speech, is_junk};
 
@@ -61,7 +62,8 @@ pub fn classify_error(text: &str) -> CaptureError {
     }
 }
 
-pub trait Recorder {
+/// `LiveSource` has no default methods: a recorder that cannot be read while it runs has no business here.
+pub trait Recorder: LiveSource {
     fn start(&mut self) -> Result<(), CaptureError>;
     /// Stops capture and returns 16 kHz mono samples.
     fn stop(&mut self) -> Vec<f32>;
@@ -113,6 +115,15 @@ pub enum ModelStatus {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Job {
     pub id: u64,
+    pub samples: Vec<f32>,
+}
+
+/// Audio for one live preview pass. `id` is the dictation id and `seq` the pass, so a late
+/// answer is dropped.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PreviewJob {
+    pub id: u64,
+    pub seq: u64,
     pub samples: Vec<f32>,
 }
 
@@ -246,6 +257,9 @@ pub struct View {
     pub progress: Option<f32>,
     /// The app the text goes to (`TargetContext::app_name`), once the context has arrived.
     pub target: Option<String>,
+    /// The words heard so far. Display only; it stays through processing and is cleared when
+    /// the dictation ends.
+    pub live: LiveText,
 }
 
 /// Input from the widget itself (WidgetController.swift:51-53).
@@ -298,6 +312,10 @@ pub struct Controller<R: Recorder> {
     run: Option<Run>,
     finished: Option<Finished>,
     new_terms: Vec<String>,
+    preview: LivePreview,
+    pending_preview: Option<PreviewJob>,
+    /// The setting as last pushed by the app; copied into the run at start.
+    live_setting: bool,
 }
 
 impl<R: Recorder> Controller<R> {
@@ -324,6 +342,9 @@ impl<R: Recorder> Controller<R> {
             run: None,
             finished: None,
             new_terms: Vec::new(),
+            preview: LivePreview::new(LiveConfig::default()),
+            pending_preview: None,
+            live_setting: true,
         }
     }
 
@@ -387,6 +408,7 @@ impl<R: Recorder> Controller<R> {
         self.pending_format = None;
         self.pending_insert = None;
         self.new_terms.clear();
+        self.clear_preview();
         self.finish(None, false);
     }
 
@@ -465,6 +487,7 @@ impl<R: Recorder> Controller<R> {
     }
 
     fn fail(&mut self, message: String, at: f64) {
+        self.clear_preview();
         self.state = State::Failed { message };
         self.failed_at = at;
     }
@@ -612,6 +635,7 @@ impl<R: Recorder> Controller<R> {
         if self.live != Some(id) || self.state != State::Inserting {
             return;
         }
+        self.clear_preview();
         match &result {
             Ok(outcome) => self.finish(Some(*outcome), false),
             Err(m) => self.finish(None, m == PASSWORD_REFUSED),
@@ -641,9 +665,13 @@ impl<R: Recorder> Controller<R> {
         self.live = None;
         self.capture = None;
         self.context = None;
+        self.clear_preview();
         self.clear_levels();
         match self.recorder.start() {
             Ok(()) => {
+                if self.live_setting {
+                    self.preview.start(at);
+                }
                 let id = self.alloc_id();
                 self.live = Some(id);
                 self.capture = Some(id);
@@ -660,6 +688,10 @@ impl<R: Recorder> Controller<R> {
     }
 
     fn stop_recorder(&mut self) -> Vec<f32> {
+        // The preview ends before the recorder does, so no pass is handed out for a recording
+        // that is over. Its text stays until the dictation ends.
+        self.preview.stop();
+        self.pending_preview = None;
         let samples = self.recorder.stop();
         self.state = State::Idle;
         self.clear_levels();
@@ -699,6 +731,68 @@ impl<R: Recorder> Controller<R> {
         if expired {
             self.state = State::Idle;
         }
+        self.schedule_preview(now);
+    }
+
+    fn clear_preview(&mut self) {
+        self.preview.clear();
+        self.pending_preview = None;
+    }
+
+    /// Only a recording with a ready model asks for a pass: a pass handed out earlier would
+    /// start the model load for nothing.
+    fn schedule_preview(&mut self, now: f64) {
+        if !matches!(self.state, State::Recording { .. })
+            || self.model != ModelStatus::Ready
+            || self.pending_preview.is_some()
+        {
+            return;
+        }
+        let (Some(id), Some(req)) = (self.live, self.preview.next(now, &self.recorder)) else {
+            return;
+        };
+        self.pending_preview = Some(PreviewJob {
+            id,
+            seq: req.seq,
+            samples: req.samples,
+        });
+    }
+
+    /// The app's `livePreview` setting. It is read when a recording starts, so a change applies
+    /// to the next dictation.
+    pub fn set_live_preview(&mut self, on: bool) {
+        self.live_setting = on;
+    }
+
+    /// The next preview pass for the recognizer, once.
+    pub fn take_preview(&mut self) -> Option<PreviewJob> {
+        self.pending_preview.take()
+    }
+
+    /// The dictation whose preview passes are still wanted: the recorder is open and the
+    /// preview was on at start. The recognizer skips queued passes for any other id.
+    pub fn preview_wanted(&self) -> Option<u64> {
+        if matches!(self.state, State::Recording { .. }) && self.preview.is_running() {
+            self.live
+        } else {
+            None
+        }
+    }
+
+    /// A preview pass finished in `secs`. An answer for another dictation, or after the key was
+    /// released, is dropped.
+    pub fn on_previewed(
+        &mut self,
+        id: u64,
+        seq: u64,
+        result: Result<String, String>,
+        secs: f64,
+        at: f64,
+    ) {
+        if self.live != Some(id) || !matches!(self.state, State::Recording { .. }) {
+            return;
+        }
+        self.preview.on_result(seq, result, secs, at);
     }
 
     pub fn view(&self) -> View {
@@ -744,6 +838,7 @@ impl<R: Recorder> Controller<R> {
             stage,
             progress,
             target: self.context.as_ref().and_then(|c| c.app_name.clone()),
+            live: self.preview.text().clone(),
         }
     }
 
@@ -772,6 +867,8 @@ impl<R: Recorder> Controller<R> {
         // Too short to be speech: dropped silently (DictationSession.swift:49).
         if is_long_enough(samples.len()) {
             self.begin_processing(samples, at);
+        } else {
+            self.clear_preview();
         }
     }
 }
@@ -792,6 +889,8 @@ mod tests {
         silent: Cell<bool>,
         /// Non-zero but too quiet to be speech.
         quiet: Cell<bool>,
+        /// How many samples the live recording holds, for the preview.
+        captured: Cell<usize>,
     }
 
     struct FakeRecorder(Rc<Shared>);
@@ -818,6 +917,15 @@ mod tests {
             let mut v = vec![0.0; n / 2];
             v.extend(vec![0.1; n - n / 2]);
             v
+        }
+    }
+
+    impl crate::live::LiveSource for FakeRecorder {
+        fn captured(&self) -> usize {
+            self.0.captured.get()
+        }
+        fn samples_from(&self, start: usize) -> Vec<f32> {
+            vec![0.1; self.0.captured.get().saturating_sub(start)]
         }
     }
 
@@ -2649,5 +2757,375 @@ mod tests {
         c.on_formatted_with(id, "Hello.".into(), meta(), 2.2);
         esc(&mut c, 2.3);
         assert!(c.take_new_terms().is_empty(), "esc before they were taken");
+    }
+
+    // Live preview wiring (docs/_working/plan-windows-live.md, chunk 2).
+
+    fn live_ready() -> (Controller<FakeRecorder>, Rc<Shared>) {
+        let (mut c, shared) = setup_ready();
+        c.set_live_preview(true);
+        (c, shared)
+    }
+
+    /// Presses the key and returns the dictation id.
+    fn start_live(c: &mut Controller<FakeRecorder>) -> u64 {
+        press(c, 0.0);
+        c.take_capture().expect("capture id")
+    }
+
+    /// One second is in the buffer and the first pass is handed out.
+    fn first_pass(c: &mut Controller<FakeRecorder>, shared: &Shared) -> PreviewJob {
+        shared.captured.set(16_000);
+        c.poll(1.0);
+        c.take_preview().expect("preview job at 1 s")
+    }
+
+    fn show(c: &mut Controller<FakeRecorder>, job: &PreviewJob, text: &str) {
+        c.on_previewed(job.id, job.seq, Ok(text.into()), 0.1, 1.2);
+    }
+
+    #[test]
+    fn no_preview_before_one_second_of_audio() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        shared.captured.set(15_999);
+        c.poll(1.0);
+        assert!(c.take_preview().is_none());
+    }
+
+    #[test]
+    fn no_preview_while_the_model_is_not_ready() {
+        for status in [
+            ModelStatus::Loading,
+            ModelStatus::Downloading(0.5),
+            ModelStatus::Failed,
+        ] {
+            let (mut c, shared) = setup();
+            c.on_model(status);
+            c.set_live_preview(true);
+            start_live(&mut c);
+            shared.captured.set(32_000);
+            c.poll(2.0);
+            assert!(c.take_preview().is_none(), "{status:?}");
+        }
+    }
+
+    #[test]
+    fn the_preview_starts_once_the_model_is_ready() {
+        let (mut c, shared) = setup();
+        c.set_live_preview(true);
+        start_live(&mut c);
+        shared.captured.set(32_000);
+        c.poll(2.0);
+        assert!(c.take_preview().is_none());
+        c.on_model(ModelStatus::Ready);
+        c.poll(2.1);
+        assert!(c.take_preview().is_some());
+    }
+
+    #[test]
+    fn no_preview_when_the_setting_is_off_at_start() {
+        let (mut c, shared) = live_ready();
+        c.set_live_preview(false);
+        start_live(&mut c);
+        shared.captured.set(32_000);
+        c.poll(2.0);
+        assert!(c.take_preview().is_none());
+        assert_eq!(c.preview_wanted(), None);
+    }
+
+    #[test]
+    fn the_setting_is_read_at_start_only() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        c.set_live_preview(false);
+        shared.captured.set(16_000);
+        c.poll(1.0);
+        assert!(c.take_preview().is_some(), "on at start stays on");
+        esc(&mut c, 1.5);
+
+        let (mut c, shared) = live_ready();
+        c.set_live_preview(false);
+        start_live(&mut c);
+        c.set_live_preview(true);
+        shared.captured.set(16_000);
+        c.poll(1.0);
+        assert!(c.take_preview().is_none(), "off at start stays off");
+    }
+
+    #[test]
+    fn the_first_job_has_the_dictation_id_a_seq_and_one_second() {
+        let (mut c, shared) = live_ready();
+        let id = start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        assert_eq!(job.id, id);
+        assert_eq!(job.samples.len(), 16_000);
+        assert_eq!(c.preview_wanted(), Some(id));
+    }
+
+    #[test]
+    fn a_preview_job_is_handed_out_once() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        first_pass(&mut c, &shared);
+        assert!(c.take_preview().is_none());
+        c.poll(1.1);
+        assert!(c.take_preview().is_none(), "one pass in flight");
+    }
+
+    #[test]
+    fn a_preview_result_shows_in_the_view() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        assert!(c.view().live.is_empty());
+        show(&mut c, &job, "so the widget should");
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Listening);
+        assert_eq!(v.live.stable, "so the");
+        assert_eq!(v.live.unstable, "widget should");
+    }
+
+    #[test]
+    fn a_result_for_the_wrong_id_or_seq_is_ignored() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        c.on_previewed(job.id + 99, job.seq, Ok("wrong id here".into()), 0.1, 1.2);
+        c.on_previewed(job.id, job.seq + 99, Ok("wrong seq here".into()), 0.1, 1.2);
+        assert!(c.view().live.is_empty());
+        show(&mut c, &job, "right words here");
+        assert_eq!(c.view().live.full(), "right words here");
+    }
+
+    #[test]
+    fn a_result_from_an_earlier_dictation_is_ignored() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let old = first_pass(&mut c, &shared);
+        esc(&mut c, 1.1);
+        release(&mut c, 1.2);
+        press(&mut c, 5.0);
+        c.take_capture().expect("capture id");
+        shared.captured.set(0);
+        c.on_previewed(old.id, old.seq, Ok("stale words here".into()), 0.1, 1.5);
+        assert!(c.view().live.is_empty());
+    }
+
+    #[test]
+    fn release_stops_the_previews_and_keeps_the_text() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "so the widget should");
+        shared.captured.set(48_000);
+        release(&mut c, 3.0);
+        assert_eq!(c.preview_wanted(), None);
+        c.poll(3.1);
+        assert!(c.take_preview().is_none());
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Processing);
+        assert_eq!(v.live.full(), "so the widget should");
+    }
+
+    #[test]
+    fn release_drops_a_job_that_was_not_taken() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        shared.captured.set(16_000);
+        c.poll(1.0);
+        release(&mut c, 1.5);
+        assert!(c.take_preview().is_none());
+        assert_eq!(c.preview_wanted(), None);
+    }
+
+    #[test]
+    fn a_late_preview_result_after_release_is_ignored() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "so the widget should");
+        c.poll(1.8);
+        let second = c.take_preview().expect("second pass");
+        release(&mut c, 2.0);
+        c.on_previewed(
+            second.id,
+            second.seq,
+            Ok("different late words".into()),
+            0.1,
+            2.1,
+        );
+        assert_eq!(c.view().live.full(), "so the widget should");
+    }
+
+    #[test]
+    fn preview_text_never_reaches_the_insert() {
+        let (mut c, shared) = live_ready();
+        let id = start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words");
+        release(&mut c, 1.5);
+        let rec = c.take_job().expect("final job");
+        assert_eq!(rec.id, id);
+        c.on_recognized(id, Ok("final words".into()), 2.0);
+        let fmt = c.take_format().expect("format job");
+        assert_eq!(fmt.transcript, "final words");
+        c.on_formatted(id, "final words".into(), 2.2);
+        let ins = c.take_insert().expect("insert job");
+        assert_eq!(ins.text, "final words");
+        assert_eq!(
+            c.view().live.full(),
+            "preview words",
+            "still on screen while inserting"
+        );
+    }
+
+    #[test]
+    fn done_clears_the_text() {
+        let (mut c, shared) = live_ready();
+        let id = start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        release(&mut c, 1.5);
+        c.take_job().expect("job");
+        c.on_recognized(id, Ok("final words".into()), 2.0);
+        c.on_formatted(id, "final words".into(), 2.2);
+        c.take_insert().expect("insert");
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 2.4);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Done);
+        assert!(v.live.is_empty());
+    }
+
+    #[test]
+    fn a_failed_recognition_clears_the_text() {
+        let (mut c, shared) = live_ready();
+        let id = start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        release(&mut c, 1.5);
+        c.take_job().expect("job");
+        c.on_recognized(id, Err("boom".into()), 2.0);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Failed);
+        assert!(v.live.is_empty());
+    }
+
+    #[test]
+    fn a_failed_insert_clears_the_text() {
+        let (mut c, shared) = live_ready();
+        let id = start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        release(&mut c, 1.5);
+        c.take_job().expect("job");
+        c.on_recognized(id, Ok("final words".into()), 2.0);
+        c.on_formatted(id, "final words".into(), 2.2);
+        c.take_insert().expect("insert");
+        c.on_inserted(id, Err("no target".into()), 2.4);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Failed);
+        assert!(v.live.is_empty());
+    }
+
+    #[test]
+    fn a_nothing_recognized_failure_clears_the_text() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        shared.quiet.set(true);
+        release(&mut c, 1.5);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Failed);
+        assert!(v.live.is_empty());
+    }
+
+    #[test]
+    fn esc_while_recording_clears_the_text_and_stops_the_previews() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        esc(&mut c, 1.5);
+        assert!(c.view().live.is_empty());
+        assert_eq!(c.preview_wanted(), None);
+        c.poll(2.0);
+        assert!(c.take_preview().is_none());
+    }
+
+    #[test]
+    fn esc_while_processing_clears_the_text() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        release(&mut c, 1.5);
+        assert!(!c.view().live.is_empty());
+        esc(&mut c, 1.8);
+        assert!(c.view().live.is_empty());
+    }
+
+    #[test]
+    fn a_short_discard_clears_the_text() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        shared.stop_len.set(3_200);
+        release(&mut c, 1.5);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Idle);
+        assert!(v.live.is_empty());
+        assert_eq!(c.preview_wanted(), None);
+    }
+
+    #[test]
+    fn a_stream_error_clears_the_text() {
+        let (mut c, shared) = live_ready();
+        start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        c.on_stream_error(CaptureError::Other("device lost".into()), 1.5);
+        let v = c.view();
+        assert_eq!(v.phase, Phase::Failed);
+        assert!(v.live.is_empty());
+        assert_eq!(c.preview_wanted(), None);
+    }
+
+    #[test]
+    fn a_new_recording_starts_with_an_empty_preview() {
+        let (mut c, shared) = live_ready();
+        let first = start_live(&mut c);
+        let job = first_pass(&mut c, &shared);
+        show(&mut c, &job, "preview words here");
+        c.on_stream_error(CaptureError::Other("device lost".into()), 1.5);
+        release(&mut c, 1.6);
+        c.poll(10.0);
+
+        shared.captured.set(0);
+        press(&mut c, 20.0);
+        let second = c.take_capture().expect("capture id");
+        assert_ne!(first, second);
+        assert!(c.view().live.is_empty());
+        assert_eq!(c.preview_wanted(), Some(second));
+        let again = first_pass_at(&mut c, &shared, 21.0);
+        assert_eq!(again.id, second);
+    }
+
+    fn first_pass_at(c: &mut Controller<FakeRecorder>, shared: &Shared, now: f64) -> PreviewJob {
+        shared.captured.set(16_000);
+        c.poll(now);
+        c.take_preview().expect("preview job")
+    }
+
+    #[test]
+    fn preview_wanted_is_none_outside_a_recording() {
+        let (mut c, _s) = live_ready();
+        assert_eq!(c.preview_wanted(), None);
+        let id = start_live(&mut c);
+        assert_eq!(c.preview_wanted(), Some(id));
+        release(&mut c, 1.0);
+        assert_eq!(c.preview_wanted(), None);
     }
 }

@@ -118,6 +118,23 @@ impl CaptureBuffer {
         levels
     }
 
+    /// Samples at 16 kHz so far. The resampler holds a few ms back, so this trails the clock a little.
+    pub fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
+
+    /// A copy of the recording from `start` on, for the live preview. Past the end gives empty.
+    pub fn samples_from(&self, start: usize) -> Vec<f32> {
+        self.samples
+            .get(start..)
+            .map(<[f32]>::to_vec)
+            .unwrap_or_default()
+    }
+
     /// Flushes the resampler and returns the whole recording, trimmed to floor(frames*16000/rate).
     pub fn finish(&mut self) -> Vec<f32> {
         self.samples.extend(self.resampler.finish());
@@ -333,5 +350,62 @@ mod tests {
     fn a_half_rounds_away_from_zero() {
         // 0.5 * 32767 = 16383.5 -> 16384; -0.5 -> -16384.
         assert_eq!(pcm(&wav_16k_mono(&[0.5, -0.5])), [16384, -16384]);
+    }
+
+    // The live preview reads the recording while it is still being captured.
+
+    #[test]
+    fn len_follows_pushes_at_16k() {
+        let mut buf = CaptureBuffer::new(16_000, 1).unwrap();
+        assert_eq!(buf.len(), 0);
+        buf.push(&vec![0.25; 1_000]);
+        assert_eq!(buf.len(), 1_000);
+        buf.push(&vec![0.25; 600]);
+        assert_eq!(buf.len(), 1_600);
+    }
+
+    #[test]
+    fn samples_from_returns_the_part_after_the_start() {
+        let mut buf = CaptureBuffer::new(16_000, 1).unwrap();
+        let ramp: Vec<f32> = (0..100).map(|i| i as f32 / 100.0).collect();
+        buf.push(&ramp);
+        assert_eq!(buf.samples_from(0), ramp);
+        assert_eq!(buf.samples_from(90), ramp[90..].to_vec());
+    }
+
+    #[test]
+    fn samples_from_the_end_or_past_it_is_empty() {
+        let mut buf = CaptureBuffer::new(16_000, 1).unwrap();
+        buf.push(&[0.5; 100]);
+        assert!(buf.samples_from(100).is_empty());
+        assert!(buf.samples_from(5_000).is_empty());
+    }
+
+    #[test]
+    fn samples_from_sees_later_pushes() {
+        let mut buf = CaptureBuffer::new(16_000, 1).unwrap();
+        buf.push(&[0.1; 100]);
+        let before = buf.len();
+        buf.push(&[0.2; 50]);
+        assert_eq!(buf.samples_from(before), vec![0.2; 50]);
+    }
+
+    #[test]
+    fn len_counts_resampled_samples_and_matches_samples_from() {
+        let mut buf = CaptureBuffer::new(48_000, 2).unwrap();
+        feed(&mut buf, 48_000, 480, 2);
+        let n = buf.len();
+        // The filter holds back a few ms, so a little under one second is ready.
+        assert!((15_000..=16_000).contains(&n), "len {n}");
+        assert_eq!(buf.samples_from(0).len(), n);
+    }
+
+    #[test]
+    fn reading_the_live_buffer_does_not_change_the_final_recording() {
+        let mut buf = CaptureBuffer::new(48_000, 1).unwrap();
+        feed(&mut buf, 24_000, 480, 1);
+        let _ = (buf.len(), buf.samples_from(100));
+        feed(&mut buf, 24_000, 480, 1);
+        assert_eq!(buf.finish().len(), 16_000);
     }
 }

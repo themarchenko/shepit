@@ -10,6 +10,7 @@ pub mod gesture;
 pub mod history;
 pub mod insert;
 pub mod keys;
+pub mod live;
 pub mod mic;
 pub mod polish;
 pub mod profile;
