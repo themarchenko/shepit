@@ -21,6 +21,10 @@ Every file in `fixtures/` has this envelope (keys are snake_case, `cases` is nev
 | retry-language.json | `{detected: string or null, text}` | language string or null |
 | live-preview-join.json | `{a, b}` | string |
 | app-version.json | `{candidate, installed}` | bool |
+| prompt-message.json | `{transcript, language_hint?, mode, profile, context{app?, bundle_id?, window_title?, url?, text_before_caret?, selected_text?}, dictionary?:[string], examples?:[{raw, final}]}` | the user message string (Swift output, Foundation JSON escaping) |
+| reply-parse.json | `{reply}` | `{text, language: string or null, new_terms:[string]}`, or null when the reply has no usable object |
+| reply-finish.json | `{text, profile}` | cleaned string |
+| polish-routing.json | `{mode, profile, transcript, fast_path_max_words, dictionary, agent:"none"\|"reply"\|"error", agent_text?, secure?}`; `secure` is false when missing; `agent_text` is the final text the agent layer returns | `{source, text}`; `source` is `passthrough`, `fastPath`, `fallback` or `claude` |
 
 ## Audio
 

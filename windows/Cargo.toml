@@ -1,3 +1,3 @@
 [workspace]
-members = ["core", "engine", "release-check", "app/src-tauri"]
+members = ["core", "engine", "agent", "release-check", "app/src-tauri"]
 resolver = "2"

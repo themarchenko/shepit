@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "description": "Which path a dictation takes and what text it gets: FormattingService.format. agent is none (no agent), reply (returns agent_text as the final, already cleaned text) or error (throws). secure is the secure-field flag, false when missing; the agent is skipped for a secure field (decision of 2026-10-27).",
+  "cases": [
+    {
+      "name": "Routing/1_RawSkipsDictionaryAndAgent",
+      "input": {
+        "mode": "raw",
+        "profile": "generic",
+        "transcript": "задеплой на  версел",
+        "fast_path_max_words": 8,
+        "dictionary": [
+          "Vercel"
+        ],
+        "agent": "reply",
+        "agent_text": "Agent text"
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "Задеплой на версел"
+      }
+    },
+    {
+      "name": "Routing/2_EightWordsAtLimitEight",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "one two three four five six seven eight",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "fastPath",
+        "text": "One two three four five six seven eight"
+      }
+    },
+    {
+      "name": "Routing/3_FastPathAppliesDictionary",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "Задеплой на версел",
+        "fast_path_max_words": 8,
+        "dictionary": [
+          "Vercel"
+        ],
+        "agent": "reply",
+        "agent_text": "Agent text"
+      },
+      "expected": {
+        "source": "fastPath",
+        "text": "Задеплой на Vercel"
+      }
+    },
+    {
+      "name": "Routing/4_NineWordsGoToTheAgent",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "one two three four five six seven eight nine",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "claude",
+        "text": "Agent text"
+      }
+    },
+    {
+      "name": "Routing/5_AiChatThreeWordsGoToTheAgent",
+      "input": {
+        "mode": "clean",
+        "profile": "ai-chat",
+        "transcript": "one two three",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "claude",
+        "text": "Agent text"
+      }
+    },
+    {
+      "name": "Routing/6_PromptTwoWordsGoToTheAgent",
+      "input": {
+        "mode": "prompt",
+        "profile": "generic",
+        "transcript": "one two",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "claude",
+        "text": "Agent text"
+      }
+    },
+    {
+      "name": "Routing/7_NegativeLimitActsAsZero",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "one",
+        "fast_path_max_words": -3,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "claude",
+        "text": "Agent text"
+      }
+    },
+    {
+      "name": "Routing/8_EmptyTranscriptAtLimitZero",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "",
+        "fast_path_max_words": 0,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "fastPath",
+        "text": ""
+      }
+    },
+    {
+      "name": "Routing/9_NoAgentLongText",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "задеплой на версел і one two three four five six seven eight nine",
+        "fast_path_max_words": 8,
+        "dictionary": [
+          "Vercel"
+        ],
+        "agent": "none"
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "Задеплой на Vercel і one two three four five six seven eight nine"
+      }
+    },
+    {
+      "name": "Routing/10_NoAgentAiChatShort",
+      "input": {
+        "mode": "clean",
+        "profile": "ai-chat",
+        "transcript": "one two three",
+        "fast_path_max_words": 8,
+        "agent": "none",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "One two three"
+      }
+    },
+    {
+      "name": "Routing/11_AgentErrorFallsBack",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "задеплой на версел і one two three four five six seven eight nine",
+        "fast_path_max_words": 8,
+        "dictionary": [
+          "Vercel"
+        ],
+        "agent": "error"
+      },
+      "expected": {
+        "source": "fallback",
+        "text": "Задеплой на Vercel і one two three four five six seven eight nine"
+      }
+    },
+    {
+      "name": "Routing/12_AgentTextReturnedVerbatim",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "one two three four five six seven eight nine",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Exactly this, nothing more.",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "claude",
+        "text": "Exactly this, nothing more."
+      }
+    },
+    {
+      "name": "Routing/13_FastPathBeatsAgentError",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "one two",
+        "fast_path_max_words": 8,
+        "agent": "error",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "fastPath",
+        "text": "One two"
+      }
+    },
+    {
+      "name": "Routing/14_PromptModeNoAgent",
+      "input": {
+        "mode": "prompt",
+        "profile": "ai-chat",
+        "transcript": "one two",
+        "fast_path_max_words": 8,
+        "agent": "none",
+        "dictionary": []
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "One two"
+      }
+    },
+    {
+      "name": "Routing/15_SecureCleanSkipsTheAgent",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "задеплой на версел і word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20",
+        "fast_path_max_words": 8,
+        "dictionary": [
+          "Vercel"
+        ],
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "secure": true
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "Задеплой на Vercel і word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20"
+      }
+    },
+    {
+      "name": "Routing/16_SecureRawKeepsTheRawResult",
+      "input": {
+        "mode": "raw",
+        "profile": "generic",
+        "transcript": "hello  world again",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "secure": true,
+        "dictionary": []
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "Hello world again"
+      }
+    },
+    {
+      "name": "Routing/17_SecureShortKeepsTheFastPath",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "one two",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "secure": true,
+        "dictionary": []
+      },
+      "expected": {
+        "source": "fastPath",
+        "text": "One two"
+      }
+    },
+    {
+      "name": "Routing/18_SecureAgentErrorIsPassthroughNotFallback",
+      "input": {
+        "mode": "clean",
+        "profile": "generic",
+        "transcript": "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20",
+        "fast_path_max_words": 8,
+        "agent": "error",
+        "secure": true,
+        "dictionary": []
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "Word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20"
+      }
+    },
+    {
+      "name": "Routing/19_SecurePromptModeSkipsTheAgent",
+      "input": {
+        "mode": "prompt",
+        "profile": "ai-chat",
+        "transcript": "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20",
+        "fast_path_max_words": 8,
+        "agent": "reply",
+        "agent_text": "Agent text",
+        "secure": true,
+        "dictionary": []
+      },
+      "expected": {
+        "source": "passthrough",
+        "text": "Word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20"
+      }
+    }
+  ]
+}

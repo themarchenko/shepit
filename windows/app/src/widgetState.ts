@@ -1,7 +1,7 @@
 // Mirrors WidgetState in src-tauri/src/widget.rs (the `widget-state` event payload). Rust owns every
 // size: `shape`, `caption` and `window` come from the core layout table and are used as they are.
 export type WidgetPhase = "idle" | "listening" | "processing" | "done" | "failed";
-export type WidgetStage = "loading" | "transcribing" | "inserting";
+export type WidgetStage = "loading" | "transcribing" | "formatting" | "inserting";
 export type WidgetStyle = "flowPill" | "captionBar" | "island";
 
 export interface WidgetState {

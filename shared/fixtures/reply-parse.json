@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "description": "Agent reply to {text, language, new_terms}, or null when the reply holds no usable object: PromptBuilder.parseReply with JSONExtraction.firstObject.",
+  "cases": [
+    {
+      "name": "Reply/1_Plain",
+      "input": {
+        "reply": "{\"text\": \"Hi\", \"language\": \"en\", \"new_terms\": []}"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/2_ProseAndFence",
+      "input": {
+        "reply": "Sure, here it is:\n```json\n{\"text\": \"Привіт\", \"language\": \"uk\", \"new_terms\": [\"Vercel\"]}\n```"
+      },
+      "expected": {
+        "language": "uk",
+        "new_terms": [
+          "Vercel"
+        ],
+        "text": "Привіт"
+      }
+    },
+    {
+      "name": "Reply/3_LeadingFenceWithoutTag",
+      "input": {
+        "reply": "```\n{\"text\": \"Hi\", \"language\": \"en\", \"new_terms\": []}\n```"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/4_RawNewlineInString",
+      "input": {
+        "reply": "{\"text\": \"line one\nline two\", \"language\": \"en\", \"new_terms\": []}"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "line one\nline two"
+      }
+    },
+    {
+      "name": "Reply/5_RawTabInString",
+      "input": {
+        "reply": "{\"text\": \"a\tb\", \"language\": \"en\", \"new_terms\": []}"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "a\tb"
+      }
+    },
+    {
+      "name": "Reply/6_PrettyPrintedWithRawNewline",
+      "input": {
+        "reply": "{\n  \"text\": \"a\nb\",\n  \"language\": \"en\"\n}"
+      },
+      "expected": null
+    },
+    {
+      "name": "Reply/7_NoObject",
+      "input": {
+        "reply": "just text"
+      },
+      "expected": null
+    },
+    {
+      "name": "Reply/8_CloseBeforeOpen",
+      "input": {
+        "reply": "} {"
+      },
+      "expected": null
+    },
+    {
+      "name": "Reply/9_TextMissing",
+      "input": {
+        "reply": "{\"language\": \"en\", \"new_terms\": []}"
+      },
+      "expected": null
+    },
+    {
+      "name": "Reply/10_TextIsNumber",
+      "input": {
+        "reply": "{\"text\": 5, \"language\": \"en\", \"new_terms\": []}"
+      },
+      "expected": null
+    },
+    {
+      "name": "Reply/11_LanguageMissing",
+      "input": {
+        "reply": "{\"text\": \"Hi\", \"new_terms\": [\"X\"]}"
+      },
+      "expected": {
+        "language": null,
+        "new_terms": [
+          "X"
+        ],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/12_LanguageIsNumber",
+      "input": {
+        "reply": "{\"text\": \"Hi\", \"language\": 3, \"new_terms\": []}"
+      },
+      "expected": {
+        "language": null,
+        "new_terms": [],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/13_NewTermsMissing",
+      "input": {
+        "reply": "{\"text\": \"Hi\", \"language\": \"en\"}"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/14_NewTermsHoldsNumber",
+      "input": {
+        "reply": "{\"text\": \"Hi\", \"language\": \"en\", \"new_terms\": [\"A\", 2]}"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/15_NewTermsNotAnArray",
+      "input": {
+        "reply": "{\"text\": \"Hi\", \"language\": \"en\", \"new_terms\": \"A\"}"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/16_TwoObjects",
+      "input": {
+        "reply": "{\"text\": \"A\"} and {\"text\": \"B\"}"
+      },
+      "expected": null
+    },
+    {
+      "name": "Reply/17_UnicodeEscapes",
+      "input": {
+        "reply": "{\"text\": \"\\u041f\\u0440\\u0438\\u0432\\u0456\\u0442 \\u00e9 \\ud83d\\ude00\", \"language\": \"uk\", \"new_terms\": []}"
+      },
+      "expected": {
+        "language": "uk",
+        "new_terms": [],
+        "text": "Привіт é 😀"
+      }
+    },
+    {
+      "name": "Reply/18_Cyrillic",
+      "input": {
+        "reply": "{\"text\": \"Зроби refactoring handleSubmit\", \"language\": \"mixed\", \"new_terms\": [\"handleSubmit\"]}"
+      },
+      "expected": {
+        "language": "mixed",
+        "new_terms": [
+          "handleSubmit"
+        ],
+        "text": "Зроби refactoring handleSubmit"
+      }
+    },
+    {
+      "name": "Reply/19_FenceOnlyJsonTag",
+      "input": {
+        "reply": "```json\n{\"text\": \"Hi\"}\n```"
+      },
+      "expected": {
+        "language": null,
+        "new_terms": [],
+        "text": "Hi"
+      }
+    },
+    {
+      "name": "Reply/20_ProseWithoutFence",
+      "input": {
+        "reply": "Here: {\"text\": \"Hi\", \"language\": \"en\", \"new_terms\": []} done"
+      },
+      "expected": {
+        "language": "en",
+        "new_terms": [],
+        "text": "Hi"
+      }
+    }
+  ]
+}

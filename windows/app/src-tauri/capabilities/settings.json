@@ -18,6 +18,7 @@
     "allow-reset-widget-position",
     "allow-widget-demo",
     "allow-finish-tour",
-    "allow-show-tour"
+    "allow-show-tour",
+    "allow-detect-agents"
   ]
 }

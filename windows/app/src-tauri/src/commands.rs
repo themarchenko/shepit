@@ -2,6 +2,7 @@
 //! needs no window lives in pure functions here so it runs in tests on any host.
 
 use crate::controller::{Msg, PickMsg};
+use crate::polish;
 use crate::settings_store;
 use crate::ui;
 use crate::widget::{self, DemoStep};
@@ -10,6 +11,7 @@ use serde::Serialize;
 use shepit_core::dictation::ModelStatus;
 use shepit_core::keys::{Hotkey, PickResult};
 use shepit_core::mic::MicOutcome;
+use shepit_core::polish::discovery::fallback_provider;
 use shepit_core::settings::Settings;
 use shepit_core::widget::Style;
 use std::sync::{Arc, Mutex};
@@ -43,6 +45,27 @@ pub struct SettingsPayload {
     pub hotkey: HotkeyPayload,
     pub model: ModelPayload,
     pub version: String,
+    /// "claude", "codex" or "off".
+    pub polishing: String,
+    /// "haiku" or "sonnet".
+    pub claude_model: String,
+    /// Empty means found automatically.
+    pub claude_executable: String,
+    pub codex_executable: String,
+    /// "raw", "clean" or "prompt".
+    pub default_mode: String,
+    pub fast_path_max_words: i64,
+    pub prompt_mode_min_words: i64,
+    pub speaker_notes: String,
+}
+
+/// `detect_agents`: the resolved paths (null when not found) and the settings after the fallback
+/// rule.
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentsPayload {
+    pub claude: Option<String>,
+    pub codex: Option<String>,
+    pub settings: SettingsPayload,
 }
 
 /// `check_microphone`: "ok", "silent", "denied", "noDevice" or "failed"; `detail` is the error
@@ -62,6 +85,23 @@ pub fn settings_payload(settings: &Settings, model: ModelStatus, version: &str) 
         hotkey: hotkey_payload(settings.hotkey),
         model: model_payload(model),
         version: version.to_string(),
+        polishing: settings.polishing.id().to_string(),
+        claude_model: settings.claude_model.id().to_string(),
+        claude_executable: settings.claude_executable.clone(),
+        codex_executable: settings.codex_executable.clone(),
+        default_mode: settings.default_mode.as_str().to_string(),
+        fast_path_max_words: settings.fast_path_max_words,
+        prompt_mode_min_words: settings.prompt_mode_min_words,
+        speaker_notes: settings.speaker_notes.clone(),
+    }
+}
+
+/// The settings with the agent choice moved off a missing agent (SharedControls.swift:81-89).
+/// Only `polishing` can change.
+pub fn fallback_settings(current: &Settings, claude_found: bool, codex_found: bool) -> Settings {
+    Settings {
+        polishing: fallback_provider(current.polishing, claude_found, codex_found),
+        ..current.clone()
     }
 }
 
@@ -200,6 +240,29 @@ pub async fn widget_demo(
     Ok(widget::demo_script(style, host.settings().hotkey))
 }
 
+/// Looks for Claude Code and Codex, moves the choice off a missing agent and tells the open
+/// windows (`settings-changed`, through `apply`) when that changed anything. The settings go to the
+/// polish dispatcher either way, so an agent installed after launch is picked up.
+#[tauri::command]
+pub async fn detect_agents(app: AppHandle) -> Result<AgentsPayload, String> {
+    let current = app.state::<WidgetHost>().settings();
+    let (claude, codex) =
+        tauri::async_runtime::spawn_blocking(move || polish::find_agents(&current))
+            .await
+            .map_err(|e| e.to_string())?;
+    let (settings, _) = settings_store::apply(&app, |cur| {
+        Ok(fallback_settings(cur, claude.is_some(), codex.is_some()))
+    })?;
+    if let Some(polish) = app.try_state::<polish::PolishHandle>() {
+        polish.settings(settings.clone());
+    }
+    Ok(AgentsPayload {
+        claude,
+        codex,
+        settings: payload_of(&app, &settings),
+    })
+}
+
 /// Marks the tour done and closes it.
 #[tauri::command]
 pub async fn finish_tour(app: AppHandle) -> Result<(), String> {
@@ -216,6 +279,8 @@ pub async fn show_tour(app: AppHandle) -> Result<(), String> {
 mod tests {
     use super::*;
     use shepit_core::keys::Hotkey;
+    use shepit_core::profile::Mode;
+    use shepit_core::settings::{ClaudeModel, Polishing};
     use shepit_core::widget::Style;
 
     fn json(settings: &Settings, model: ModelStatus) -> serde_json::Value {
@@ -230,15 +295,123 @@ mod tests {
         assert_eq!(
             keys,
             [
+                "claudeExecutable",
+                "claudeModel",
+                "codexExecutable",
+                "defaultMode",
                 "fadeWhenIdle",
+                "fastPathMaxWords",
                 "glassOpacity",
                 "hotkey",
                 "model",
+                "polishing",
+                "promptModeMinWords",
+                "speakerNotes",
                 "version",
                 "widgetStyle",
                 "widgetVisible"
             ]
         );
+    }
+
+    #[test]
+    fn the_payload_carries_the_polishing_settings() {
+        let s = Settings {
+            polishing: Polishing::Codex,
+            claude_model: ClaudeModel::Sonnet,
+            claude_executable: r"C:\tools\claude.exe".into(),
+            codex_executable: r"C:\tools\codex.cmd".into(),
+            default_mode: Mode::Prompt,
+            fast_path_max_words: 12,
+            prompt_mode_min_words: 60,
+            speaker_notes: "Notes.".into(),
+            dictionary: vec!["Vercel".into()],
+            ..Settings::default()
+        };
+        let v = json(&s, ModelStatus::Ready);
+        assert_eq!(v["polishing"], "codex");
+        assert_eq!(v["claudeModel"], "sonnet");
+        assert_eq!(v["claudeExecutable"], r"C:\tools\claude.exe");
+        assert_eq!(v["codexExecutable"], r"C:\tools\codex.cmd");
+        assert_eq!(v["defaultMode"], "prompt");
+        assert_eq!(v["fastPathMaxWords"], 12);
+        assert_eq!(v["promptModeMinWords"], 60);
+        assert_eq!(v["speakerNotes"], "Notes.");
+        assert!(v.get("dictionary").is_none());
+    }
+
+    #[test]
+    fn the_default_payload_polishes_with_claude_in_clean_mode() {
+        let v = json(&Settings::default(), ModelStatus::Ready);
+        assert_eq!(v["polishing"], "claude");
+        assert_eq!(v["claudeModel"], "haiku");
+        assert_eq!(v["claudeExecutable"], "");
+        assert_eq!(v["defaultMode"], "clean");
+    }
+
+    fn with(polishing: Polishing) -> Settings {
+        Settings {
+            polishing,
+            ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn the_fallback_moves_a_missing_agent_to_the_one_that_is_found() {
+        let cases = [
+            (Polishing::Claude, false, true, Polishing::Codex),
+            (Polishing::Codex, true, false, Polishing::Claude),
+            (Polishing::Claude, false, false, Polishing::Off),
+            (Polishing::Claude, true, false, Polishing::Claude),
+            (Polishing::Off, true, true, Polishing::Off),
+        ];
+        for (selected, claude, codex, want) in cases {
+            let after = fallback_settings(&with(selected), claude, codex);
+            assert_eq!(after.polishing, want, "{selected:?} {claude} {codex}");
+        }
+    }
+
+    #[test]
+    fn a_fallback_that_changes_the_agent_reports_a_change_for_the_settings_changed_event() {
+        let before = with(Polishing::Claude);
+        let after = fallback_settings(&before, false, true);
+        let c = shepit_core::settings::changes(&before, &after);
+        assert!(c.polishing && c.any());
+        let same = fallback_settings(&before, true, true);
+        assert!(!shepit_core::settings::changes(&before, &same).any());
+    }
+
+    #[test]
+    fn the_fallback_changes_nothing_but_the_choice() {
+        let before = Settings {
+            default_mode: Mode::Raw,
+            speaker_notes: "keep".into(),
+            ..with(Polishing::Claude)
+        };
+        let after = fallback_settings(&before, false, true);
+        assert_eq!(
+            after,
+            Settings {
+                polishing: Polishing::Codex,
+                ..before
+            }
+        );
+    }
+
+    #[test]
+    fn the_detect_agents_reply_has_claude_codex_and_settings() {
+        let reply = AgentsPayload {
+            claude: Some(r"C:\bin\claude.exe".into()),
+            codex: None,
+            settings: settings_payload(&Settings::default(), ModelStatus::Ready, "0.4.0"),
+        };
+        let v = serde_json::to_value(reply).unwrap();
+        let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+        keys.sort();
+        assert_eq!(keys, ["claude", "codex", "settings"]);
+        assert_eq!(v["claude"], r"C:\bin\claude.exe");
+        assert!(v["codex"].is_null());
+        assert_eq!(v["settings"]["polishing"], "claude");
     }
 
     #[test]

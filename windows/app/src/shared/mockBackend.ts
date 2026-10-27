@@ -1,10 +1,11 @@
 // Dev only (see installDevBackendIfNeeded): answers the commands in a plain browser so every Settings and
 // tour state can be rendered and checked, and scripts a few clicks for states that need them. Not part of
 // the production bundle. States: ?mock=settings-{general,general-downloading,general-picking,
-// general-rightalt,general-mic-silent,appearance-<style>,about} or ?mock=tour-{1,2,2-denied,3,4,4-downloading}.
+// general-rightalt,general-mic-silent,appearance-<style>,polishing,polishing-none,polishing-codex,about} or
+// ?mock=tour-{1,2,2-denied,3,4,5,5-downloading}.
 import fixture from "../../../core/tests/fixtures/widget-layout-windows.json";
 import type { WidgetPhase, WidgetStage, WidgetState, WidgetStyle } from "../widgetState";
-import type { Backend, DemoStep, HotkeyInfo, MicCheck, MicResult, ModelInfo, PickEvent, SettingsData, SettingsPatch } from "./api";
+import type { AgentsInfo, Backend, DemoStep, HotkeyInfo, MicCheck, MicResult, ModelInfo, PickEvent, Polishing, SettingsData, SettingsPatch } from "./api";
 
 const HOTKEYS: Record<string, string> = {
   rightCtrl: "Right Ctrl",
@@ -55,6 +56,7 @@ function demoSteps(style: WidgetStyle, key: HotkeyInfo): DemoStep[] {
     make("idle-hover", 1.3, null),
     make("ptt", 4.1, null),
     make("processing", 0.75, "transcribing"),
+    make("processing", 1.15, "formatting"),
     make("processing", 0.4, "inserting"),
     make("done", 2.6, null, DEMO_TEXT),
   ];
@@ -67,6 +69,9 @@ interface Scenario {
   hotkeyId: string;
   model: ModelInfo;
   mic: MicResult;
+  // The agents the mock "finds" on the PC, and the stored choice before the fallback rule runs.
+  found: { claude: boolean; codex: boolean };
+  polishing: Polishing;
   // Clicks to make after the page is up, as CSS selectors in order.
   clicks: string[];
 }
@@ -77,6 +82,8 @@ function scenario(name: string): Scenario {
     hotkeyId: "rightCtrl",
     model: { state: "ready", percent: null },
     mic: "ok",
+    found: { claude: true, codex: true },
+    polishing: "claude",
     clicks: [],
   };
   const downloading: ModelInfo = { state: "downloading", percent: 42 };
@@ -105,6 +112,18 @@ function scenario(name: string): Scenario {
     case "settings-general-mic-silent":
       s.mic = "silent";
       s.clicks.push("[data-mic-test]");
+      break;
+    case "settings-polishing":
+      s.clicks.push("[data-tab=polishing]");
+      break;
+    case "settings-polishing-none":
+      // Claude is chosen but nothing is installed: the fallback rule must turn polishing off.
+      s.found = { claude: false, codex: false };
+      s.clicks.push("[data-tab=polishing]");
+      break;
+    case "settings-polishing-codex":
+      s.found = { claude: false, codex: true };
+      s.clicks.push("[data-tab=polishing]");
       break;
     case "settings-about":
       s.clicks.push("[data-tab=about]");
@@ -154,6 +173,9 @@ function scheduleLayoutCheck() {
     if (step && step.scrollHeight > step.clientHeight + 1) problems.push(`tour step too tall by ${step.scrollHeight - step.clientHeight}px`);
     const tour = document.querySelector<HTMLElement>(".sp-tour");
     if (tour && tour.scrollHeight > tour.clientHeight + 1) problems.push(`tour taller than its window by ${tour.scrollHeight - tour.clientHeight}px`);
+    // The fallback rule: the chosen agent is never one that was not found.
+    const chosen = document.querySelector<HTMLButtonElement>(".sp-provider[aria-checked=true]");
+    if (chosen?.disabled) problems.push(`chosen agent ${chosen.dataset.provider} is not installed`);
     for (const el of document.querySelectorAll<HTMLElement>(".sp-pane *, .sp-tour *")) {
       if (el.closest(".sp-demo")) continue;
       const r = el.getBoundingClientRect();
@@ -200,6 +222,14 @@ export function createMockBackend(): Backend {
     widgetVisible: true,
     hotkeyId: sc.hotkeyId,
     model: sc.model,
+    polishing: sc.polishing,
+    claudeModel: "haiku" as SettingsData["claudeModel"],
+    claudeExecutable: "",
+    codexExecutable: "",
+    defaultMode: "clean" as SettingsData["defaultMode"],
+    fastPathMaxWords: 8,
+    promptModeMinWords: 40,
+    speakerNotes: "",
   };
   const data = (): SettingsData => ({
     widgetStyle: state.widgetStyle,
@@ -209,7 +239,16 @@ export function createMockBackend(): Backend {
     hotkey: hotkey(state.hotkeyId),
     model: state.model,
     version: "0.4.0",
+    polishing: state.polishing,
+    claudeModel: state.claudeModel,
+    claudeExecutable: state.claudeExecutable,
+    codexExecutable: state.codexExecutable,
+    defaultMode: state.defaultMode,
+    fastPathMaxWords: state.fastPathMaxWords,
+    promptModeMinWords: state.promptModeMinWords,
+    speakerNotes: state.speakerNotes,
   });
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(v)));
 
   const listeners = new Map<string, Set<(payload: never) => void>>();
   const emit = (event: string, payload: unknown) => listeners.get(event)?.forEach((fn) => fn(payload as never));
@@ -236,7 +275,25 @@ export function createMockBackend(): Backend {
       if (patch.fadeWhenIdle !== undefined) state.fadeWhenIdle = patch.fadeWhenIdle;
       if (patch.widgetVisible !== undefined) state.widgetVisible = patch.widgetVisible;
       if (patch.hotkey) state.hotkeyId = patch.hotkey;
+      if (patch.polishing) state.polishing = patch.polishing;
+      if (patch.claudeModel) state.claudeModel = patch.claudeModel;
+      if (patch.claudeExecutable !== undefined) state.claudeExecutable = patch.claudeExecutable;
+      if (patch.codexExecutable !== undefined) state.codexExecutable = patch.codexExecutable;
+      if (patch.defaultMode) state.defaultMode = patch.defaultMode;
+      if (patch.fastPathMaxWords !== undefined) state.fastPathMaxWords = clamp(patch.fastPathMaxWords, 0, 30);
+      if (patch.promptModeMinWords !== undefined) state.promptModeMinWords = clamp(patch.promptModeMinWords, 10, 200);
+      if (patch.speakerNotes !== undefined) state.speakerNotes = patch.speakerNotes;
       return data();
+    },
+    // The real command runs the same fallback rule server-side and re-sends the settings.
+    detect_agents: (): AgentsInfo => {
+      const claude = sc.found.claude ? "C:\\Users\\Leo\\.local\\bin\\claude.exe" : null;
+      const codex = sc.found.codex ? "C:\\Users\\Leo\\AppData\\Roaming\\npm\\codex.cmd" : null;
+      if (state.polishing !== "off" && !(state.polishing === "claude" ? claude : codex)) {
+        state.polishing = claude ? "claude" : codex ? "codex" : "off";
+        emit("settings-changed", data());
+      }
+      return { claude, codex, settings: data() };
     },
     start_hotkey_pick: () => {
       picking = true;
@@ -261,10 +318,13 @@ export function createMockBackend(): Backend {
     },
     listen: async <T>(event: string, handler: (payload: T) => void) => {
       const set = listeners.get(event) ?? new Set();
-      set.add(handler as (payload: never) => void);
+      // A wrapper per subscription, like Tauri's: StrictMode subscribes the same stable function twice and
+      // the first unsubscribe must not remove the second.
+      const own = (payload: never) => handler(payload as T);
+      set.add(own);
       listeners.set(event, set);
       return () => {
-        set.delete(handler as (payload: never) => void);
+        set.delete(own);
       };
     },
   };

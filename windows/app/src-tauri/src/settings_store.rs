@@ -4,7 +4,7 @@
 
 use crate::controller::Msg;
 use crate::widget_host::WidgetHost;
-use crate::{commands, tray, ui};
+use crate::{commands, polish, tray, ui};
 use shepit_core::settings::{Changes, Settings};
 use std::fs;
 use std::io;
@@ -70,7 +70,7 @@ impl SettingsStore {
 /// The one write path for the settings the UI can change. `edit` makes the new settings from the
 /// current ones (an `Err` changes nothing). Returns the settings now in force and what changed. Then it saves, tells the widget (look and key label),
 /// sets the tray "Show widget" check, tells the open Settings and tour windows with
-/// `settings-changed`, and sends the controller `Msg::Hotkey` reliably (see `WidgetHost::send_reliably`).
+/// `settings-changed`, sends the polish dispatcher the new snapshot when polishing or formatting changed, and sends the controller `Msg::Hotkey` reliably (see `WidgetHost::send_reliably`).
 pub fn apply(
     app: &AppHandle,
     edit: impl FnOnce(&Settings) -> Result<Settings, String>,
@@ -105,6 +105,13 @@ fn apply_inner(
             "settings-changed",
             commands::payload_of(app, &settings),
         );
+    }
+    if changes.polishing || changes.formatting {
+        // The dispatcher keeps its own snapshot; the agent is replaced 1.5 s after the last
+        // polishing change, mode and word limits apply from the next dictation.
+        if let Some(polish) = app.try_state::<polish::PolishHandle>() {
+            polish.settings(settings.clone());
+        }
     }
     if changes.hotkey && tell_controller {
         // Reliable: if this were dropped, the saved key and the one the hook listens for would differ.

@@ -27,35 +27,107 @@ impl Mode {
     }
 }
 
-/// The Swift `Profile` also carries `name` and `styleRules`; those only feed the formatter prompt,
-/// which is out of scope here.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Profile {
     pub id: &'static str,
+    pub name: &'static str,
+    pub style_rules: &'static [&'static str],
     pub is_ai_target: bool,
     pub allows_markdown: bool,
     pub strip_trailing_newline: bool,
 }
 
-// Profile.swift:40-91 (BuiltInProfiles). stripTrailingNewline defaults to true (Profile.swift:30)
+// Profile.swift:38-91 (BuiltInProfiles). stripTrailingNewline defaults to true (Profile.swift:30)
 // and no built-in overrides it.
-const fn profile(id: &'static str, is_ai_target: bool, allows_markdown: bool) -> Profile {
+const fn profile(
+    id: &'static str,
+    name: &'static str,
+    is_ai_target: bool,
+    allows_markdown: bool,
+    style_rules: &'static [&'static str],
+) -> Profile {
     Profile {
         id,
+        name,
+        style_rules,
         is_ai_target,
         allows_markdown,
         strip_trailing_newline: true,
     }
 }
 
-static CLAUDE_CODE_TERMINAL: Profile = profile("claude-code-terminal", true, false);
-static TERMINAL: Profile = profile("terminal", false, false);
-static AI_CHAT: Profile = profile("ai-chat", true, true);
-static CODE_EDITOR: Profile = profile("code-editor", true, true);
-static MESSENGER: Profile = profile("messenger", false, false);
-static MAIL: Profile = profile("mail", false, false);
-static NOTES: Profile = profile("notes", false, true);
-static GENERIC: Profile = profile("generic", false, false);
+static CLAUDE_CODE_TERMINAL: Profile = profile(
+    "claude-code-terminal",
+    "Claude Code in a terminal",
+    true,
+    false,
+    &[
+        "Plain text only: no markdown headers, no bold, no code fences; identifiers and paths stay bare.",
+        "Lists use \"-\" bullets.",
+        "No trailing newline. Never end with a question addressed to the user.",
+    ],
+);
+static TERMINAL: Profile = profile(
+    "terminal",
+    "Terminal",
+    false,
+    false,
+    &[
+        "Plain text, single line unless the speaker clearly dictates several lines.",
+        "Commands, flags and paths exactly as spoken, in Latin script.",
+    ],
+);
+static AI_CHAT: Profile = profile(
+    "ai-chat",
+    "AI chat app or site",
+    true,
+    true,
+    &[
+        "Markdown lists are allowed; no headers for short prompts.",
+        "Short paragraphs. Code identifiers in backticks.",
+    ],
+);
+static CODE_EDITOR: Profile = profile(
+    "code-editor",
+    "Code editor",
+    true,
+    true,
+    &[
+        "Assume the text goes into an AI chat panel or a comment: markdown allowed, identifiers in backticks.",
+        "Keep camelCase and snake_case exactly as spoken.",
+    ],
+);
+static MESSENGER: Profile = profile(
+    "messenger",
+    "Messenger",
+    false,
+    false,
+    &[
+        "Casual register, short sentences, no period at the end of a one-line message.",
+        "Emoji only when the speaker names one.",
+    ],
+);
+static MAIL: Profile = profile(
+    "mail",
+    "Email",
+    false,
+    false,
+    &["Paragraphs separated by blank lines. Greeting and sign-off only when dictated."],
+);
+static NOTES: Profile = profile(
+    "notes",
+    "Notes and documents",
+    false,
+    true,
+    &["Lists when the speaker enumerates, paragraphs otherwise."],
+);
+static GENERIC: Profile = profile(
+    "generic",
+    "Other apps",
+    false,
+    false,
+    &["Neutral register, plain text, paragraphs separated by blank lines."],
+);
 
 static ALL: [&Profile; 8] = [
     &CLAUDE_CODE_TERMINAL,
@@ -67,6 +139,11 @@ static ALL: [&Profile; 8] = [
     &NOTES,
     &GENERIC,
 ];
+
+/// Every built-in profile in `BuiltInProfiles.all` order (Profile.swift:88).
+pub fn all_profiles() -> &'static [&'static Profile] {
+    &ALL
+}
 
 /// Looks up a built-in profile by id (`BuiltInProfiles.byID`).
 pub fn profile_by_id(id: &str) -> Option<&'static Profile> {
@@ -463,5 +540,97 @@ mod tests {
         ] {
             assert!(ids.contains(&want), "{want}");
         }
+    }
+
+    // name and style_rules feed the system prompt (Profile.swift:38-90). The text is copied from
+    // the Swift source; shared/prompts/system-prompt.md pins it from the other side.
+
+    #[test]
+    fn all_profiles_come_in_the_swift_order() {
+        let ids: Vec<&str> = all_profiles().iter().map(|p| p.id).collect();
+        assert_eq!(
+            ids,
+            [
+                "claude-code-terminal",
+                "terminal",
+                "ai-chat",
+                "code-editor",
+                "messenger",
+                "mail",
+                "notes",
+                "generic"
+            ]
+        );
+    }
+
+    #[test]
+    fn every_profile_has_its_display_name() {
+        let names: Vec<&str> = all_profiles().iter().map(|p| p.name).collect();
+        assert_eq!(
+            names,
+            [
+                "Claude Code in a terminal",
+                "Terminal",
+                "AI chat app or site",
+                "Code editor",
+                "Messenger",
+                "Email",
+                "Notes and documents",
+                "Other apps"
+            ]
+        );
+    }
+
+    #[test]
+    fn style_rules_match_the_swift_text() {
+        let rules = |id: &str| profile_by_id(id).unwrap().style_rules;
+        assert_eq!(
+            rules("claude-code-terminal"),
+            [
+                "Plain text only: no markdown headers, no bold, no code fences; identifiers and paths stay bare.",
+                "Lists use \"-\" bullets.",
+                "No trailing newline. Never end with a question addressed to the user.",
+            ]
+        );
+        assert_eq!(
+            rules("terminal"),
+            [
+                "Plain text, single line unless the speaker clearly dictates several lines.",
+                "Commands, flags and paths exactly as spoken, in Latin script.",
+            ]
+        );
+        assert_eq!(
+            rules("ai-chat"),
+            [
+                "Markdown lists are allowed; no headers for short prompts.",
+                "Short paragraphs. Code identifiers in backticks.",
+            ]
+        );
+        assert_eq!(
+            rules("code-editor"),
+            [
+                "Assume the text goes into an AI chat panel or a comment: markdown allowed, identifiers in backticks.",
+                "Keep camelCase and snake_case exactly as spoken.",
+            ]
+        );
+        assert_eq!(
+            rules("messenger"),
+            [
+                "Casual register, short sentences, no period at the end of a one-line message.",
+                "Emoji only when the speaker names one.",
+            ]
+        );
+        assert_eq!(
+            rules("mail"),
+            ["Paragraphs separated by blank lines. Greeting and sign-off only when dictated."]
+        );
+        assert_eq!(
+            rules("notes"),
+            ["Lists when the speaker enumerates, paragraphs otherwise."]
+        );
+        assert_eq!(
+            rules("generic"),
+            ["Neutral register, plain text, paragraphs separated by blank lines."]
+        );
     }
 }

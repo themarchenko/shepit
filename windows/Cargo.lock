@@ -3748,12 +3748,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "shepit-agent"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "serde_json",
+ "shepit-core",
+ "tempfile",
+ "windows",
+]
+
+[[package]]
 name = "shepit-app"
 version = "0.3.1"
 dependencies = [
  "cpal",
  "serde",
  "serde_json",
+ "shepit-agent",
  "shepit-core",
  "shepit-engine",
  "tauri",

@@ -14,6 +14,7 @@ const COMMANDS: &[&str] = &[
     "widget_demo",
     "finish_tour",
     "show_tour",
+    "detect_agents",
 ];
 
 fn main() {

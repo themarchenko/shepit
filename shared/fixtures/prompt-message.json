@@ -1,0 +1,348 @@
+{
+  "version": 1,
+  "description": "Per-dictation message sent to the agent: PromptBuilder.userMessage. Expected values are the Swift output, so Foundation's JSON escaping applies (a slash in the context object is written as \\/). Fields left out of input.context are nil; examples are {raw, final} pairs.",
+  "cases": [
+    {
+      "name": "Message/1_Minimal",
+      "input": {
+        "transcript": "hello",
+        "mode": "clean",
+        "profile": "generic",
+        "context": {}
+      },
+      "expected": "Context:\n{\"language_hint\":\"auto\",\"mode\":\"clean\",\"profile\":\"generic\"}\n\nTranscript:\nhello"
+    },
+    {
+      "name": "Message/2_NoHintGivesAuto",
+      "input": {
+        "transcript": "привіт",
+        "mode": "clean",
+        "profile": "generic",
+        "context": {
+          "app": "Notepad"
+        }
+      },
+      "expected": "Context:\n{\"app\":\"Notepad\",\"language_hint\":\"auto\",\"mode\":\"clean\",\"profile\":\"generic\"}\n\nTranscript:\nпривіт"
+    },
+    {
+      "name": "Message/3_EveryKey",
+      "input": {
+        "transcript": "зроби рефакторинг",
+        "language_hint": "uk",
+        "mode": "prompt",
+        "profile": "claude-code-terminal",
+        "context": {
+          "app": "Terminal",
+          "bundle_id": "com.apple.Terminal",
+          "window_title": "Claude Code",
+          "url": "https://claude.ai/new",
+          "text_before_caret": "previous words",
+          "selected_text": "chosen"
+        },
+        "dictionary": [
+          "Shepit",
+          "Vercel"
+        ],
+        "examples": [
+          {
+            "raw": "raw one",
+            "final": "Final one"
+          }
+        ]
+      },
+      "expected": "Context:\n{\"app\":\"Terminal\",\"bundle_id\":\"com.apple.Terminal\",\"language_hint\":\"uk\",\"mode\":\"prompt\",\"profile\":\"claude-code-terminal\",\"selected_text\":\"chosen\",\"text_before_caret\":\"previous words\",\"url\":\"https:\\/\\/claude.ai\\/new\",\"window_title\":\"Claude Code\"}\n\nDictionary (preferred spellings): Shepit, Vercel\n\nRecent accepted examples for this profile:\nTranscript: raw one\nFinal: Final one\n\n\nTranscript:\nзроби рефакторинг"
+    },
+    {
+      "name": "Message/4_TitleCutTo200",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "context": {
+          "window_title": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+        }
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\",\"window_title\":\"tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\"}\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/5_CaretTailKeepsLast500Graphemes",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "context": {
+          "text_before_caret": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+        }
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\",\"text_before_caret\":\"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\"}\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/6_SelectionCutTo2000",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "context": {
+          "selected_text": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+        }
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\",\"selected_text\":\"ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\"}\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/7_EmptyTextFieldsLeftOut",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "context": {
+          "text_before_caret": "",
+          "selected_text": ""
+        }
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\"}\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/8_TitleEscaping",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "context": {
+          "window_title": "a/b \"q\" back\\slash\nnew\ttab \u0001 sep  emoji 😀 end"
+        }
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\",\"window_title\":\"a\\/b \\\"q\\\" back\\\\slash\\nnew\\ttab \\u0001 sep  emoji 😀 end\"}\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/9_DictionaryKeepsNewest120",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "dictionary": [
+          "term1",
+          "term2",
+          "term3",
+          "term4",
+          "term5",
+          "term6",
+          "term7",
+          "term8",
+          "term9",
+          "term10",
+          "term11",
+          "term12",
+          "term13",
+          "term14",
+          "term15",
+          "term16",
+          "term17",
+          "term18",
+          "term19",
+          "term20",
+          "term21",
+          "term22",
+          "term23",
+          "term24",
+          "term25",
+          "term26",
+          "term27",
+          "term28",
+          "term29",
+          "term30",
+          "term31",
+          "term32",
+          "term33",
+          "term34",
+          "term35",
+          "term36",
+          "term37",
+          "term38",
+          "term39",
+          "term40",
+          "term41",
+          "term42",
+          "term43",
+          "term44",
+          "term45",
+          "term46",
+          "term47",
+          "term48",
+          "term49",
+          "term50",
+          "term51",
+          "term52",
+          "term53",
+          "term54",
+          "term55",
+          "term56",
+          "term57",
+          "term58",
+          "term59",
+          "term60",
+          "term61",
+          "term62",
+          "term63",
+          "term64",
+          "term65",
+          "term66",
+          "term67",
+          "term68",
+          "term69",
+          "term70",
+          "term71",
+          "term72",
+          "term73",
+          "term74",
+          "term75",
+          "term76",
+          "term77",
+          "term78",
+          "term79",
+          "term80",
+          "term81",
+          "term82",
+          "term83",
+          "term84",
+          "term85",
+          "term86",
+          "term87",
+          "term88",
+          "term89",
+          "term90",
+          "term91",
+          "term92",
+          "term93",
+          "term94",
+          "term95",
+          "term96",
+          "term97",
+          "term98",
+          "term99",
+          "term100",
+          "term101",
+          "term102",
+          "term103",
+          "term104",
+          "term105",
+          "term106",
+          "term107",
+          "term108",
+          "term109",
+          "term110",
+          "term111",
+          "term112",
+          "term113",
+          "term114",
+          "term115",
+          "term116",
+          "term117",
+          "term118",
+          "term119",
+          "term120",
+          "term121",
+          "term122",
+          "term123",
+          "term124",
+          "term125"
+        ],
+        "context": {}
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\"}\n\nDictionary (preferred spellings): term6, term7, term8, term9, term10, term11, term12, term13, term14, term15, term16, term17, term18, term19, term20, term21, term22, term23, term24, term25, term26, term27, term28, term29, term30, term31, term32, term33, term34, term35, term36, term37, term38, term39, term40, term41, term42, term43, term44, term45, term46, term47, term48, term49, term50, term51, term52, term53, term54, term55, term56, term57, term58, term59, term60, term61, term62, term63, term64, term65, term66, term67, term68, term69, term70, term71, term72, term73, term74, term75, term76, term77, term78, term79, term80, term81, term82, term83, term84, term85, term86, term87, term88, term89, term90, term91, term92, term93, term94, term95, term96, term97, term98, term99, term100, term101, term102, term103, term104, term105, term106, term107, term108, term109, term110, term111, term112, term113, term114, term115, term116, term117, term118, term119, term120, term121, term122, term123, term124, term125\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/10_OneDictionaryEntry",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "dictionary": [
+          "Shepit"
+        ],
+        "context": {}
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\"}\n\nDictionary (preferred spellings): Shepit\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/11_ExamplesCutTo5",
+      "input": {
+        "transcript": "x",
+        "language_hint": "en",
+        "mode": "clean",
+        "profile": "generic",
+        "examples": [
+          {
+            "raw": "r1",
+            "final": "F1"
+          },
+          {
+            "raw": "r2",
+            "final": "F2"
+          },
+          {
+            "raw": "r3",
+            "final": "F3"
+          },
+          {
+            "raw": "r4",
+            "final": "F4"
+          },
+          {
+            "raw": "r5",
+            "final": "F5"
+          },
+          {
+            "raw": "r6",
+            "final": "F6"
+          }
+        ],
+        "context": {}
+      },
+      "expected": "Context:\n{\"language_hint\":\"en\",\"mode\":\"clean\",\"profile\":\"generic\"}\n\nRecent accepted examples for this profile:\nTranscript: r1\nFinal: F1\n\nTranscript: r2\nFinal: F2\n\nTranscript: r3\nFinal: F3\n\nTranscript: r4\nFinal: F4\n\nTranscript: r5\nFinal: F5\n\n\nTranscript:\nx"
+    },
+    {
+      "name": "Message/12_PromptMode",
+      "input": {
+        "transcript": "make a list",
+        "language_hint": "en",
+        "mode": "prompt",
+        "profile": "ai-chat",
+        "context": {
+          "app": "ChatGPT"
+        }
+      },
+      "expected": "Context:\n{\"app\":\"ChatGPT\",\"language_hint\":\"en\",\"mode\":\"prompt\",\"profile\":\"ai-chat\"}\n\nTranscript:\nmake a list"
+    },
+    {
+      "name": "Message/13_RawMode",
+      "input": {
+        "transcript": "just words",
+        "language_hint": "uk",
+        "mode": "raw",
+        "profile": "messenger",
+        "context": {}
+      },
+      "expected": "Context:\n{\"language_hint\":\"uk\",\"mode\":\"raw\",\"profile\":\"messenger\"}\n\nTranscript:\njust words"
+    },
+    {
+      "name": "Message/14_CyrillicAndQuotes",
+      "input": {
+        "transcript": "він сказав \"привіт\"\nдругий рядок",
+        "mode": "clean",
+        "profile": "mail",
+        "context": {
+          "app": "Пошта",
+          "window_title": "Лист «тест»"
+        }
+      },
+      "expected": "Context:\n{\"app\":\"Пошта\",\"language_hint\":\"auto\",\"mode\":\"clean\",\"profile\":\"mail\",\"window_title\":\"Лист «тест»\"}\n\nTranscript:\nвін сказав \"привіт\"\nдругий рядок"
+    }
+  ]
+}

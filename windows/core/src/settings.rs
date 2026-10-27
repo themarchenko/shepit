@@ -2,6 +2,8 @@
 //! (each key falls back to its default on its own) and written with every other key kept.
 
 use crate::keys::Hotkey;
+use crate::polish::prompt::DEFAULT_SPEAKER_NOTES;
+use crate::profile::Mode;
 use crate::widget::{Point, Style};
 use serde_json::{Map, Value};
 
@@ -16,7 +18,16 @@ const KEY_VISIBLE: &str = "widgetVisible";
 const KEY_ANCHOR: &str = "widgetAnchor";
 const KEY_HOTKEY: &str = "hotkey";
 const KEY_ONBOARDING: &str = "onboardingCompleted";
-const KNOWN_KEYS: [&str; 7] = [
+const KEY_POLISHING: &str = "polishing";
+const KEY_CLAUDE_MODEL: &str = "claudeModel";
+const KEY_CLAUDE_EXE: &str = "claudeExecutable";
+const KEY_CODEX_EXE: &str = "codexExecutable";
+const KEY_DEFAULT_MODE: &str = "defaultMode";
+const KEY_FAST_PATH: &str = "fastPathMaxWords";
+const KEY_PROMPT_MIN: &str = "promptModeMinWords";
+const KEY_NOTES: &str = "speakerNotes";
+const KEY_DICTIONARY: &str = "dictionary";
+const KNOWN_KEYS: [&str; 16] = [
     KEY_STYLE,
     KEY_OPACITY,
     KEY_FADE,
@@ -24,12 +35,73 @@ const KNOWN_KEYS: [&str; 7] = [
     KEY_ANCHOR,
     KEY_HOTKEY,
     KEY_ONBOARDING,
+    KEY_POLISHING,
+    KEY_CLAUDE_MODEL,
+    KEY_CLAUDE_EXE,
+    KEY_CODEX_EXE,
+    KEY_DEFAULT_MODE,
+    KEY_FAST_PATH,
+    KEY_PROMPT_MIN,
+    KEY_NOTES,
+    KEY_DICTIONARY,
 ];
 
 /// macOS does not clamp (AppSettings.swift:163); the Windows widget needs the glass readable
 /// and never fully opaque, so a hand-edited value is pulled into the slider's range.
 fn clamp_opacity(value: f64) -> f64 {
     value.clamp(MIN_GLASS_OPACITY, MAX_GLASS_OPACITY)
+}
+
+/// Which agent polishes the text (docs/spec/polishing.md, Provider setting).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Polishing {
+    Claude,
+    Codex,
+    Off,
+}
+
+impl Polishing {
+    /// `claude`, `codex` or `off`.
+    pub fn from_id(id: &str) -> Option<Polishing> {
+        match id {
+            "claude" => Some(Polishing::Claude),
+            "codex" => Some(Polishing::Codex),
+            "off" => Some(Polishing::Off),
+            _ => None,
+        }
+    }
+
+    pub fn id(&self) -> &'static str {
+        match self {
+            Polishing::Claude => "claude",
+            Polishing::Codex => "codex",
+            Polishing::Off => "off",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClaudeModel {
+    Haiku,
+    Sonnet,
+}
+
+impl ClaudeModel {
+    /// `haiku` or `sonnet`.
+    pub fn from_id(id: &str) -> Option<ClaudeModel> {
+        match id {
+            "haiku" => Some(ClaudeModel::Haiku),
+            "sonnet" => Some(ClaudeModel::Sonnet),
+            _ => None,
+        }
+    }
+
+    pub fn id(&self) -> &'static str {
+        match self {
+            ClaudeModel::Haiku => "haiku",
+            ClaudeModel::Sonnet => "sonnet",
+        }
+    }
 }
 
 fn parse_anchor(value: &Value) -> Option<Point> {
@@ -53,6 +125,21 @@ pub struct Settings {
     /// Set once the welcome tour was finished, skipped or closed. Persisted as
     /// `onboardingCompleted`.
     pub onboarding_completed: bool,
+    /// Persisted as `polishing`. Read leniently; the legacy `formatterEnabled` applies only when
+    /// `polishing` is missing or not an id, and stays in `extra`.
+    pub polishing: Polishing,
+    pub claude_model: ClaudeModel,
+    /// A configured path wins when it is an existing `.exe` or `.cmd`; empty means search.
+    pub claude_executable: String,
+    pub codex_executable: String,
+    pub default_mode: Mode,
+    /// Stored integers are not clamped on read; the patch clamps to 0-30.
+    pub fast_path_max_words: i64,
+    /// The patch clamps to 10-200.
+    pub prompt_mode_min_words: i64,
+    pub speaker_notes: String,
+    /// Read-only here (task 10 edits it). A value holding a non-string reads as empty.
+    pub dictionary: Vec<String>,
     /// Keys this version does not know, written back unchanged.
     pub extra: Map<String, Value>,
 }
@@ -67,6 +154,15 @@ impl Default for Settings {
             widget_anchor: None,
             hotkey: Hotkey::RightCtrl,
             onboarding_completed: false,
+            polishing: Polishing::Claude,
+            claude_model: ClaudeModel::Haiku,
+            claude_executable: String::new(),
+            codex_executable: String::new(),
+            default_mode: Mode::Clean,
+            fast_path_max_words: 8,
+            prompt_mode_min_words: 40,
+            speaker_notes: DEFAULT_SPEAKER_NOTES.to_string(),
+            dictionary: Vec::new(),
             extra: Map::new(),
         }
     }
@@ -116,6 +212,58 @@ impl Settings {
                 .get(KEY_ONBOARDING)
                 .and_then(Value::as_bool)
                 .unwrap_or(d.onboarding_completed),
+            // A bad or missing `polishing` defers to the legacy on/off switch, which counts as on
+            // unless it is the boolean false (AppSettings.swift:158-160).
+            polishing: map
+                .get(KEY_POLISHING)
+                .and_then(Value::as_str)
+                .and_then(Polishing::from_id)
+                .unwrap_or_else(|| {
+                    if map.get("formatterEnabled").and_then(Value::as_bool) == Some(false) {
+                        Polishing::Off
+                    } else {
+                        Polishing::Claude
+                    }
+                }),
+            claude_model: map
+                .get(KEY_CLAUDE_MODEL)
+                .and_then(Value::as_str)
+                .and_then(ClaudeModel::from_id)
+                .unwrap_or(d.claude_model),
+            claude_executable: map
+                .get(KEY_CLAUDE_EXE)
+                .and_then(Value::as_str)
+                .map_or(d.claude_executable, str::to_string),
+            codex_executable: map
+                .get(KEY_CODEX_EXE)
+                .and_then(Value::as_str)
+                .map_or(d.codex_executable, str::to_string),
+            default_mode: map
+                .get(KEY_DEFAULT_MODE)
+                .and_then(Value::as_str)
+                .and_then(Mode::from_id)
+                .unwrap_or(d.default_mode),
+            fast_path_max_words: map
+                .get(KEY_FAST_PATH)
+                .and_then(Value::as_i64)
+                .unwrap_or(d.fast_path_max_words),
+            prompt_mode_min_words: map
+                .get(KEY_PROMPT_MIN)
+                .and_then(Value::as_i64)
+                .unwrap_or(d.prompt_mode_min_words),
+            speaker_notes: map
+                .get(KEY_NOTES)
+                .and_then(Value::as_str)
+                .map_or(d.speaker_notes, str::to_string),
+            dictionary: map
+                .get(KEY_DICTIONARY)
+                .and_then(Value::as_array)
+                .and_then(|a| {
+                    a.iter()
+                        .map(|v| v.as_str().map(str::to_string))
+                        .collect::<Option<Vec<_>>>()
+                })
+                .unwrap_or(d.dictionary),
             extra: map
                 .into_iter()
                 .filter(|(k, _)| !KNOWN_KEYS.contains(&k.as_str()))
@@ -143,6 +291,27 @@ impl Settings {
             KEY_ONBOARDING.into(),
             Value::from(self.onboarding_completed),
         );
+        map.insert(KEY_POLISHING.into(), Value::from(self.polishing.id()));
+        map.insert(KEY_CLAUDE_MODEL.into(), Value::from(self.claude_model.id()));
+        map.insert(
+            KEY_CLAUDE_EXE.into(),
+            Value::from(self.claude_executable.as_str()),
+        );
+        map.insert(
+            KEY_CODEX_EXE.into(),
+            Value::from(self.codex_executable.as_str()),
+        );
+        map.insert(
+            KEY_DEFAULT_MODE.into(),
+            Value::from(self.default_mode.as_str()),
+        );
+        map.insert(KEY_FAST_PATH.into(), Value::from(self.fast_path_max_words));
+        map.insert(
+            KEY_PROMPT_MIN.into(),
+            Value::from(self.prompt_mode_min_words),
+        );
+        map.insert(KEY_NOTES.into(), Value::from(self.speaker_notes.as_str()));
+        map.insert(KEY_DICTIONARY.into(), Value::from(self.dictionary.clone()));
         match self.widget_anchor {
             Some(p) => {
                 let mut anchor = Map::new();
@@ -168,11 +337,17 @@ pub struct Changes {
     pub hotkey: bool,
     /// `widgetVisible`.
     pub visible: bool,
+    /// `polishing`, `claudeModel`, `speakerNotes`, `claudeExecutable` or `codexExecutable`. The
+    /// agent is replaced 1.5 s after the last change.
+    pub polishing: bool,
+    /// `defaultMode`, `fastPathMaxWords`, `promptModeMinWords` or `dictionary`. Applies from the
+    /// next dictation.
+    pub formatting: bool,
 }
 
 impl Changes {
     pub fn any(&self) -> bool {
-        self.look || self.hotkey || self.visible
+        self.look || self.hotkey || self.visible || self.polishing || self.formatting
     }
 }
 
@@ -184,11 +359,27 @@ pub fn changes(old: &Settings, new: &Settings) -> Changes {
             || old.fade_when_idle != new.fade_when_idle,
         hotkey: old.hotkey != new.hotkey,
         visible: old.widget_visible != new.widget_visible,
+        polishing: old.polishing != new.polishing
+            || old.claude_model != new.claude_model
+            || old.speaker_notes != new.speaker_notes
+            || old.claude_executable != new.claude_executable
+            || old.codex_executable != new.codex_executable,
+        formatting: old.default_mode != new.default_mode
+            || old.fast_path_max_words != new.fast_path_max_words
+            || old.prompt_mode_min_words != new.prompt_mode_min_words
+            || old.dictionary != new.dictionary,
     }
 }
 
+fn patch_string(value: &Value, key: &str) -> Result<String, String> {
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| format!("{key}: not a string"))
+}
+
 /// Applies a UI edit. The patch is a JSON object with any of `widgetStyle`, `glassOpacity`,
-/// `fadeWhenIdle`, `widgetVisible` and `hotkey`. An unknown key, a wrong type or a bad id rejects
+/// `fadeWhenIdle`, `widgetVisible`, `hotkey` and the polishing keys (not `dictionary`). An unknown key, a wrong type or a bad id rejects
 /// the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
 pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String> {
     let Value::Object(map) = patch else {
@@ -226,6 +417,49 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
                     .and_then(Hotkey::from_id)
                     .ok_or_else(|| format!("{KEY_HOTKEY}: unknown key"))?;
             }
+            KEY_POLISHING => {
+                out.polishing = value
+                    .as_str()
+                    .and_then(Polishing::from_id)
+                    .ok_or_else(|| format!("{KEY_POLISHING}: unknown provider"))?;
+            }
+            KEY_CLAUDE_MODEL => {
+                out.claude_model = value
+                    .as_str()
+                    .and_then(ClaudeModel::from_id)
+                    .ok_or_else(|| format!("{KEY_CLAUDE_MODEL}: unknown model"))?;
+            }
+            KEY_CLAUDE_EXE => {
+                out.claude_executable = patch_string(value, KEY_CLAUDE_EXE)?;
+            }
+            KEY_CODEX_EXE => {
+                out.codex_executable = patch_string(value, KEY_CODEX_EXE)?;
+            }
+            KEY_DEFAULT_MODE => {
+                out.default_mode = value
+                    .as_str()
+                    .and_then(Mode::from_id)
+                    .ok_or_else(|| format!("{KEY_DEFAULT_MODE}: unknown mode"))?;
+            }
+            // The steppers of the macOS settings window (SettingsView.swift:39,160).
+            KEY_FAST_PATH => {
+                out.fast_path_max_words = value
+                    .as_i64()
+                    .map(|n| n.clamp(0, 30))
+                    .ok_or_else(|| format!("{KEY_FAST_PATH}: not an integer"))?;
+            }
+            KEY_PROMPT_MIN => {
+                out.prompt_mode_min_words = value
+                    .as_i64()
+                    .map(|n| n.clamp(10, 200))
+                    .ok_or_else(|| format!("{KEY_PROMPT_MIN}: not an integer"))?;
+            }
+            KEY_NOTES => {
+                out.speaker_notes = patch_string(value, KEY_NOTES)?;
+            }
+            KEY_DICTIONARY => {
+                return Err(format!("{KEY_DICTIONARY}: cannot be patched here"));
+            }
             // widgetAnchor and onboardingCompleted have their own commands.
             other => return Err(format!("unknown setting: {other}")),
         }
@@ -234,6 +468,7 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
 
@@ -758,8 +993,384 @@ mod tests {
             Changes {
                 look: true,
                 hotkey: true,
-                visible: true
+                visible: true,
+                ..Changes::default()
             }
         );
+    }
+
+    // Polishing keys (docs/spec/settings.md, polishing.md).
+
+    fn patch_with(current: &Settings, text: &str) -> Result<Settings, String> {
+        apply_patch(current, &serde_json::from_str::<Value>(text).unwrap())
+    }
+
+    #[test]
+    fn the_polishing_defaults_match_the_spec() {
+        let s = parse("{}");
+        assert_eq!(s.polishing, Polishing::Claude);
+        assert_eq!(s.claude_model, ClaudeModel::Haiku);
+        assert_eq!(s.claude_executable, "");
+        assert_eq!(s.codex_executable, "");
+        assert_eq!(s.default_mode, Mode::Clean);
+        assert_eq!(s.fast_path_max_words, 8);
+        assert_eq!(s.prompt_mode_min_words, 40);
+        assert_eq!(s.speaker_notes, DEFAULT_SPEAKER_NOTES);
+        assert!(s.dictionary.is_empty());
+    }
+
+    #[test]
+    fn valid_polishing_values_are_read() {
+        let s = parse(
+            r#"{"polishing":"codex","claudeModel":"sonnet","claudeExecutable":"C:\\bin\\claude.exe",
+                "codexExecutable":"C:\\bin\\codex.cmd","defaultMode":"prompt","fastPathMaxWords":12,
+                "promptModeMinWords":55,"speakerNotes":"My notes","dictionary":["Shepit","Vercel"]}"#,
+        );
+        assert_eq!(s.polishing, Polishing::Codex);
+        assert_eq!(s.claude_model, ClaudeModel::Sonnet);
+        assert_eq!(s.claude_executable, r"C:\bin\claude.exe");
+        assert_eq!(s.codex_executable, r"C:\bin\codex.cmd");
+        assert_eq!(s.default_mode, Mode::Prompt);
+        assert_eq!(s.fast_path_max_words, 12);
+        assert_eq!(s.prompt_mode_min_words, 55);
+        assert_eq!(s.speaker_notes, "My notes");
+        assert_eq!(s.dictionary, ["Shepit", "Vercel"]);
+    }
+
+    #[test]
+    fn every_polishing_id_is_read() {
+        for (id, want) in [
+            ("claude", Polishing::Claude),
+            ("codex", Polishing::Codex),
+            ("off", Polishing::Off),
+        ] {
+            assert_eq!(parse(&format!(r#"{{"polishing":"{id}"}}"#)).polishing, want);
+            assert_eq!(want.id(), id);
+        }
+        for (id, want) in [
+            ("haiku", ClaudeModel::Haiku),
+            ("sonnet", ClaudeModel::Sonnet),
+        ] {
+            assert_eq!(
+                parse(&format!(r#"{{"claudeModel":"{id}"}}"#)).claude_model,
+                want
+            );
+            assert_eq!(want.id(), id);
+        }
+    }
+
+    #[test]
+    fn a_wrong_polishing_value_falls_back_alone() {
+        for bad in ["5", "\"bogus\"", "null", "true", "[]"] {
+            let s = parse(&format!(r#"{{"polishing":{bad},"claudeModel":"sonnet"}}"#));
+            assert_eq!(s.polishing, Polishing::Claude, "{bad}");
+            assert_eq!(
+                s.claude_model,
+                ClaudeModel::Sonnet,
+                "{bad} must not touch other keys"
+            );
+        }
+    }
+
+    #[test]
+    fn a_wrong_claude_model_falls_back_alone() {
+        for bad in ["5", "\"opus\"", "null", "{}"] {
+            let s = parse(&format!(r#"{{"claudeModel":{bad},"defaultMode":"raw"}}"#));
+            assert_eq!(s.claude_model, ClaudeModel::Haiku, "{bad}");
+            assert_eq!(s.default_mode, Mode::Raw, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn a_wrong_executable_falls_back_to_empty_alone() {
+        for bad in ["5", "null", "true", "[]"] {
+            let s = parse(&format!(
+                r#"{{"claudeExecutable":{bad},"codexExecutable":"C:\\c.exe"}}"#
+            ));
+            assert_eq!(s.claude_executable, "", "{bad}");
+            assert_eq!(
+                s.codex_executable, r"C:\c.exe",
+                "{bad} must not touch other keys"
+            );
+        }
+    }
+
+    #[test]
+    fn a_wrong_default_mode_falls_back_alone() {
+        for bad in ["5", "\"loud\"", "null", "[]"] {
+            let s = parse(&format!(r#"{{"defaultMode":{bad},"fastPathMaxWords":3}}"#));
+            assert_eq!(s.default_mode, Mode::Clean, "{bad}");
+            assert_eq!(s.fast_path_max_words, 3, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn a_wrong_word_limit_falls_back_alone() {
+        for bad in ["\"8\"", "null", "true", "2.5", "[]"] {
+            let s = parse(&format!(
+                r#"{{"fastPathMaxWords":{bad},"promptModeMinWords":{bad},"speakerNotes":"n"}}"#
+            ));
+            assert_eq!(s.fast_path_max_words, 8, "{bad}");
+            assert_eq!(s.prompt_mode_min_words, 40, "{bad}");
+            assert_eq!(s.speaker_notes, "n", "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn stored_integers_are_not_clamped() {
+        let s = parse(r#"{"fastPathMaxWords":-5,"promptModeMinWords":9999}"#);
+        assert_eq!(s.fast_path_max_words, -5);
+        assert_eq!(s.prompt_mode_min_words, 9999);
+    }
+
+    #[test]
+    fn wrong_speaker_notes_fall_back_to_the_default_text() {
+        for bad in ["5", "null", "[]"] {
+            let s = parse(&format!(r#"{{"speakerNotes":{bad}}}"#));
+            assert_eq!(s.speaker_notes, DEFAULT_SPEAKER_NOTES, "{bad}");
+        }
+    }
+
+    #[test]
+    fn empty_speaker_notes_stay_empty() {
+        assert_eq!(parse(r#"{"speakerNotes":""}"#).speaker_notes, "");
+    }
+
+    #[test]
+    fn a_dictionary_holding_a_non_string_is_empty() {
+        for bad in [r#"["A",2]"#, r#"[null]"#, r#""A""#, "5", r#"{"a":1}"#] {
+            let s = parse(&format!(r#"{{"dictionary":{bad},"defaultMode":"raw"}}"#));
+            assert!(s.dictionary.is_empty(), "{bad}");
+            assert_eq!(s.default_mode, Mode::Raw, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn the_legacy_switch_applies_only_when_polishing_is_missing() {
+        assert_eq!(
+            parse(r#"{"formatterEnabled":true}"#).polishing,
+            Polishing::Claude
+        );
+        assert_eq!(
+            parse(r#"{"formatterEnabled":false}"#).polishing,
+            Polishing::Off
+        );
+        assert_eq!(parse("{}").polishing, Polishing::Claude);
+        assert_eq!(
+            parse(r#"{"formatterEnabled":false,"polishing":"codex"}"#).polishing,
+            Polishing::Codex
+        );
+        assert_eq!(
+            parse(r#"{"formatterEnabled":true,"polishing":"off"}"#).polishing,
+            Polishing::Off
+        );
+    }
+
+    #[test]
+    fn a_bad_polishing_value_defers_to_the_legacy_switch() {
+        assert_eq!(
+            parse(r#"{"formatterEnabled":false,"polishing":"bogus"}"#).polishing,
+            Polishing::Off
+        );
+        assert_eq!(
+            parse(r#"{"formatterEnabled":true,"polishing":7}"#).polishing,
+            Polishing::Claude
+        );
+    }
+
+    #[test]
+    fn a_wrong_legacy_value_counts_as_on() {
+        assert_eq!(
+            parse(r#"{"formatterEnabled":"no"}"#).polishing,
+            Polishing::Claude
+        );
+    }
+
+    #[test]
+    fn the_legacy_key_stays_in_extra_and_survives_a_write() {
+        let s = parse(r#"{"formatterEnabled":false}"#);
+        assert_eq!(s.extra.get("formatterEnabled"), Some(&Value::Bool(false)));
+        assert_eq!(written(&s)["formatterEnabled"], Value::Bool(false));
+    }
+
+    #[test]
+    fn the_polishing_keys_are_written_with_the_spec_names() {
+        let mut s = Settings::default();
+        s.polishing = Polishing::Off;
+        s.claude_model = ClaudeModel::Sonnet;
+        s.claude_executable = r"C:\a\claude.exe".into();
+        s.codex_executable = r"C:\a\codex.cmd".into();
+        s.default_mode = Mode::Raw;
+        s.fast_path_max_words = 3;
+        s.prompt_mode_min_words = 60;
+        s.speaker_notes = "notes".into();
+        s.dictionary = vec!["Shepit".into()];
+        let w = written(&s);
+        assert_eq!(w["polishing"], "off");
+        assert_eq!(w["claudeModel"], "sonnet");
+        assert_eq!(w["claudeExecutable"], r"C:\a\claude.exe");
+        assert_eq!(w["codexExecutable"], r"C:\a\codex.cmd");
+        assert_eq!(w["defaultMode"], "raw");
+        assert_eq!(w["fastPathMaxWords"], 3);
+        assert_eq!(w["promptModeMinWords"], 60);
+        assert_eq!(w["speakerNotes"], "notes");
+        assert_eq!(w["dictionary"], serde_json::json!(["Shepit"]));
+    }
+
+    #[test]
+    fn the_polishing_keys_are_not_kept_as_extras() {
+        let s = parse(
+            r#"{"polishing":"off","claudeModel":"sonnet","claudeExecutable":"x.exe","codexExecutable":"y.exe",
+                "defaultMode":"raw","fastPathMaxWords":1,"promptModeMinWords":2,"speakerNotes":"n","dictionary":["A"]}"#,
+        );
+        assert!(s.extra.is_empty(), "{:?}", s.extra);
+    }
+
+    #[test]
+    fn write_then_parse_keeps_the_polishing_settings() {
+        let mut s = Settings::default();
+        s.polishing = Polishing::Codex;
+        s.claude_model = ClaudeModel::Sonnet;
+        s.default_mode = Mode::Prompt;
+        s.fast_path_max_words = 0;
+        s.prompt_mode_min_words = 150;
+        s.speaker_notes = "Привіт, notes".into();
+        s.dictionary = vec!["Shepit".into(), "Vercel".into()];
+        assert_eq!(parse(&s.to_json()), s);
+    }
+
+    #[test]
+    fn a_patch_sets_every_polishing_key() {
+        let base = Settings::default();
+        let s = patch_with(
+            &base,
+            r#"{"polishing":"codex","claudeModel":"sonnet","claudeExecutable":"C:\\c\\claude.exe",
+                "codexExecutable":"C:\\c\\codex.cmd","defaultMode":"raw","fastPathMaxWords":5,
+                "promptModeMinWords":80,"speakerNotes":"mine"}"#,
+        )
+        .unwrap();
+        assert_eq!(s.polishing, Polishing::Codex);
+        assert_eq!(s.claude_model, ClaudeModel::Sonnet);
+        assert_eq!(s.claude_executable, r"C:\c\claude.exe");
+        assert_eq!(s.codex_executable, r"C:\c\codex.cmd");
+        assert_eq!(s.default_mode, Mode::Raw);
+        assert_eq!(s.fast_path_max_words, 5);
+        assert_eq!(s.prompt_mode_min_words, 80);
+        assert_eq!(s.speaker_notes, "mine");
+    }
+
+    #[test]
+    fn a_patch_clamps_the_word_limits() {
+        let base = Settings::default();
+        let s = patch_with(&base, r#"{"fastPathMaxWords":-4,"promptModeMinWords":3}"#).unwrap();
+        assert_eq!((s.fast_path_max_words, s.prompt_mode_min_words), (0, 10));
+        let s = patch_with(&base, r#"{"fastPathMaxWords":99,"promptModeMinWords":900}"#).unwrap();
+        assert_eq!((s.fast_path_max_words, s.prompt_mode_min_words), (30, 200));
+        let s = patch_with(&base, r#"{"fastPathMaxWords":30,"promptModeMinWords":10}"#).unwrap();
+        assert_eq!((s.fast_path_max_words, s.prompt_mode_min_words), (30, 10));
+    }
+
+    #[test]
+    fn a_patch_rejects_wrong_types_and_bad_ids() {
+        let base = Settings::default();
+        for bad in [
+            r#"{"polishing":"bogus"}"#,
+            r#"{"polishing":1}"#,
+            r#"{"claudeModel":"opus"}"#,
+            r#"{"defaultMode":"loud"}"#,
+            r#"{"fastPathMaxWords":"8"}"#,
+            r#"{"fastPathMaxWords":2.5}"#,
+            r#"{"promptModeMinWords":null}"#,
+            r#"{"claudeExecutable":5}"#,
+            r#"{"codexExecutable":null}"#,
+            r#"{"speakerNotes":false}"#,
+        ] {
+            assert!(patch_with(&base, bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_patch_cannot_set_the_dictionary() {
+        let base = Settings::default();
+        let err = patch_with(&base, r#"{"dictionary":["A"]}"#).unwrap_err();
+        assert!(err.contains("dictionary"), "{err}");
+    }
+
+    #[test]
+    fn a_patch_with_one_bad_polishing_value_changes_nothing() {
+        let base = Settings::default();
+        assert!(patch_with(&base, r#"{"polishing":"off","claudeModel":"opus"}"#).is_err());
+        assert_eq!(base.polishing, Polishing::Claude);
+    }
+
+    #[test]
+    fn a_patch_may_keep_an_empty_speaker_note_and_a_cleared_path() {
+        let mut base = Settings::default();
+        base.claude_executable = "x.exe".into();
+        let s = patch_with(&base, r#"{"speakerNotes":"","claudeExecutable":""}"#).unwrap();
+        assert_eq!(s.speaker_notes, "");
+        assert_eq!(s.claude_executable, "");
+    }
+
+    #[test]
+    fn each_polishing_setting_flags_polishing_only() {
+        let base = Settings::default();
+        let edits: [fn(&mut Settings); 5] = [
+            |s| s.polishing = Polishing::Off,
+            |s| s.claude_model = ClaudeModel::Sonnet,
+            |s| s.speaker_notes = "other".into(),
+            |s| s.claude_executable = "a.exe".into(),
+            |s| s.codex_executable = "b.exe".into(),
+        ];
+        for (i, edit) in edits.iter().enumerate() {
+            let mut new = base.clone();
+            edit(&mut new);
+            let c = changes(&base, &new);
+            assert_eq!(
+                c,
+                Changes {
+                    polishing: true,
+                    ..Changes::default()
+                },
+                "edit {i}"
+            );
+            assert!(c.any());
+        }
+    }
+
+    #[test]
+    fn each_formatting_setting_flags_formatting_only() {
+        let base = Settings::default();
+        let edits: [fn(&mut Settings); 4] = [
+            |s| s.default_mode = Mode::Raw,
+            |s| s.fast_path_max_words = 3,
+            |s| s.prompt_mode_min_words = 60,
+            |s| s.dictionary = vec!["Shepit".into()],
+        ];
+        for (i, edit) in edits.iter().enumerate() {
+            let mut new = base.clone();
+            edit(&mut new);
+            let c = changes(&base, &new);
+            assert_eq!(
+                c,
+                Changes {
+                    formatting: true,
+                    ..Changes::default()
+                },
+                "edit {i}"
+            );
+            assert!(c.any());
+        }
+    }
+
+    #[test]
+    fn polishing_and_formatting_flags_can_be_set_together() {
+        let base = Settings::default();
+        let mut new = base.clone();
+        new.polishing = Polishing::Off;
+        new.default_mode = Mode::Raw;
+        let c = changes(&base, &new);
+        assert!(c.polishing && c.formatting);
+        assert!(!c.look && !c.hotkey && !c.visible);
     }
 }

@@ -3,8 +3,9 @@ import { useSettings, type SettingsStore } from "../shared/useSettings";
 import AboutPane from "./AboutPane";
 import AppearancePane from "./AppearancePane";
 import GeneralPane from "./GeneralPane";
+import PolishingPane from "./PolishingPane";
 
-type Tab = "general" | "appearance" | "about";
+type Tab = "general" | "appearance" | "polishing" | "about";
 
 // Inline SVG: the apps ship no icon font.
 function Icon({ children }: { children: ReactNode }) {
@@ -39,6 +40,16 @@ const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
     ),
   },
   {
+    id: "polishing",
+    label: "Polishing",
+    icon: (
+      <Icon>
+        <path d="M12 3.5l1.6 4.4 4.4 1.6-4.4 1.6L12 15.5l-1.6-4.4L6 9.5l4.4-1.6z" />
+        <path d="M18.5 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
+      </Icon>
+    ),
+  },
+  {
     id: "about",
     label: "About",
     icon: (
@@ -55,6 +66,7 @@ function Pane({ tab, store }: { tab: Tab; store: SettingsStore }) {
   if (!store.settings) return null;
   const props = { settings: store.settings, update: store.update };
   if (tab === "appearance") return <AppearancePane {...props} />;
+  if (tab === "polishing") return <PolishingPane {...props} />;
   if (tab === "about") return <AboutPane {...props} />;
   return <GeneralPane {...props} />;
 }

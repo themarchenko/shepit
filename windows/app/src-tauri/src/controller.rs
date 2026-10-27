@@ -2,7 +2,7 @@
 
 use shepit_core::context::TargetContext;
 use shepit_core::dictation::{
-    CaptureError, Controller, InsertJob, Job, ModelStatus, Recorder, View, WidgetInput,
+    CaptureError, Controller, FormatJob, InsertJob, Job, ModelStatus, Recorder, View, WidgetInput,
 };
 use shepit_core::insert::InsertOutcome;
 use shepit_core::keys::{Hotkey, HotkeyPicker, PickResult, RawKey};
@@ -28,6 +28,9 @@ pub enum Msg {
         id: u64,
         result: Result<String, String>,
     },
+    /// The polish worker finished dictation `id` with the final `text`. Dropped unless `id` is the
+    /// dictation being formatted.
+    Formatted { id: u64, text: String },
     /// The insert worker finished dictation `id`.
     Inserted {
         id: u64,
@@ -97,6 +100,7 @@ impl<R: Recorder> Runner<R> {
             Msg::StreamError(err) => self.controller.on_stream_error(err, now),
             Msg::Model(status) => self.controller.on_model(status),
             Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
+            Msg::Formatted { id, text } => self.controller.on_formatted(id, text, now),
             Msg::Context { id, context } => self.controller.on_context(id, context),
             Msg::Inserted { id, result } => self.controller.on_inserted(id, result, now),
             Msg::Widget(input) => self.controller.on_widget(input, now),
@@ -168,6 +172,17 @@ impl<R: Recorder> Runner<R> {
         self.controller.current_job().unwrap_or(0)
     }
 
+    /// The accepted transcript as a format job, handed over once.
+    pub fn take_format(&mut self) -> Option<FormatJob> {
+        self.controller.take_format()
+    }
+
+    /// The id of the dictation whose formatted text is still wanted, or 0. A cancel clears it,
+    /// which is how a running agent request learns to stop.
+    pub fn formatting(&self) -> u64 {
+        self.controller.formatting_id().unwrap_or(0)
+    }
+
     /// The dictation id to capture the target context for, handed over once.
     pub fn take_capture(&mut self) -> Option<u64> {
         self.controller.take_capture()
@@ -234,6 +249,17 @@ mod tests {
         })
     }
 
+    /// The format step of a dictation: feeds the polished text for `id`.
+    fn formatted(runner: &mut Runner<FakeRecorder>, id: u64, text: &str, at: f64) {
+        runner.step(
+            Msg::Formatted {
+                id,
+                text: text.into(),
+            },
+            at,
+        );
+    }
+
     /// Records a one second hold with the model ready; returns the runner in Transcribing.
     fn transcribing() -> Runner<FakeRecorder> {
         let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
@@ -287,8 +313,19 @@ mod tests {
                 12.0,
             )
             .expect("view changes");
-        assert_eq!(inserting.stage, Some(Stage::Inserting));
+        assert_eq!(inserting.stage, Some(Stage::Formatting));
         assert_eq!(runner.wanted(), 0);
+        assert!(runner.take_insert().is_none());
+        let inserting = runner
+            .step(
+                Msg::Formatted {
+                    id: 1,
+                    text: "hello there".into(),
+                },
+                12.2,
+            )
+            .expect("view changes");
+        assert_eq!(inserting.stage, Some(Stage::Inserting));
         assert_eq!(
             runner.take_insert().map(|j| j.text).as_deref(),
             Some("hello there")
@@ -305,6 +342,86 @@ mod tests {
             .expect("view changes");
         assert_eq!(done.phase, Phase::Done);
         assert_eq!(done.message, "hello there");
+    }
+
+    /// Recognized text for dictation 1: the runner is now in Formatting.
+    fn formatting() -> Runner<FakeRecorder> {
+        let mut runner = transcribing();
+        runner.step(
+            Msg::Recognized {
+                id: 1,
+                result: Ok("hello there".into()),
+            },
+            12.0,
+        );
+        runner
+    }
+
+    #[test]
+    fn a_recognized_transcript_shows_the_formatting_stage_and_makes_a_format_job() {
+        let mut runner = transcribing();
+        let view = runner
+            .step(
+                Msg::Recognized {
+                    id: 1,
+                    result: Ok("hello there".into()),
+                },
+                12.0,
+            )
+            .expect("view changes");
+        assert_eq!(view.phase, Phase::Processing);
+        assert_eq!(view.stage, Some(Stage::Formatting));
+        assert_eq!(runner.formatting(), 1);
+        let job = runner.take_format().expect("a format job");
+        assert_eq!((job.id, job.transcript.as_str()), (1, "hello there"));
+        assert!(runner.take_format().is_none());
+        assert!(runner.take_insert().is_none());
+    }
+
+    #[test]
+    fn a_formatted_text_for_the_dictation_makes_the_insert_job() {
+        let mut runner = formatting();
+        let view = runner
+            .step(
+                Msg::Formatted {
+                    id: 1,
+                    text: "Hello there.".into(),
+                },
+                12.4,
+            )
+            .expect("view changes");
+        assert_eq!(view.stage, Some(Stage::Inserting));
+        assert_eq!(runner.formatting(), 0);
+        assert_eq!(
+            runner.take_insert().map(|j| (j.id, j.text)),
+            Some((1, "Hello there.".to_string()))
+        );
+    }
+
+    #[test]
+    fn a_stale_formatted_text_never_reaches_the_inserter() {
+        let mut runner = formatting();
+        let stale = Msg::Formatted {
+            id: 1 << 32,
+            text: "old".into(),
+        };
+        assert!(runner.step(stale, 12.4).is_none());
+        assert_eq!(runner.formatting(), 1);
+        assert!(runner.take_insert().is_none());
+    }
+
+    #[test]
+    fn esc_while_formatting_goes_idle_and_the_late_text_is_dropped() {
+        let mut runner = formatting();
+        let idle = runner.step(esc(), 12.2).expect("view changes");
+        assert_eq!(idle.phase, Phase::Idle);
+        assert_eq!(runner.formatting(), 0);
+        let late = Msg::Formatted {
+            id: 1,
+            text: "late".into(),
+        };
+        assert!(runner.step(late, 13.0).is_none());
+        assert!(runner.take_insert().is_none());
     }
 
     #[test]
@@ -458,6 +575,7 @@ mod tests {
             },
             12.0,
         );
+        formatted(&mut runner, id, "secret", 12.1);
         let job = runner.take_insert().expect("insert job");
         assert_eq!(job.captured_password, Some(true));
     }
@@ -482,6 +600,7 @@ mod tests {
             },
             12.0,
         );
+        formatted(&mut runner, id, "text", 12.1);
         assert_eq!(runner.take_insert().unwrap().captured_password, None);
     }
 
@@ -495,6 +614,7 @@ mod tests {
             },
             12.0,
         );
+        formatted(&mut runner, 1, "hello there", 12.1);
         let done = runner
             .step(
                 Msg::Inserted {
@@ -518,6 +638,7 @@ mod tests {
             },
             12.0,
         );
+        formatted(&mut runner, 1, "hello", 12.1);
         let failed = runner
             .step(
                 Msg::Inserted {
