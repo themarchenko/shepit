@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use shepit_core::speech::{has_enough_speech, is_junk};
-use shepit_engine::download::{ensure, UreqFetch};
+use shepit_engine::download::{ensure, verify_installed, UreqFetch};
 use shepit_engine::pins::PARAKEET_V3_INT8;
 use shepit_engine::recognizer::Recognizer;
 
@@ -37,6 +37,8 @@ fn manifest_clips_are_transcribed() {
             .expect("SHEPIT_MODELS_DIR must point at a models folder"),
     );
     let model_dir = models.join(PARAKEET_V3_INT8.dir_name);
+    // A restored CI cache is untrusted: re-hash it, drop what does not match, fetch it again.
+    verify_installed(&model_dir, &PARAKEET_V3_INT8).unwrap();
     ensure(&model_dir, &PARAKEET_V3_INT8, &UreqFetch, &mut |_, _| {}).unwrap();
     let mut recognizer = Recognizer::load(&model_dir).unwrap();
 

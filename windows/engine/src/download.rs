@@ -5,12 +5,13 @@ use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::time::Duration;
 
 pub struct Response {
     /// 200 for a full body, 206 for the range that was asked for.
     pub status: u16,
-    pub body: Box<dyn Read>,
+    pub body: Box<dyn Read + Send>,
 }
 
 pub trait Fetch {
@@ -25,6 +26,9 @@ impl Fetch for UreqFetch {
         // No Authorization header and no token lookup: the model repo is public.
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_connect(Some(Duration::from_secs(30)))
+            .timeout_recv_response(Some(Duration::from_secs(60)))
+            // The hash makes other hosts safe, but never plain http (also after a redirect).
+            .https_only(true)
             .build()
             .into();
         let mut req = agent.get(url);
@@ -53,6 +57,88 @@ pub fn is_installed(dir: &Path, spec: &ModelSpec) -> bool {
     spec.files.iter().all(|f| installed(dir, f))
 }
 
+/// No data for this long fails the download. Not a total limit: the model is 670 MB.
+const STALL_LIMIT: Duration = Duration::from_secs(60);
+
+/// Re-hash every pinned file that exists under `dir` and delete the ones that do not match, so a
+/// corrupted or planted file of the right size cannot be loaded. Call `ensure` afterwards to fetch
+/// what was removed. Streams each file, so memory stays flat.
+pub fn verify_installed(dir: &Path, spec: &ModelSpec) -> Result<(), String> {
+    for file in spec.files {
+        let path = dir.join(file.name);
+        if !path.is_file() {
+            continue;
+        }
+        let hash = sha256_of(&path).map_err(|e| format!("{}: {e}", file.name))?;
+        if hash != file.sha256 {
+            std::fs::remove_file(&path).map_err(|e| format!("{}: {e}", file.name))?;
+        }
+    }
+    Ok(())
+}
+
+/// Turns a body that goes quiet into an error. ureq has no per-read timeout (its body timeout is
+/// a budget for the whole body), so a thread does the blocking reads and this side waits with a
+/// limit. After a stall the thread stays blocked until the socket dies and then exits on its own.
+struct StallReader {
+    chunks: mpsc::Receiver<std::io::Result<Vec<u8>>>,
+    pending: Vec<u8>,
+    at: usize,
+    limit: Duration,
+}
+
+impl StallReader {
+    fn new(mut inner: Box<dyn Read + Send>, limit: Duration) -> Self {
+        let (tx, chunks) = mpsc::sync_channel(4);
+        std::thread::spawn(move || {
+            let mut buf = vec![0u8; 256 * 1024];
+            loop {
+                let item = match inner.read(&mut buf) {
+                    Ok(0) => return,
+                    Ok(n) => Ok(buf[..n].to_vec()),
+                    Err(e) => Err(e),
+                };
+                let failed = item.is_err();
+                if tx.send(item).is_err() || failed {
+                    return;
+                }
+            }
+        });
+        Self {
+            chunks,
+            pending: Vec::new(),
+            at: 0,
+            limit,
+        }
+    }
+}
+
+impl Read for StallReader {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        if self.at >= self.pending.len() {
+            match self.chunks.recv_timeout(self.limit) {
+                Ok(Ok(chunk)) => {
+                    self.pending = chunk;
+                    self.at = 0;
+                }
+                Ok(Err(e)) => return Err(e),
+                // The sender hung up after a clean end of body.
+                Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(0),
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!("stalled: no data for {} s", self.limit.as_secs_f32()),
+                    ))
+                }
+            }
+        }
+        let n = out.len().min(self.pending.len() - self.at);
+        out[..n].copy_from_slice(&self.pending[self.at..self.at + n]);
+        self.at += n;
+        Ok(n)
+    }
+}
+
 /// Download every missing file of `spec` into `dir`. `progress(done, total)` counts bytes over the
 /// whole spec, files already installed included.
 pub fn ensure(
@@ -61,12 +147,22 @@ pub fn ensure(
     fetch: &dyn Fetch,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<(), String> {
+    ensure_with(dir, spec, fetch, STALL_LIMIT, progress)
+}
+
+fn ensure_with(
+    dir: &Path,
+    spec: &ModelSpec,
+    fetch: &dyn Fetch,
+    stall: Duration,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     let total: u64 = spec.files.iter().map(|f| f.size).sum();
     let mut done = 0u64;
     for file in spec.files {
         if !installed(dir, file) {
-            download_file(dir, file, fetch, &mut |n| progress(done + n, total))?;
+            download_file(dir, file, fetch, stall, &mut |n| progress(done + n, total))?;
         }
         done += file.size;
         progress(done, total);
@@ -78,6 +174,7 @@ fn download_file(
     dir: &Path,
     file: &ModelFile,
     fetch: &dyn Fetch,
+    stall: Duration,
     progress: &mut dyn FnMut(u64),
 ) -> Result<(), String> {
     let final_path = dir.join(file.name);
@@ -105,7 +202,7 @@ fn download_file(
             (_, s) => return Err(format!("{}: unexpected HTTP status {s}", file.name)),
         };
         progress(have);
-        let mut body = resp.body.take(file.size - have + 1);
+        let mut body = StallReader::new(resp.body, stall).take(file.size - have + 1);
         let mut buf = vec![0u8; 256 * 1024];
         let mut written = have;
         loop {
@@ -136,6 +233,12 @@ fn download_file(
         }
     }
 
+    // Flushed to disk before the final name exists, so a crash cannot leave a short file there.
+    OpenOptions::new()
+        .write(true)
+        .open(&part_path)
+        .and_then(|f| f.sync_all())
+        .map_err(io)?;
     if sha256_of(&part_path).map_err(io)? != file.sha256 {
         let _ = std::fs::remove_file(&part_path);
         return Err(format!("{}: checksum mismatch", file.name));
@@ -369,5 +472,102 @@ mod tests {
         let f = files(&body, &sha, "a.bin");
         let (r, _) = run(tmp.path(), &f, &Fake::new("https://other.test/x", &body));
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn verify_installed_removes_a_corrupted_file_of_the_right_size() {
+        let body = payload();
+        let sha = sha_hex(&body);
+        let tmp = tempfile::tempdir().unwrap();
+        let f = files(&body, &sha, "a.bin");
+        let spec = ModelSpec {
+            dir_name: "m",
+            files: &f,
+        };
+        let mut bad = body.clone();
+        bad[100] ^= 0xff;
+        std::fs::write(tmp.path().join("a.bin"), &bad).unwrap();
+        assert!(is_installed(tmp.path(), &spec), "size alone looks fine");
+        verify_installed(tmp.path(), &spec).unwrap();
+        assert!(!tmp.path().join("a.bin").exists());
+
+        let fake = Fake::new(URL, &body);
+        let (r, _) = run(tmp.path(), &f, &fake);
+        r.unwrap();
+        assert_eq!(fake.calls.borrow().len(), 1, "ensure re-downloads it");
+        assert_eq!(std::fs::read(tmp.path().join("a.bin")).unwrap(), body);
+    }
+
+    #[test]
+    fn verify_installed_keeps_good_files_and_ignores_missing_ones() {
+        let body = payload();
+        let sha = sha_hex(&body);
+        let tmp = tempfile::tempdir().unwrap();
+        let f = files(&body, &sha, "a.bin");
+        let spec = ModelSpec {
+            dir_name: "m",
+            files: &f,
+        };
+        verify_installed(tmp.path(), &spec).unwrap();
+        std::fs::write(tmp.path().join("a.bin"), &body).unwrap();
+        verify_installed(tmp.path(), &spec).unwrap();
+        assert!(is_installed(tmp.path(), &spec));
+    }
+
+    /// Yields `first`, then blocks far longer than the test's stall limit.
+    struct Stalls {
+        first: Cursor<Vec<u8>>,
+    }
+
+    impl Read for Stalls {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.first.read(buf)?;
+            if n == 0 {
+                std::thread::sleep(Duration::from_secs(30));
+            }
+            Ok(n)
+        }
+    }
+
+    struct StallFetch(Vec<u8>);
+
+    impl Fetch for StallFetch {
+        fn get(&self, _url: &str, _offset: u64) -> Result<Response, String> {
+            Ok(Response {
+                status: 200,
+                body: Box::new(Stalls {
+                    first: Cursor::new(self.0.clone()),
+                }),
+            })
+        }
+    }
+
+    #[test]
+    fn a_stalled_body_fails_and_keeps_the_part_file() {
+        let body = payload();
+        let sha = sha_hex(&body);
+        let tmp = tempfile::tempdir().unwrap();
+        let f = files(&body, &sha, "a.bin");
+        let spec = ModelSpec {
+            dir_name: "m",
+            files: &f,
+        };
+        let started = std::time::Instant::now();
+        let r = ensure_with(
+            tmp.path(),
+            &spec,
+            &StallFetch(body[..3000].to_vec()),
+            Duration::from_millis(200),
+            &mut |_, _| {},
+        );
+        assert!(r.unwrap_err().contains("stalled"));
+        assert!(started.elapsed() < Duration::from_secs(10));
+        assert!(!tmp.path().join("a.bin").exists());
+        assert_eq!(
+            std::fs::metadata(tmp.path().join("a.bin.part"))
+                .unwrap()
+                .len(),
+            3000
+        );
     }
 }
