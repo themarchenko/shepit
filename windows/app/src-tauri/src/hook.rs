@@ -19,6 +19,9 @@ mod imp {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::System::Threading::{
+        GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_HIGHEST,
+    };
     use windows::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, GetMessageW, SetWindowsHookExW, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL,
     };
@@ -58,6 +61,16 @@ mod imp {
         let spawned = std::thread::Builder::new()
             .name("keyboard-hook".into())
             .spawn(|| {
+                // The live preview keeps the model busy while a key is held. The hook sits in
+                // every keystroke's path and stamps the release, so it must not queue behind
+                // that load. A failure only costs the margin: carry on.
+                // SAFETY: GetCurrentThread returns a pseudo handle for this thread, valid
+                // without closing; SetThreadPriority only reads its arguments.
+                if let Err(err) =
+                    unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) }
+                {
+                    eprintln!("could not raise the keyboard hook priority: {err}");
+                }
                 // SAFETY: GetModuleHandleW with a null name returns the handle of the current
                 // executable and has no other preconditions.
                 let module = unsafe { GetModuleHandleW(PCWSTR::null()) };

@@ -118,6 +118,16 @@ final class SharedFixtureTests: XCTestCase {
         }
     }
 
+    // LivePreview.split(frozen: String, current: String) -> LivePreview.Text
+    func testLivePreviewSplit() throws {
+        let f: FixtureFile<SplitInput, SplitExpected> = try SharedFixtures.load("live-preview-split.json", minimumCases: 10)
+        for c in f.cases {
+            let got = LivePreview.split(frozen: c.input.frozen, current: c.input.current)
+            XCTAssertEqual(got.stable, c.expected.stable, "\(c.name): stable")
+            XCTAssertEqual(got.unstable, c.expected.unstable, "\(c.name): unstable")
+        }
+    }
+
     // AppVersion.isNewer(_ a: String, than b: String) -> Bool
     func testAppVersion() throws {
         let f: FixtureFile<VersionInput, Bool> = try SharedFixtures.load("app-version.json", minimumCases: 7)

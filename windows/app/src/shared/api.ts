@@ -27,6 +27,7 @@ export interface SettingsData {
   glassOpacity: number;
   fadeWhenIdle: boolean;
   widgetVisible: boolean;
+  livePreview: boolean;
   hotkey: HotkeyInfo;
   model: ModelInfo;
   version: string;
@@ -61,6 +62,7 @@ export interface SettingsPatch {
   glassOpacity?: number;
   fadeWhenIdle?: boolean;
   widgetVisible?: boolean;
+  livePreview?: boolean;
   hotkey?: string;
   polishing?: Polishing;
   claudeModel?: ClaudeModel;

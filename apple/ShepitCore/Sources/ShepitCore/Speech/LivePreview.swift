@@ -117,11 +117,16 @@ public final class LivePreview: ObservableObject {
     }
 
     private func publish(frozen: String, current: String) {
+        let next = Self.split(frozen: frozen, current: current)
+        if next != text { text = next }
+    }
+
+    /// The last two words of a pass are still likely to change, so they are shown as unstable.
+    nonisolated static func split(frozen: String, current: String) -> Text {
         let words = current.split(whereSeparator: \.isWhitespace)
         let unstable = min(2, words.count)
-        let next = Text(stable: Self.join(frozen, words.dropLast(unstable).joined(separator: " ")),
-                        unstable: words.suffix(unstable).joined(separator: " "))
-        if next != text { text = next }
+        return Text(stable: join(frozen, words.dropLast(unstable).joined(separator: " ")),
+                    unstable: words.suffix(unstable).joined(separator: " "))
     }
 
     nonisolated static func join(_ a: String, _ b: String) -> String {

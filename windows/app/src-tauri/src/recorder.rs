@@ -6,6 +6,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, Stream, StreamConfig};
 use shepit_core::audio::CaptureBuffer;
 use shepit_core::dictation::{classify_error, CaptureError, Recorder};
+use shepit_core::live::LiveSource;
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 
@@ -92,6 +93,26 @@ where
         },
         None,
     )
+}
+
+impl LiveSource for CpalRecorder {
+    fn captured(&self) -> usize {
+        let Some(active) = &self.active else { return 0 };
+        match active.buffer.lock() {
+            Ok(guard) => guard.len(),
+            Err(poisoned) => poisoned.into_inner().len(),
+        }
+    }
+
+    fn samples_from(&self, start: usize) -> Vec<f32> {
+        let Some(active) = &self.active else {
+            return Vec::new();
+        };
+        match active.buffer.lock() {
+            Ok(guard) => guard.samples_from(start),
+            Err(poisoned) => poisoned.into_inner().samples_from(start),
+        }
+    }
 }
 
 impl Recorder for CpalRecorder {

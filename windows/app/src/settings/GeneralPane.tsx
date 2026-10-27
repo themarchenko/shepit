@@ -41,6 +41,9 @@ export default function GeneralPane({ settings, update }: PaneProps) {
         <Row label="Show floating widget" detail="The pill at the bottom of the screen.">
           <Toggle label="Show floating widget" checked={settings.widgetVisible} onChange={(v) => update({ widgetVisible: v })} />
         </Row>
+        <Row label="Show the words while speaking" detail="Runs Parakeet while you speak; uses more processor time">
+          <Toggle label="Show the words while speaking" checked={settings.livePreview} onChange={(v) => update({ livePreview: v })} />
+        </Row>
       </Group>
       <Group title="Microphone">
         <MicrophoneCheck />

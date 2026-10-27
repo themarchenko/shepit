@@ -26,3 +26,5 @@ When it returns a language, the engine must decode the same audio again with tha
 ## Live preview language
 
 Source: Speech/LivePreview.swift:45-59, 74-92. With a lock, every pass uses it. Without one, each pass before 3.5 s of audio decodes as `uk` and as `en`; the pass is shown only if the better confidence is at least 0.6 and the two differ by at least 0.2. From 3.5 s of audio on, the more confident language (`uk` on a tie) is kept for the rest of the recording. See widget.md for the pass timing.
+
+Windows has no live-preview language gate: Parakeet there takes no language hint and returns no confidence, so each pass decodes once with the model's own detection. Ukrainian may show in the wrong script for the first seconds. Known gap, macOS keeps the gate.

@@ -62,6 +62,8 @@ pub struct SettingsPayload {
     pub check_for_updates: bool,
     /// One term per entry, in stored order (Settings > Dictionary).
     pub dictionary: Vec<String>,
+    /// Show the words while speaking.
+    pub live_preview: bool,
 }
 
 /// `detect_agents`: the resolved paths (null when not found) and the settings after the fallback
@@ -100,6 +102,7 @@ pub fn settings_payload(settings: &Settings, model: ModelStatus, version: &str) 
         speaker_notes: settings.speaker_notes.clone(),
         check_for_updates: settings.check_for_updates,
         dictionary: settings.dictionary.clone(),
+        live_preview: settings.live_preview,
     }
 }
 
@@ -447,6 +450,7 @@ mod tests {
                 "fastPathMaxWords",
                 "glassOpacity",
                 "hotkey",
+                "livePreview",
                 "model",
                 "polishing",
                 "promptModeMinWords",
@@ -456,6 +460,17 @@ mod tests {
                 "widgetVisible"
             ]
         );
+    }
+
+    #[test]
+    fn the_payload_carries_the_live_preview_switch() {
+        let on = json(&Settings::default(), ModelStatus::Ready);
+        assert_eq!(on["livePreview"], true);
+        let off = Settings {
+            live_preview: false,
+            ..Settings::default()
+        };
+        assert_eq!(json(&off, ModelStatus::Ready)["livePreview"], false);
     }
 
     #[test]

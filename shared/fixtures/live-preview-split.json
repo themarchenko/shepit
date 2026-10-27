@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "description": "LivePreview.split: split one pass into stable text (joined to the frozen text) and an unstable tail of the last two words.",
+  "cases": [
+    {
+      "name": "Split/1_Empty",
+      "input": {
+        "frozen": "",
+        "current": ""
+      },
+      "expected": {
+        "stable": "",
+        "unstable": ""
+      }
+    },
+    {
+      "name": "Split/2_OneWord",
+      "input": {
+        "frozen": "",
+        "current": "hello"
+      },
+      "expected": {
+        "stable": "",
+        "unstable": "hello"
+      }
+    },
+    {
+      "name": "Split/3_TwoWords",
+      "input": {
+        "frozen": "",
+        "current": "hello there"
+      },
+      "expected": {
+        "stable": "",
+        "unstable": "hello there"
+      }
+    },
+    {
+      "name": "Split/4_ThreeWords",
+      "input": {
+        "frozen": "",
+        "current": "so the widget should"
+      },
+      "expected": {
+        "stable": "so the",
+        "unstable": "widget should"
+      }
+    },
+    {
+      "name": "Split/5_WithFrozen",
+      "input": {
+        "frozen": "first part",
+        "current": "and then more words"
+      },
+      "expected": {
+        "stable": "first part and then",
+        "unstable": "more words"
+      }
+    },
+    {
+      "name": "Split/6_FrozenOnly",
+      "input": {
+        "frozen": "first part",
+        "current": ""
+      },
+      "expected": {
+        "stable": "first part",
+        "unstable": ""
+      }
+    },
+    {
+      "name": "Split/7_FrozenAndOneWord",
+      "input": {
+        "frozen": "first part",
+        "current": "one"
+      },
+      "expected": {
+        "stable": "first part",
+        "unstable": "one"
+      }
+    },
+    {
+      "name": "Split/8_Whitespace",
+      "input": {
+        "frozen": "",
+        "current": " a \n b\t c  "
+      },
+      "expected": {
+        "stable": "a",
+        "unstable": "b c"
+      }
+    },
+    {
+      "name": "Split/9_Cyrillic",
+      "input": {
+        "frozen": "",
+        "current": "Зустрінемось завтра о десятій"
+      },
+      "expected": {
+        "stable": "Зустрінемось завтра",
+        "unstable": "о десятій"
+      }
+    },
+    {
+      "name": "Split/10_Punctuation",
+      "input": {
+        "frozen": "",
+        "current": "This is a LibriVox recording."
+      },
+      "expected": {
+        "stable": "This is a",
+        "unstable": "LibriVox recording."
+      }
+    }
+  ]
+}

@@ -743,6 +743,37 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   WebView2; the History window at 100% and 150% scaling with a dark title bar; a learned term appearing in the open Dictionary
   pane; the uninstaller and the folder.
 
+## 2026-10-27: Windows live preview (task 12)
+
+- Window: Windows freezes when the tail is over 6 s and cuts at the quietest 100 ms between 4.0 and 5.5 s of the tail (the
+  macOS 8/12 to 11/12 ratio). The macOS 12 s window is sized for 0.1-0.3 s passes on the M1; on the Windows CI runner (real-time
+  factor 0.074-0.101) a 12 s tail would cost 0.89-1.21 s per pass. A tail pass covers at most 6 s and a freeze pass at most 5.5 s.
+- Freeze and tail are separate jobs, so one job is one window and the final can run in between. A freeze result is shown only with
+  the following tail result, and that tail job is sent at once, without the 1 s minimum.
+- Cadence: first pass at 1 s; after a tail pass of p seconds the next waits `max(0.15, 0.5 - p, p)`. ONNX Runtime uses every
+  physical core, so the rule keeps duty at or below 50%. One pass in flight; each reads the newest audio when it starts.
+- Slow-pass stop at 1.0 s: the preview stops for that dictation and keeps its text. macOS has no such guard.
+- The final waits for at most the pass already running: transcribe-rs cannot interrupt a run. At release `preview_wanted` goes to 0
+  before the final is sent, so queued previews are skipped, and the result of the running pass is dropped. Expected extra wait is
+  up to about 0.7 s on CI-class hardware. Preview text never reaches the inserted text.
+- No second model and no new thread: `Recognizer::transcribe` takes `&mut self`, and a second copy costs about 670 MB. Previews
+  use the recognizer thread through a `Work` channel and report with `try_send`.
+- The keyboard hook thread runs at `THREAD_PRIORITY_HIGHEST`, because sustained ONNX Runtime load competes with the hook that
+  stamps the release. The call is Windows-only and first compiles on CI.
+- The split into stable and unstable words (last two words) is a shared fixture, `live-preview-split.json`; macOS got a
+  behaviour-free `LivePreview.split` extraction. The cut finder takes floats, so it is covered by ported tests only.
+- `livePreview` (default true) is read when a recording starts, like macOS. The General toggle is "Show the words while speaking".
+- Known gap: no live-preview language gate on Windows (Parakeet takes no hint and gives no confidence), so Ukrainian may show in
+  the wrong script early. If a device check shows it, options are starting the first pass at 2.5 s (macOS data: the script settles
+  from 2.5 s) or leaving it. A product choice.
+- Warm-up: `ParakeetEngine::load` transcribes 1 s of silence before the worker reports Ready. On the Mac, cold, the first call after a
+  load took 0.90 s for 7.5 s of audio against about 0.39 s warm, which on a slower laptop is enough to trip the 1.0 s stop. A warm-up error is
+  logged with fixed text and does not fail the load.
+- Mac CPU numbers, not Windows (release build, 15 s clip, `live_preview_follows_the_fixture_clip`): warm-up 0.09 s; the first
+  final after it 0.84 s for 15 s of audio; 25 passes, the longest 0.49 s, from about 0.13 s at 16 000 samples. The 1.0 s stop did not
+  trip. The Windows CI step prints the same numbers for the runner; they are not recorded here yet.
+- Device checks open: see PLAN-windows task 12.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

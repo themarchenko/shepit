@@ -69,6 +69,7 @@ Source: DictationSession.swift:140-227.
 - Cancellation at any await returns to idle without a message (:222-223). Any other error fails with the error text (:224-225).
 - The target app, window title, URL, caret text and selection are captured when recording starts, not when it ends (:72).
 - Failing also clears the live preview and cancels the progressive transcriber (:229-234).
+- Windows: live preview passes run on the same recognizer thread as the final pass, one at a time, so the final waits for at most the pass already running (widget.md, Live preview).
 
 ## Hallucination filter
 

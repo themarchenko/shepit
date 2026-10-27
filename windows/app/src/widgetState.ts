@@ -21,7 +21,7 @@ export interface WidgetState {
   hovering: boolean;
   // The app the text goes to; null until the context is known.
   target: string | null;
-  // Empty until the live preview exists (task 12).
+  // Empty unless the "Show the words while speaking" setting is on and a pass has produced text.
   live: { stable: string; unstable: string };
   // Logical pixels.
   shape: { width: number; height: number; radius: number };

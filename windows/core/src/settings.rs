@@ -30,7 +30,8 @@ const KEY_DICTIONARY: &str = "dictionary";
 const KEY_CHECK_UPDATES: &str = "checkForUpdates";
 const KEY_SKIPPED_UPDATE: &str = "skippedUpdate";
 const KEY_LAST_UPDATE_CHECK: &str = "lastUpdateCheck";
-const KNOWN_KEYS: [&str; 19] = [
+const KEY_LIVE_PREVIEW: &str = "livePreview";
+const KNOWN_KEYS: [&str; 20] = [
     KEY_STYLE,
     KEY_OPACITY,
     KEY_FADE,
@@ -50,6 +51,7 @@ const KNOWN_KEYS: [&str; 19] = [
     KEY_CHECK_UPDATES,
     KEY_SKIPPED_UPDATE,
     KEY_LAST_UPDATE_CHECK,
+    KEY_LIVE_PREVIEW,
 ];
 
 /// macOS does not clamp (AppSettings.swift:163); the Windows widget needs the glass readable
@@ -124,6 +126,8 @@ pub struct Settings {
     pub glass_opacity: f64,
     pub fade_when_idle: bool,
     pub widget_visible: bool,
+    /// Persisted as `livePreview`. Show the words while speaking; read when a recording starts.
+    pub live_preview: bool,
     /// Bottom centre of the widget, physical pixels. `None` means the default position.
     pub widget_anchor: Option<Point>,
     /// The dictation key. Persisted as `hotkey`: "rightCtrl", "rightAlt", "f13" to "f24".
@@ -163,6 +167,7 @@ impl Default for Settings {
             glass_opacity: DEFAULT_GLASS_OPACITY,
             fade_when_idle: true,
             widget_visible: true,
+            live_preview: true,
             widget_anchor: None,
             hotkey: Hotkey::RightCtrl,
             onboarding_completed: false,
@@ -217,6 +222,10 @@ impl Settings {
                 .get(KEY_VISIBLE)
                 .and_then(Value::as_bool)
                 .unwrap_or(d.widget_visible),
+            live_preview: map
+                .get(KEY_LIVE_PREVIEW)
+                .and_then(Value::as_bool)
+                .unwrap_or(d.live_preview),
             widget_anchor: map.get(KEY_ANCHOR).and_then(parse_anchor),
             hotkey: map
                 .get(KEY_HOTKEY)
@@ -311,6 +320,7 @@ impl Settings {
         );
         map.insert(KEY_FADE.into(), Value::from(self.fade_when_idle));
         map.insert(KEY_VISIBLE.into(), Value::from(self.widget_visible));
+        map.insert(KEY_LIVE_PREVIEW.into(), Value::from(self.live_preview));
         map.insert(KEY_HOTKEY.into(), Value::from(self.hotkey.id()));
         map.insert(
             KEY_ONBOARDING.into(),
@@ -389,6 +399,8 @@ pub struct Changes {
     /// `dictionary`. Also flags `formatting`; this one tells the app the Dictionary pane has
     /// something new to show.
     pub dictionary: bool,
+    /// `livePreview`. Read when the next recording starts.
+    pub live_preview: bool,
 }
 
 impl Changes {
@@ -400,6 +412,7 @@ impl Changes {
             || self.formatting
             || self.updates
             || self.dictionary
+            || self.live_preview
     }
 }
 
@@ -422,6 +435,7 @@ pub fn changes(old: &Settings, new: &Settings) -> Changes {
             || old.dictionary != new.dictionary,
         updates: old.check_for_updates != new.check_for_updates,
         dictionary: old.dictionary != new.dictionary,
+        live_preview: old.live_preview != new.live_preview,
     }
 }
 
@@ -433,7 +447,7 @@ fn patch_string(value: &Value, key: &str) -> Result<String, String> {
 }
 
 /// Applies a UI edit. The patch is a JSON object with any of `widgetStyle`, `glassOpacity`,
-/// `fadeWhenIdle`, `widgetVisible`, `hotkey`, `checkForUpdates` and the polishing keys and
+/// `fadeWhenIdle`, `widgetVisible`, `livePreview`, `hotkey`, `checkForUpdates` and the polishing keys and
 /// `dictionary`, which is split on line ends, trimmed and cleared of blanks (not
 /// `skippedUpdate` or `lastUpdateCheck`, which only the updater writes). An unknown
 /// key, a wrong type or a bad id rejects the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
@@ -466,6 +480,11 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
                 out.widget_visible = value
                     .as_bool()
                     .ok_or_else(|| format!("{KEY_VISIBLE}: not a boolean"))?;
+            }
+            KEY_LIVE_PREVIEW => {
+                out.live_preview = value
+                    .as_bool()
+                    .ok_or_else(|| format!("{KEY_LIVE_PREVIEW}: not a boolean"))?;
             }
             KEY_HOTKEY => {
                 out.hotkey = value
@@ -1667,5 +1686,87 @@ mod tests {
         let c = changes(&base, &new);
         assert_eq!(c, Changes::default());
         assert!(!c.any());
+    }
+
+    // Live preview (docs/spec/settings.md: livePreview, default true).
+
+    #[test]
+    fn live_preview_defaults_to_on() {
+        assert!(Settings::default().live_preview);
+        assert!(parse("{}").live_preview);
+    }
+
+    #[test]
+    fn live_preview_false_is_read() {
+        assert!(!parse(r#"{"livePreview":false}"#).live_preview);
+    }
+
+    #[test]
+    fn a_wrong_live_preview_falls_back_alone() {
+        for bad in ["\"no\"", "0", "null", "[]"] {
+            let s = parse(&format!(r#"{{"livePreview":{bad},"widgetVisible":false}}"#));
+            assert!(s.live_preview, "{bad}");
+            assert!(!s.widget_visible, "{bad} must not touch other keys");
+        }
+    }
+
+    #[test]
+    fn live_preview_is_written_as_live_preview() {
+        let off = Settings {
+            live_preview: false,
+            ..Settings::default()
+        };
+        assert_eq!(written(&off)["livePreview"], false);
+        assert_eq!(written(&Settings::default())["livePreview"], true);
+    }
+
+    #[test]
+    fn live_preview_is_not_kept_as_an_extra() {
+        let s = parse(r#"{"livePreview":false,"engine":"x"}"#);
+        assert!(!s.extra.contains_key("livePreview"));
+    }
+
+    #[test]
+    fn write_then_parse_keeps_live_preview() {
+        let s = Settings {
+            live_preview: false,
+            ..Settings::default()
+        };
+        assert_eq!(parse(&s.to_json()), s);
+    }
+
+    #[test]
+    fn a_patch_sets_live_preview() {
+        let s = patch(&Settings::default(), r#"{"livePreview":false}"#).unwrap();
+        assert!(!s.live_preview);
+    }
+
+    #[test]
+    fn a_non_boolean_live_preview_rejects_the_patch() {
+        for bad in ["\"yes\"", "0", "null", "[]"] {
+            let r = patch(
+                &Settings::default(),
+                &format!(r#"{{"livePreview":{bad},"widgetVisible":false}}"#),
+            );
+            assert!(r.is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn live_preview_flags_live_preview_only() {
+        let base = Settings::default();
+        let new = Settings {
+            live_preview: false,
+            ..base.clone()
+        };
+        let c = changes(&base, &new);
+        assert_eq!(
+            c,
+            Changes {
+                live_preview: true,
+                ..Changes::default()
+            }
+        );
+        assert!(c.any());
     }
 }

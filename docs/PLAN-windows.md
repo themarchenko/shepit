@@ -99,6 +99,11 @@ windows/
     placement, a real update, the `/R` reopen) are open.
     See DECISIONS 2026-10-27: Windows release and updater.
 12. **Live preview**.
+    Status 2026-10-27: code, tests and docs written. Device checks open: words appear about 1-1.5 s into speech
+    in all three styles at 100% and 150%, wrong-script Ukrainian in the first seconds, real pass times on a laptop
+    (mains and battery) and whether the 1.0 s stop trips, release-to-done with the preview on and off, CPU and fans,
+    no audio dropouts, typing and the hotkey during hands-free, memory over 20 dictations, the toggle taking effect
+    on the next dictation, the hook priority. See DECISIONS 2026-10-27: Windows live preview.
 13. **Whisper turbo** [optional]. Second recognizer for Windows through `transcribe-rs`, chosen in
     Settings, for the Whisper-only cases (language retry). Pinned download like Parakeet. Done: the
     fixture clips transcribe with it. Device check: speed and Ukrainian quality against Parakeet.

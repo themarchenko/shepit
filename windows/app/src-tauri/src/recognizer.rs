@@ -2,7 +2,7 @@
 //! Generic over `Engine` so the retry, skip and panic rules run in tests without a model.
 
 use crate::controller::Msg;
-use shepit_core::dictation::{Job, ModelStatus};
+use shepit_core::dictation::{Job, ModelStatus, PreviewJob};
 use shepit_engine::download::{
     default_models_dir, ensure, is_installed, verify_installed, UreqFetch,
 };
@@ -25,19 +25,56 @@ pub trait Engine {
 const LOAD_PREFIX: &str = "Recognizer failed to load: ";
 const CRASHED: &str = "recognizer crashed";
 
-/// Runs until the job channel closes. `wanted` is the id of the job the controller still wants
-/// (0 for none); a job with another id is skipped without a result.
+/// One unit of work for the recognizer thread. Live preview passes share the thread (and the
+/// one loaded model) with the finals.
+pub enum Work {
+    Final(Job),
+    Preview(PreviewJob),
+}
+
+/// Runs until the work channel closes. `wanted` is the id of the job the controller still wants
+/// (0 for none); a job with another id is skipped without a result. `preview_wanted` is the same
+/// for preview passes: the controller sets it to 0 on release, before the final job is sent, so
+/// a queued preview never delays the final.
 ///
 /// The engine is loaded once before the first job. A failed load is retried by the next wanted
-/// job: a network download can fail for a reason that is gone a minute later.
+/// job: a network download can fail for a reason that is gone a minute later. A preview never
+/// triggers a load.
 pub fn run<E: Engine>(
     mut engine: E,
-    jobs: Receiver<Job>,
+    work: Receiver<Work>,
     wanted: Arc<AtomicU64>,
+    preview_wanted: Arc<AtomicU64>,
     tx: SyncSender<Msg>,
 ) {
     let mut ready = load(&mut engine, &tx).is_ok();
-    for job in jobs {
+    for item in work {
+        let job = match item {
+            Work::Final(job) => job,
+            Work::Preview(pass) => {
+                if preview_wanted.load(Ordering::SeqCst) != pass.id {
+                    continue;
+                }
+                let started = Instant::now();
+                let result = if ready {
+                    catch_unwind(AssertUnwindSafe(|| engine.transcribe(&pass.samples)))
+                        .unwrap_or_else(|_| Err(format!("Transcription failed: {CRASHED}")))
+                } else {
+                    Err("Transcription failed: model not ready".to_string())
+                };
+                let secs = started.elapsed().as_secs_f64();
+                // try_send: a stalled controller must not block this thread. A lost result leaves
+                // the pass in flight in the scheduler, so the preview stops for this dictation and
+                // keeps its text, like the slow-pass stop.
+                let _ = tx.try_send(Msg::Previewed {
+                    id: pass.id,
+                    seq: pass.seq,
+                    result,
+                    secs,
+                });
+                continue;
+            }
+        };
         if wanted.load(Ordering::SeqCst) != job.id {
             continue;
         }
@@ -135,6 +172,12 @@ impl Engine for ParakeetEngine {
                 Recognizer::load(&dir).map_err(strip)?
             }
         };
+        let mut recognizer = recognizer;
+        // Ready is reported after this, so the first dictation does not pay the cold pass. A
+        // failure is not a failed load; the text is not logged because it could hold a transcript.
+        if recognizer.warm_up().is_err() {
+            eprintln!("model warm-up failed, continuing");
+        }
         self.recognizer = Some(recognizer);
         Ok(())
     }
@@ -150,6 +193,7 @@ impl Engine for ParakeetEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shepit_core::dictation::PreviewJob;
     use std::collections::VecDeque;
     use std::sync::mpsc;
 
@@ -190,27 +234,50 @@ mod tests {
         }
     }
 
-    fn job(id: u64) -> Job {
-        Job {
+    fn job(id: u64) -> Work {
+        Work::Final(Job {
             id,
             samples: vec![0.0; 4],
-        }
+        })
+    }
+
+    fn preview(id: u64, seq: u64) -> Work {
+        Work::Preview(PreviewJob {
+            id,
+            seq,
+            samples: vec![0.0; 4],
+        })
     }
 
     /// Runs the worker over `jobs` (all queued before it starts) and describes every message.
     fn drive(engine: Fake, jobs: &[u64], wanted: u64) -> Vec<String> {
+        drive_work(engine, jobs.iter().map(|id| job(*id)).collect(), wanted, 0)
+    }
+
+    /// Like `drive` for any mix of finals and previews; `preview_wanted` is the dictation whose
+    /// previews are still wanted (0 for none).
+    fn drive_work(engine: Fake, work: Vec<Work>, wanted: u64, preview_wanted: u64) -> Vec<String> {
         let (jtx, jrx) = mpsc::channel();
-        for id in jobs {
-            jtx.send(job(*id)).unwrap();
+        for w in work {
+            jtx.send(w).unwrap();
         }
         drop(jtx);
         let (tx, rx) = mpsc::sync_channel(256);
-        run(engine, jrx, Arc::new(AtomicU64::new(wanted)), tx);
+        run(
+            engine,
+            jrx,
+            Arc::new(AtomicU64::new(wanted)),
+            Arc::new(AtomicU64::new(preview_wanted)),
+            tx,
+        );
         rx.try_iter()
             .filter_map(|m| match m {
                 Msg::Model(ModelStatus::Downloading(p)) => Some(format!("downloading {p:.2}")),
                 Msg::Model(s) => Some(format!("{s:?}").to_lowercase()),
                 Msg::Recognized { id, result } => Some(format!("recognized {id} {result:?}")),
+                Msg::Previewed {
+                    id, seq, result, ..
+                } => Some(format!("previewed {id} {seq} {result:?}")),
                 // Timing has its own test below.
                 Msg::SttMs { .. } => None,
                 other => panic!("unexpected {other:?}"),
@@ -231,7 +298,13 @@ mod tests {
         jtx.send(job(7)).unwrap();
         drop(jtx);
         let (tx, rx) = mpsc::sync_channel(256);
-        run(e, jrx, Arc::new(AtomicU64::new(7)), tx);
+        run(
+            e,
+            jrx,
+            Arc::new(AtomicU64::new(7)),
+            Arc::new(AtomicU64::new(0)),
+            tx,
+        );
         let sent: Vec<Msg> = rx.try_iter().collect();
         let timed = sent
             .iter()
@@ -256,7 +329,13 @@ mod tests {
         jtx.send(job(7)).unwrap();
         drop(jtx);
         let (tx, rx) = mpsc::sync_channel(256);
-        run(e, jrx, Arc::new(AtomicU64::new(0)), tx);
+        run(
+            e,
+            jrx,
+            Arc::new(AtomicU64::new(0)),
+            Arc::new(AtomicU64::new(0)),
+            tx,
+        );
         assert!(!rx.try_iter().any(|m| matches!(m, Msg::SttMs { .. })));
     }
 
@@ -353,5 +432,116 @@ mod tests {
                 "ready"
             ])
         );
+    }
+
+    // Live preview passes share the thread with the finals.
+
+    #[test]
+    fn a_wanted_preview_gets_its_result_with_its_seq() {
+        let mut e = Fake::ok();
+        e.results.push_back(Ok("hello there".into()));
+        let out = drive_work(e, vec![preview(7, 3)], 0, 7);
+        assert_eq!(
+            out,
+            strings(&["loading", "ready", "previewed 7 3 Ok(\"hello there\")"])
+        );
+    }
+
+    #[test]
+    fn a_preview_is_timed_and_sends_no_stt_time_or_final_result() {
+        let mut e = Fake::ok();
+        e.delay = std::time::Duration::from_millis(40);
+        e.results.push_back(Ok("hello".into()));
+        let (jtx, jrx) = mpsc::channel();
+        jtx.send(preview(7, 1)).unwrap();
+        drop(jtx);
+        let (tx, rx) = mpsc::sync_channel(256);
+        run(
+            e,
+            jrx,
+            Arc::new(AtomicU64::new(0)),
+            Arc::new(AtomicU64::new(7)),
+            tx,
+        );
+        let sent: Vec<Msg> = rx.try_iter().collect();
+        assert!(!sent
+            .iter()
+            .any(|m| matches!(m, Msg::SttMs { .. } | Msg::Recognized { .. })));
+        let secs = sent
+            .iter()
+            .find_map(|m| match m {
+                Msg::Previewed { secs, .. } => Some(*secs),
+                _ => None,
+            })
+            .expect("a Previewed message");
+        assert!((0.04..5.0).contains(&secs), "{secs} s");
+    }
+
+    #[test]
+    fn a_preview_that_is_not_wanted_is_skipped_silently() {
+        let mut e = Fake::ok();
+        e.results.push_back(Ok("hello".into()));
+        let out = drive_work(e, vec![preview(7, 1)], 7, 8);
+        assert_eq!(out, strings(&["loading", "ready"]));
+        let out = drive_work(Fake::ok(), vec![preview(7, 1)], 7, 0);
+        assert_eq!(out, strings(&["loading", "ready"]));
+    }
+
+    #[test]
+    fn a_preview_before_the_model_is_ready_does_not_load_and_gets_an_error() {
+        let mut e = Fake::ok();
+        e.loads = VecDeque::from([Err("offline".into()), Ok(())]);
+        let out = drive_work(e, vec![preview(7, 2)], 0, 7);
+        assert_eq!(out.len(), 3, "no second load attempt: {out:?}");
+        assert_eq!(&out[..2], strings(&["loading", "failed"]));
+        assert!(out[2].starts_with("previewed 7 2 Err("), "{}", out[2]);
+    }
+
+    #[test]
+    fn a_final_queued_behind_an_unwanted_preview_runs_next() {
+        let mut e = Fake::ok();
+        e.results.push_back(Ok("final".into()));
+        let out = drive_work(e, vec![preview(5, 1), job(6)], 6, 0);
+        assert_eq!(
+            out,
+            strings(&["loading", "ready", "recognized 6 Ok(\"final\")"])
+        );
+    }
+
+    #[test]
+    fn a_preview_then_the_final_both_run_in_order() {
+        let mut e = Fake::ok();
+        e.results.push_back(Ok("preview words".into()));
+        e.results.push_back(Ok("final words".into()));
+        let out = drive_work(e, vec![preview(6, 1), job(6)], 6, 6);
+        assert_eq!(
+            out,
+            strings(&[
+                "loading",
+                "ready",
+                "previewed 6 1 Ok(\"preview words\")",
+                "recognized 6 Ok(\"final words\")"
+            ])
+        );
+    }
+
+    #[test]
+    fn a_panic_in_a_preview_becomes_an_error_result() {
+        let mut e = Fake::ok();
+        e.panic_on_transcribe = true;
+        let out = drive_work(e, vec![preview(9, 4)], 0, 9);
+        assert!(
+            out.last().unwrap().starts_with("previewed 9 4 Err("),
+            "{out:?}"
+        );
+    }
+
+    #[test]
+    fn the_thread_survives_a_preview_panic() {
+        let mut e = Fake::ok();
+        e.panic_on_transcribe = true;
+        let out = drive_work(e, vec![preview(9, 1), preview(9, 2)], 0, 9);
+        let previews = out.iter().filter(|m| m.starts_with("previewed")).count();
+        assert_eq!(previews, 2, "{out:?}");
     }
 }

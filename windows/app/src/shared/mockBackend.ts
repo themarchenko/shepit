@@ -365,6 +365,7 @@ export function createMockBackend(): Backend {
     glassOpacity: 0.7,
     fadeWhenIdle: true,
     widgetVisible: true,
+    livePreview: true,
     hotkeyId: sc.hotkeyId,
     model: sc.model,
     polishing: sc.polishing,
@@ -388,6 +389,7 @@ export function createMockBackend(): Backend {
     glassOpacity: state.glassOpacity,
     fadeWhenIdle: state.fadeWhenIdle,
     widgetVisible: state.widgetVisible,
+    livePreview: state.livePreview,
     hotkey: hotkey(state.hotkeyId),
     model: state.model,
     version: "0.3.1",
@@ -428,6 +430,7 @@ export function createMockBackend(): Backend {
       if (patch.glassOpacity !== undefined) state.glassOpacity = patch.glassOpacity;
       if (patch.fadeWhenIdle !== undefined) state.fadeWhenIdle = patch.fadeWhenIdle;
       if (patch.widgetVisible !== undefined) state.widgetVisible = patch.widgetVisible;
+      if (patch.livePreview !== undefined) state.livePreview = patch.livePreview;
       if (patch.hotkey) state.hotkeyId = patch.hotkey;
       if (patch.polishing) state.polishing = patch.polishing;
       if (patch.claudeModel) state.claudeModel = patch.claudeModel;
