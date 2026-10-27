@@ -535,12 +535,21 @@ impl Surface for AppSurface<'_> {
     }
 }
 
+/// Claims the install in one step on the session the caller holds locked: `None` when no release
+/// is offered (another click got there first), else the stored release, if any.
+fn claim_install(session: &mut Session, version: &str) -> Option<Option<Update>> {
+    if !matches!(session.state, UpdateState::Available(_)) {
+        return None;
+    }
+    session.state = UpdateState::Downloading(version.to_string(), 0.0);
+    session.total = None;
+    Some(session.pending.take())
+}
+
 fn start_install(app: &AppHandle, updates: &Updates, version: String) {
-    let release = {
-        let mut session = lock(&updates.session);
-        session.state = UpdateState::Downloading(version.clone(), 0.0);
-        session.total = None;
-        session.pending.take()
+    let claimed = claim_install(&mut lock(&updates.session), &version);
+    let Some(release) = claimed else {
+        return;
     };
     publish(app, updates);
     let Some(release) = release else {
@@ -1039,6 +1048,43 @@ mod tests {
             Some("0.4.0")
         );
         release.send(()).unwrap();
+    }
+
+    // Install is claimed once
+
+    #[test]
+    fn a_second_install_start_changes_nothing() {
+        let mut session = Session {
+            state: UpdateState::Available(v("0.4.0")),
+            pending: None,
+            total: None,
+        };
+        assert!(claim_install(&mut session, "0.4.0").is_some());
+        session.state = UpdateState::Downloading(v("0.4.0"), 0.4);
+        session.total = Some(48_000_000);
+        assert!(claim_install(&mut session, "0.4.0").is_none());
+        assert_eq!(session.state, UpdateState::Downloading(v("0.4.0"), 0.4));
+        assert_eq!(session.total, Some(48_000_000));
+    }
+
+    #[test]
+    fn two_overlapping_install_clicks_start_one_install() {
+        let updates = Arc::new(Mutex::new(Session {
+            state: UpdateState::Available(v("0.4.0")),
+            pending: None,
+            total: None,
+        }));
+        let claims: Vec<bool> = (0..2)
+            .map(|_| {
+                let updates = updates.clone();
+                std::thread::spawn(move || claim_install(&mut lock(&updates), "0.4.0").is_some())
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|h| h.join().unwrap())
+            .collect();
+        assert_eq!(claims.iter().filter(|c| **c).count(), 1);
+        assert!(matches!(lock(&updates).state, UpdateState::Downloading(..)));
     }
 
     // opens_card
