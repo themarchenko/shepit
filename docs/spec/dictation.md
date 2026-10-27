@@ -34,7 +34,7 @@ The reset only fires if the state is still done or failed (:242-245).
 
 ## Speech presence
 
-Fixture: none (float input). Reference algorithm, Audio/SpeechPresence.swift:7-24:
+Fixture: none (float input). The Rust port is `speech_seconds` in `windows/core/src/speech.rs:65`; its tests are a port of `SpeechPresenceTests` with a seeded generator in place of `Float.random`. Reference algorithm, Audio/SpeechPresence.swift:7-24:
 
 1. Split samples into frames of 20 ms (`sampleRate / 50` samples; 320 at 16 kHz). Fewer samples than one frame: 0 s of speech. A trailing partial frame is dropped.
 2. Frame energy = RMS of the frame.

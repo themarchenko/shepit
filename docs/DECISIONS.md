@@ -408,6 +408,47 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
 - The Windows job (`windows.yml`) is not a required check yet. Make it required once it has passed on a
   few pull requests, and the installer artifact has been installed on a real machine.
 
+## 2026-10-27: Windows recognition
+
+- Crate `windows/engine` (`shepit-engine`): `src/pins.rs` (pin table), `src/download.rs`,
+  `src/recognizer.rs`, test `tests/transcribe_fixture.rs`. It depends on `transcribe-rs` =0.3.12 with
+  default features off and only `onnx` (its Cargo.toml features; `default = []`). GPU features
+  (`ort-directml`, `ort-cuda`) stay off.
+- Files Parakeet int8 opens (transcribe-rs src/onnx/parakeet/mod.rs:96-105): `encoder-model`,
+  `decoder_joint-model`, `nemo128.onnx`, `vocab.txt`. The loader resolves `{name}.int8.onnx` and falls
+  back to the fp32 `{name}.onnx` when the int8 file is missing (src/onnx/session.rs:216-242). So the
+  pins list exactly `encoder-model.int8.onnx`, `decoder_joint-model.int8.onnx`, `nemo128.onnx` and
+  `vocab.txt`; the fp32 encoder (2.4 GB extra) is never fetched. About 670 MB in total.
+- `ort` is pinned to 2.0.0-rc.12 in `Cargo.lock` and in `windows/engine/Cargo.toml`. transcribe-rs
+  0.3.12 asks for `2.0.0-rc.12`, but Cargo resolves rc.15, which it does not compile against
+  (`Session::builder()` needs an `Environment` there, session.rs:154). Never run `cargo update` on
+  ort; CI uses `--locked`.
+- ONNX Runtime is downloaded at build time by ort-sys (feature `download-binaries`, from cdn.pyke.io,
+  hash-checked; ort-sys build/main.rs:97-160) and linked statically on x86_64-pc-windows-msvc
+  (`rustc-link-lib=static=onnxruntime`, main.rs:160; dist `ms@1.24.2`, build/download/dist.txt:8).
+  The pyke build also links dxguid, DXCORE, DXGI, D3D12 and DirectML import libs
+  (static_link/mod.rs:54-62), so the exe needs those system DLLs at run time even on CPU. DirectML
+  ships with Windows 10 1903 and later. Needs a clean-machine check; CI lists
+  `windows/target/release/*.dll`.
+- Pins: repo `istupakov/parakeet-tdt-0.6b-v3-onnx` at commit
+  `8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce`, each file with size and SHA-256 (sizes and hashes from
+  the `/tree/<commit>` API, re-checked with `shasum -a 256`). Files are downloaded to `<name>.part`
+  and renamed only after a full SHA-256 match. At launch a file counts as installed when it exists
+  with the pinned size; it is not re-hashed. No auth header is sent and `HF_TOKEN` is never read.
+- Models live in `%LOCALAPPDATA%\Shepit\models\parakeet-tdt-0.6b-v3-int8` (`dirs::data_local_dir`),
+  not in the roaming profile: 670 MB does not belong in roaming sync.
+- Download retry differs from macOS. macOS rethrows the cached load failure
+  (Speech/SpeechEngine.swift:120-121 loads once per engine id). A network download can fail for a
+  transient reason, so on Windows a failed load is retried on the next dictation, and an interrupted
+  `.part` resumes with a `Range` request (a 200 reply restarts from zero).
+- Measured on the M1 Mac, release build, CPU: the 7.5 s fixture clip took 0.39 s, real-time factor
+  0.052; 30 s of the full intro took 1.61 s (0.054). This is not a Windows number. Windows CI prints its
+  own factor; DirectML speed is for the DirectML build task.
+- Model license: CC-BY-4.0 (the NVIDIA Parakeet v3 weights, as repackaged by istupakov). Attribution
+  belongs in the app's About text before release.
+- The audio fixture `shared/audio/en-librivox-preamble.wav` is English only. A Ukrainian clip follows
+  once one is provided or approved.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

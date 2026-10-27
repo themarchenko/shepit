@@ -61,6 +61,8 @@ windows/
 5. **Recognition**. Model download with progress and checksum, Parakeet v3 through `transcribe-rs`,
    Whisper turbo optional. Done: a fixture WAV transcribes in CI. Device check: speed on real
    hardware, with and without DirectML.
+   Status: Parakeet v3 int8 on CPU, pinned download, English fixture only (a Ukrainian clip is still
+   to come). DirectML is deferred to the DirectML build task. See DECISIONS 2026-10-27.
 6. **Insertion and context**. Paste with clipboard restore, password fields skipped, app name,
    window title and selection captured. Device check: Notepad, a browser, Windows Terminal, a
    password field.
@@ -76,6 +78,9 @@ windows/
     The macOS release flow must keep working unchanged. README gets the Windows install section
     described under Decisions. Device check: install, update to a test version.
 12. **Live preview**.
+13. **Whisper turbo** [optional]. Second recognizer for Windows through `transcribe-rs`, chosen in
+    Settings, for the Whisper-only cases (language retry). Pinned download like Parakeet. Done: the
+    fixture clips transcribe with it. Device check: speed and Ukrainian quality against Parakeet.
 
 Tasks 1 and 2 come first and in that order; 3 can run beside 4. Everything that touches
 `shared/`, `docs/spec/`, release workflows or insertion gets the full review council.
