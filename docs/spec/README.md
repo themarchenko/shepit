@@ -61,7 +61,7 @@ Things `docs/PLAN.md` describes that the macOS code does not do. The spec follow
 | Snippets | Absent |
 | "About 50 most relevant" dictionary entries in the prompt | All entries to the local corrector; first 120 to the prompt (PromptBuilder.swift:71); last 30 to the recognizer (DictationSession.swift:86) |
 | Widget as a 40 pt circle, position per display | Flow pill idle shape is 40 x 8; one global anchor (macOS/Shepit/Widget/WidgetModel.swift:89; Settings/AppSettings.swift:183-194) |
-| Context capture respects secure input | Capture reads the focused field's value, caret text and selection without checking secure input first; only the secure-field subrole sets the flag, after the role is read, and the text is still read after it (Context/ContextProbe.swift:33-41). Insertion is refused, capture is not gated |
+| Context capture respects secure input | Capture reads the focused field's value, caret text and selection without checking secure input first; only the secure-field subrole sets the flag, after the role is read, and the text is still read after it (Context/ContextProbe.swift:33-41). Insertion is refused, capture is not gated. Windows gates it: text is read only when the password flag was read and is false (windows/core/src/context.rs:44). macOS lags |
 | Narrowing what context is shared, in Settings | Absent. Window title, URL, caret text and selection are always sent when known (PromptBuilder.swift:60-65) |
 
 ## Platform-specific and open
@@ -71,12 +71,13 @@ Paths below are relative to `apple/` where they point at code.
 | Item | State |
 |---|---|
 | The system prompt says "on macOS" (ShepitCore/Sources/ShepitCore/Formatting/PromptBuilder.swift:7) | Open for Windows task 9. The golden pins the macOS text. |
-| Profiles are keyed by macOS bundle ids (Formatting/Profile.swift:98-112) | Open for Windows task 6. The fixture holds the macOS ids. |
+| Profiles are keyed by macOS bundle ids (Formatting/Profile.swift:98-112) | Resolved for Windows by exe file name (profiles-modes.md, Windows app identifiers). The shared fixture holds the macOS ids. |
 | Default dictation key | macOS: Right Option. Windows: Right Ctrl, per `docs/PLAN-windows.md`. Key ids and codes are per platform (hotkey.md). |
 | Update and install | macOS: GitHub release, `Shepit.dmg`, code signature check, `install.sh`. Windows: the Tauri updater. Only the version order and the check schedule are shared. |
 | Recognizer | macOS: FluidAudio Parakeet v3 and WhisperKit, models fetched by the libraries. Windows: Parakeet v3 int8 through `transcribe-rs`, files pinned by commit and SHA-256 (`windows/engine/src/pins.rs`), stored under `%LOCALAPPDATA%\Shepit\models`. |
 | Parakeet script filter | macOS passes a language hint that filters decoder candidates by script, only for a hard language lock (Speech/ParakeetEngine.swift:34-37). Windows has no such filter. |
-| Formatting, insertion, recordings store, history, live preview | Windows lags: PLAN-windows tasks 6, 9, 10 and 12. After recognition the Windows app only shows the preview in the widget. |
+| Insertion | Done on Windows (PLAN-windows task 6, dictation.md step 8). Needs device checks. |
+| Formatting, recordings store, history, live preview | Windows lags: PLAN-windows tasks 9, 10 and 12. After recognition the Windows app inserts the raw transcript. |
 | Text insertion, permissions, executable search paths, widget rendering | Per platform. |
 | Agent transport | Claude Code is driven through its stream-json mode, Codex through `app-server`. A port matches timings and output cleanup (polishing.md), not the transport. |
 | Reply cleanup is written twice (Formatting/ClaudeCodeWorker.swift:218-225 and CodexFormatter.swift:117-127) | Kept as is; the spec describes one rule. |

@@ -469,6 +469,44 @@ the shadow's blur and offset. The margin is now 28 x 26 pt with a radius-10 shad
 - The audio fixture `shared/audio/en-librivox-preamble.wav` is English only. A Ukrainian clip follows
   once one is provided or approved.
 
+## 2026-10-27: Windows insertion and context
+
+- Crate: only `windows` 0.62.2 with extra features for COM, clipboard, UI Automation and SendInput. No
+  `arboard`: it handles text and images only, while macOS saves every pasteboard type
+  (PasteInserter.swift:26-41). We save every format in enumeration order and skip GDI handles and
+  private ranges (`is_restorable_format`, windows/core/src/insert.rs:62).
+- The clipboard owner is a message-only window on the worker thread. A NULL owner makes
+  `SetClipboardData` fail after `EmptyClipboard`. The worker pumps messages every 20 ms, also during the
+  wait. `OpenClipboard` is retried 5 times, 20 ms apart.
+- Restore rule: after 350 ms, only if `GetClipboardSequenceNumber` still equals the number read after our
+  write (macOS change-count check, PasteInserter.swift:52, 64, 72). Esc while inserting returns to idle
+  and the worker still restores.
+- Consoles: Ctrl+V everywhere (Windows Terminal default; conhost has Ctrl shortcuts on by default since
+  Windows 10). Fallback if a device check fails: Shift+Insert for the terminal set.
+- The hotkey hook ignores our paste keys twice: `is_accepted` rejects Ctrl without the extended flag and
+  V, and `KeyFilter` drops `LLKHF_INJECTED` (windows/core/src/keys.rs:35-39, 54-57). A test pins the paste
+  keys against both. They never use `KEYEVENTF_EXTENDEDKEY`, which would be Right Ctrl.
+- Password rule: refuse if the field was a password at recording start or is one at insert time; an
+  unreadable flag pastes anyway (PasteInserter.swift:58; ContextProbe.swift:24). Context text is read only
+  when the flag was read and is false.
+- Context: exe file name, `FileDescription`, window title, caret and selection through UI Automation
+  (TextPattern2, TextPattern, ValuePattern). Limits as in ContextProbe.swift:35-44; the `TextPattern` path
+  returns at most 1000 characters before the caret. Elevated targets are not detected: paste to an
+  elevated window fails silently (known gap).
+- URL is not captured on either platform (macOS never sets it, ContextProbe.swift:18-48). Deferred.
+- Profiles use the exe file name; the table and a Windows-only fixture are in
+  docs/spec/profiles-modes.md. A `shared/` fixture would need a Swift runner.
+- Privacy: no clipboard data, dictated text or context in logs; only outcome kinds and a line of
+  field-presence flags.
+- PARKED for the user: Windows clipboard history and cloud sync would keep the dictated text. Writes are
+  unmarked, like macOS today. Marking the data (exclude-from-history formats) is a one-function change in
+  `put_text`. Decide whether to do it on both platforms.
+- macOS gaps found: context capture is not gated on secure input (spec README.md:64), and macOS skips the
+  clipboard restore after Esc (PasteInserter.swift:71).
+- Not verified: all runtime behaviour. Windows CI is the first compile of `insert_win.rs`. Device checks:
+  Notepad, Chrome or Edge, Windows Terminal, cmd, password field, held Shift or Alt, elevated terminal,
+  Store-app exe names.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run
