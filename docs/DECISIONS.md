@@ -660,6 +660,47 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   results with each Windows privacy switch, dark title bar and no white flash, dragging the tour, one Settings window,
   100% and 150% scaling.
 
+## 2026-10-27: Windows polishing (task 9)
+
+- Same transport, prompts, timings and reply cleanup as macOS (25 s request, 40 s warm-up, rotation at 20 and 25 turns, a
+  300 s pause after 2 failed starts). Pure logic is in `shepit-core` (`polish/`); processes are in a new crate `shepit-agent`
+  (`windows/agent`), mirroring `shepit-engine`, with a `shepit-fake-agent` bin that acts as Claude or Codex. Transport tests are
+  Rust ports of the Swift tests, not shared fixtures. Four new fixtures cover the shared parts: message, reply parse, reply
+  finish and routing.
+- Finding the agents: a configured path must end in `.exe` or `.cmd` and exist, else the agent is not found. Otherwise the
+  first existing file in this order: `%USERPROFILE%\.local\bin`, each absolute PATH entry (`.exe` then `.cmd`),
+  `%APPDATA%\npm`, WinGet links, `~\.bun\bin`, Scoop shims. Never an extensionless file, `.ps1` or `.bat`: npm drops a shell
+  script named `claude` next to `claude.cmd`. WSL is out. A missing agent turns polishing off; the other agent is not tried.
+  The WinGet and Scoop places are guesses.
+- Processes: `CREATE_NO_WINDOW` on every child (the release exe is GUI-subsystem). Each child goes into its own Job object with
+  kill-on-close, because the npm chain is cmd, node, codex.exe and killing cmd.exe alone leaves the grandchild holding our
+  stdout. Shepit quitting or crashing kills the tree too. If the job assignment fails, the spawn fails.
+- No user text in argv. Transcript, context and dictionary go over stdin; the system prompt goes to a file in the work folder
+  (UTF-8, no BOM) or into Codex `baseInstructions`. `.cmd` targets use the standard library's batch quoting (the
+  CVE-2024-24576 fix is in the pinned toolchain); we never build a `cmd /c` string. A writer thread and a reader thread per
+  process, a 100 ms wait slice, so a hung agent cannot block past its deadline. stderr goes to a log restarted above 1 MB.
+- Cancel: Esc during Formatting drops the request and the process, as a timeout does. This is what the macOS code does
+  (a cancelled task makes `send` throw and the process is terminated), written into the spec for the first time.
+- Prompt: the builder takes the platform word. With "macOS" it equals the golden byte for byte; Windows passes "Windows".
+  Language hint is always `auto`.
+- Secure fields, both platforms: a dictation whose captured context says the field is secure skips the
+  agent and uses the local text with source `passthrough`; the insert still refuses. This keeps a spoken password off the
+  network. macOS did it in #21 together with a log fix (error kind and byte length only, never reply text). Windows treats only
+  a password flag that was read as true as secure; an unreadable flag is not.
+- Threads (app wiring: task 9 chunk C): a dispatcher answers raw, fast-path and no-agent routes at once; agent routes go to a
+  thread that owns the worker. Changes to provider, model, notes or either path are debounced 1.5 s, then the old agent is shut
+  down and the new one warmed. Warm-up also runs at launch. `detect_agents` applies the macOS fallback rule (Claude, then
+  Codex, then off) and re-sends the settings so an agent installed after launch is picked up; the re-send is Windows-only.
+- Settings read leniently; the patch clamps `fastPathMaxWords` to 0-30 and `promptModeMinWords` to 10-200 and refuses
+  `dictionary`. The widget has a Formatting stage; the island step bar now uses its middle step. The tour has 5 steps.
+- Not done: dictionary learning and history (task 10, `new_terms` is parsed and dropped), live preview (task 12), language
+  lock. No WhatsNew item: that list is macOS-only.
+- Device checks still open: discovery on real native, npm (`claude.cmd`, `codex.cmd`) and nvm-windows installs; no console
+  flash at warm-up, rotation or replacement; a signed-in Claude Code polishing text in Notepad on Haiku and Sonnet, with latency
+  (and whether Claude needs Git Bash); Codex app-server with the read-only overrides and a usage-limit error falling back;
+  Quit from the tray and End task both leaving no claude, node or codex process; Esc during Formatting pastes nothing later;
+  a Cyrillic or spaced profile path; no agent installed shows the amber note.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

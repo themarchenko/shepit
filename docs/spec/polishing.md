@@ -13,7 +13,7 @@ Source: Settings/AppSettings.swift:34-64, 158-160.
 | `off` | No agent. Text is inserted as heard, with local cleanup and the dictionary (local-cleanup.md). |
 
 - Old setting `formatterEnabled` (before 0.2): used only when `polishing` is unset; true or missing gives `claude`, false gives `off` (AppSettings.swift:158-160).
-- The agent is found from the configured path (must be an executable file, else not found), or else the first existing file among: `~/.local/bin/<name>`, `/opt/homebrew/bin/<name>`, `/usr/local/bin/<name>`, `~/.npm-global/bin/<name>`, `~/.bun/bin/<name>` (AppSettings.swift:57-64). Platform-specific: the search locations.
+- The agent is found from the configured path (must be an executable file, else not found), or else the first existing file among: `~/.local/bin/<name>`, `/opt/homebrew/bin/<name>`, `/usr/local/bin/<name>`, `~/.npm-global/bin/<name>`, `~/.bun/bin/<name>` (AppSettings.swift:57-64). Platform-specific: the search locations (Windows: see the Windows section below).
 - If the chosen agent's executable is not found, polishing is off. The other agent is never tried (App/AppDelegate.swift:131-146).
 - Claude model: `haiku` (default) or `sonnet` (AppSettings.swift:26-31, 167). Codex gets an empty model, which means the user's own Codex default (AppDelegate.swift:147-148; the `gpt-6-luna` default at CodexFormatter.swift:6 is not used by the app).
 - Both agents get the same system prompt, built once from the speaker notes (AppDelegate.swift:130). The agent is replaced 1.5 s after the last change to provider, Claude model, speaker notes or either executable path: the old one is shut down, the new one is warmed up (App/AppDelegate.swift:170-188).
@@ -25,7 +25,7 @@ Golden: `shared/prompts/system-prompt.md`, the exact output of `systemPrompt(spe
 
 - Order: fixed instructions, then one section per built-in profile in `all` order with its Markdown line and style rules (:36-40), then the speaker section only if the notes are non-empty after trimming (:41-43), then the output section (:44-49).
 - Default speaker notes: Settings/AppSettings.swift:247-251.
-- The prompt names macOS (PromptBuilder.swift:7). That is open for Windows (README, open points).
+- The prompt names the platform once, in the first sentence (PromptBuilder.swift:7). The golden holds "macOS". The Rust builder takes the platform word as a parameter (`system_prompt`, windows/core/src/polish/prompt.rs:74); with "macOS" it equals the golden byte for byte, and the Windows app passes "Windows". Nothing else in the prompt differs.
 - The agent must return only a JSON object with `text`, `language` (`uk`, `en` or `mixed`) and `new_terms` (PromptBuilder.swift:48).
 
 ## Message per dictation
@@ -64,7 +64,7 @@ The dictionary part takes at most the last 120 entries (the newest). At most 5 e
 
 The target context fields are bundle id, app name, window title, URL, text before the caret, selected text, editable focus and secure input (Context/TargetContext.swift:4-12). When the focused field is secure (secure event input is on, or the field has the secure text subrole) no text is read: text before the caret and selected text stay empty, while the app name and window title are still captured (ContextProbe.mayReadText).
 
-Windows field mapping (windows/core/src/context.rs, windows/app/src-tauri/src/insert_win.rs; formatting itself is Windows task 9):
+Windows field mapping (windows/core/src/context.rs, windows/app/src-tauri/src/insert_win.rs; the formatting step is the Windows section below):
 
 | Field | Windows source |
 |---|---|
@@ -87,7 +87,7 @@ Limits are in graphemes: the last 500 before the caret; the field value is read 
 - Audio never leaves the device. Recognition is local; only text goes to an agent.
 - An agent receives the transcript, the dictionary part, the optional examples and the context keys listed above, and nothing else.
 - Dictated text is never logged at public privacy level. The one log of transcript text is marked private and cut to 80 characters (Pipeline/DictationSession.swift:186). A port must keep transcripts, results and context text out of public logs.
-- A secure captured field (password field or secure event input) skips the agent: the result is the local text with source `passthrough`, and the transcript is not sent anywhere. Error logs from the agents carry the error kind and the reply byte length only, never reply or server text.
+- A secure captured field (password field or secure event input) skips the agent: the result is the local text with source `passthrough`, and the transcript is not sent anywhere (macOS: Formatting/FormattingService.swift:33; Windows: the captured password flag is true, `build_request` windows/core/src/polish/pipeline.rs:54-87 and `route` windows/core/src/polish/route.rs:56). An unreadable Windows flag is not secure. Raw mode and the fast path already stay local. The insert still refuses a password field (dictation.md). Error logs from the agents carry the error kind and the reply byte length only, never reply or server text.
 
 ## Process lifetime (both agents)
 
@@ -105,4 +105,39 @@ Limits are in graphemes: the last 500 before the caret; the field value is read 
 - While paused, a format call fails at once and the dictation uses local text (ClaudeCodeWorker.swift:250-252; CodexFormatter.swift:141).
 - Error handling differs. Claude: any send error (timeout, exit) terminates the process (ClaudeCodeWorker.swift:208-214). Codex: a failure reported by Codex itself (`turnFailed`, for example a usage limit) keeps the process; any other error drops it (CodexFormatter.swift:97-105).
 - Codex requests run one at a time (CodexFormatter.swift:85-87).
-- Platform-specific: how the CLIs are driven (Claude stream-json process, Codex app-server JSON lines) is covered by Swift tests only. A port must match the timings and the cleanup above, not the transport.
+- Cancel (Esc during formatting): the request is dropped and nothing is inserted. A cancelled request counts like a timeout, so the process is terminated: Claude sees the stream end under a cancelled task and throws, and `format` terminates the process on any send error (ClaudeCodeWorker.swift:153, 208-214); Codex drops the server on any error except `turnFailed` (CodexFormatter.swift:97-108). The session returns to idle without an error (Pipeline/DictationSession.swift:120-125, 224). The next dictation starts a fresh process.
+- Platform-specific: how the CLIs are driven (Claude stream-json process, Codex app-server JSON lines) is covered by Swift tests on macOS and by Rust ports of them on Windows (`windows/agent/tests`). A port must match the timings and the cleanup above, not the transport.
+
+## Windows
+
+Windows only. Behaviour not listed here is the macOS behaviour above. Crates: pure logic in `shepit-core` (`windows/core/src/polish/`), processes in `shepit-agent` (`windows/agent/src/`), which has a `shepit-fake-agent` bin standing in for both CLIs in tests.
+
+**Finding the agents** (`candidates`, `find_agent`, windows/core/src/polish/discovery.rs:30, 75):
+- A configured path wins if it is an existing file ending in `.exe` or `.cmd` (any case). Otherwise the agent counts as not found and the search does not run.
+- Search order, first existing file wins: `%USERPROFILE%\.local\bin\<n>.exe`; each absolute `PATH` entry, `<n>.exe` then `<n>.cmd`; `%APPDATA%\npm\<n>.cmd`; `%LOCALAPPDATA%\Microsoft\WinGet\Links\<n>.exe`; `%USERPROFILE%\.bun\bin\<n>.exe`; `%USERPROFILE%\scoop\shims\<n>.exe`. A place whose variable is unset is left out. The WinGet and Scoop places are guesses until a device check.
+- Relative and empty `PATH` entries are skipped, and quotes around an entry are removed. Extensionless files, `.ps1` and `.bat` are never picked: npm leaves a shell script named `claude` beside `claude.cmd`. WSL is out.
+- A missing agent means polishing is off; the other agent is never tried, as on macOS. The app applies the Claude, then Codex, then off fallback (`fallback_provider`, discovery.rs:92) only when the user opens the Polishing tab or the tour step (`detect_agents`; SharedControls.swift:81-89 on macOS). Unlike macOS, `detect_agents` also sends the settings to the polishing thread again, so an agent installed after launch is picked up (app wiring: task 9 chunk C).
+
+**Spawning** (windows/agent/src/process.rs:44-113, job_win.rs, lib.rs:19-30):
+- `CREATE_NO_WINDOW` (`0x0800_0000`) is set on every child. The release exe is GUI-subsystem, so a console child would otherwise open a visible console.
+- Each child is assigned right after spawn to its own Job object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (job_win.rs:20-41). The npm chain is `cmd` to `node` to `codex.exe`, and killing `cmd.exe` alone would leave the grandchild running and holding our stdout. If the assignment fails the spawn fails and the child is killed.
+- Kill means: close stdin, `child.kill()`, drop the job, wait (process.rs:142-152). Dropping the handle also kills the tree when Shepit exits or crashes. A short window between spawn and assignment is covered by stdin end of input.
+- `.cmd` targets go through the Rust standard library's batch quoting (toolchain 1.97.1, past the CVE-2024-24576 fix). The app never builds a `cmd /c` string. Windows CI runs a `.cmd` shim in a folder named `shepit agent & 100% <Cyrillic>` and checks that argv, including the empty `--tools ""`, arrives unchanged (windows/agent/tests/windows_shim.rs).
+
+**No user text in argv.** The transcript, context and dictionary go over stdin as JSON lines. The system prompt goes to `system-prompt.md` in the work folder (UTF-8, no BOM, rewritten only when it changed; windows/agent/src/claude.rs:48-53) or into Codex `baseInstructions` (windows/core/src/polish/codex_wire.rs:73). Argv holds constants, the model id and paths the app owns (claude_wire.rs:21, codex_wire.rs:25).
+
+**I/O** (process.rs):
+- The streams are pipes, so no console code page applies. Writes are UTF-8 JSON plus `\n`. Reads split stdout bytes on `\n`, drop a trailing `\r` and skip any line that is not a JSON object (ClaudeCodeWorker.swift:101-107).
+- Each process has a writer thread for stdin and a reader thread for stdout that feeds a channel. The worker waits in 100 ms slices and checks the deadline and the cancel flag each time (`wait_for`, process.rs:164), so a hung agent cannot hold the dictation past its timeout.
+- stderr is appended to `worker-stderr.log` (Claude) or `codex-stderr.log` (Codex) in the work folder, each spawn marked by a header line. A log above 1 MB is removed before the next spawn (windows/agent/src/env.rs:9, 47-52). Claude's own debug file is `worker-debug.log`, kept for the latest worker only.
+- Environment: inherited, minus `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` and `CLAUDE_CODE_SSE_PORT` (names matched without case; env.rs:20). The executable's own folder is put first on `PATH` (CodexFormatter.swift:262-268). `HOME` is not set: Windows CLIs read `USERPROFILE`.
+- Work folders: `%LOCALAPPDATA%\Shepit\claude-work` and `codex-work`, next to `models` (windows/agent/src/lib.rs:55-62).
+- Error handling is the macOS rule: Claude drops the process on any send error, Codex keeps it after a failure Codex itself reported (windows/agent/src/claude.rs:261-285, codex.rs:454-485). A bad reply keeps the process in both. A cancel drops it (the cancel rule above). Spawn or pipe failures are reported as "not running", send errors as "exited". Error notes carry the kind and sizes only, never the reply or server text (`error_note`, windows/core/src/polish/pipeline.rs:107).
+
+**App wiring** (app wiring: task 9 chunk C):
+- The controller hands the accepted transcript to a polishing dispatcher thread as a format job. The dispatcher holds a settings snapshot and answers raw, fast-path and no-agent routes at once, so those never wait behind an agent warm-up. This matches macOS, whose service never waits on the agent for them. Agent routes go to a separate agent thread that owns the worker. (app wiring: task 9 chunk C)
+- The controller drops a late result unless its id is the live dictation and the state is Formatting (`on_formatted`, windows/core/src/dictation.rs:400-413). Esc during Formatting clears the job, sets the wanted id to none and so makes the worker drop the request and the process. (app wiring: task 9 chunk C)
+- The agent is replaced 1.5 s after the last change to provider, Claude model, speaker notes or either executable path (`Debounce`, windows/core/src/polish/lifecycle.rs:17, 84). A change to the default mode, a word limit or the dictionary applies from the next dictation. (app wiring: task 9 chunk C)
+- The agent is warmed up at launch, as on macOS (App/AppDelegate.swift:88). (app wiring: task 9 chunk C)
+- Language hint: always `auto`. Windows has no language lock and Parakeet returns no language (`build_request`, pipeline.rs:54). `new_terms` is parsed but not learned until Windows task 10.
+

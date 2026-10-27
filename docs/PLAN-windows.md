@@ -81,6 +81,10 @@ windows/
    Windows settings and tour.
 9. **Polishing**. Claude Code and Codex workers, same prompts and protocol. Done: worker tests with a
    fake CLI. Device check: with a signed-in Claude Code.
+   Status 2026-10-27: code done (core logic, `shepit-agent` crate with the Job object, app wiring, Polishing tab,
+   tour step, Formatting stage). Device checks open: discovery on real installs, no console flash, a signed-in
+   Claude Code and Codex, no leftover process after quit or Task Manager kill. See DECISIONS 2026-10-27:
+   Windows polishing.
 10. **History and dictionary learning**.
 11. **Release and install** [complex]. Tag builds the NSIS installer on Windows CI, signs the update
     payload, publishes it to the same GitHub release next to `Shepit.dmg`, `install.ps1`, updater.

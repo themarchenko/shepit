@@ -14,7 +14,7 @@ Platform mechanisms (key monitors, panels, installers) appear only where a rule 
 | [local-cleanup.md](local-cleanup.md) | Routing between raw, fast path and agent; text cleanup; word count |
 | [dictionary.md](dictionary.md) | Where the dictionary is used, learning, correction algorithm |
 | [profiles-modes.md](profiles-modes.md) | Modes, built-in profiles, profile and mode resolution |
-| [polishing.md](polishing.md) | Providers, system prompt, per-dictation message, agent limits |
+| [polishing.md](polishing.md) | Providers, system prompt, per-dictation message, agent limits, Windows agent runtime |
 | [widget.md](widget.md) | Phases, styles, sizes, live preview |
 | [settings.md](settings.md) | Every setting: key, default, values |
 | [updates-install.md](updates-install.md) | Version order, update schedule, installer |
@@ -73,17 +73,17 @@ Paths below are relative to `apple/` where they point at code.
 
 | Item | State |
 |---|---|
-| The system prompt says "on macOS" (ShepitCore/Sources/ShepitCore/Formatting/PromptBuilder.swift:7) | Open for Windows task 9. The golden pins the macOS text. |
+| The system prompt says "on macOS" (ShepitCore/Sources/ShepitCore/Formatting/PromptBuilder.swift:7) | Resolved for Windows: the builder takes the platform word and the app passes "Windows"; with "macOS" it equals the golden (polishing.md, System prompt). |
 | Profiles are keyed by macOS bundle ids (Formatting/Profile.swift:98-112) | Resolved for Windows by exe file name (profiles-modes.md, Windows app identifiers). The shared fixture holds the macOS ids. |
 | Default dictation key | macOS: Right Option. Windows: Right Ctrl, per `docs/PLAN-windows.md`. Key ids and codes are per platform (hotkey.md). |
 | Update and install | macOS: GitHub release, `Shepit.dmg`, code signature check, `install.sh`. Windows: `Shepit-setup.exe` and `latest.json` on the same release, Tauri updater with a minisign key pinned in the app, `install.ps1` (updates-install.md). Only the version order and the check schedule are shared. |
 | Recognizer | macOS: FluidAudio Parakeet v3 and WhisperKit, models fetched by the libraries. Windows: Parakeet v3 int8 through `transcribe-rs`, files pinned by commit and SHA-256 (`windows/engine/src/pins.rs`), stored under `%LOCALAPPDATA%\Shepit\models`. |
 | Parakeet script filter | macOS passes a language hint that filters decoder candidates by script, only for a hard language lock (Speech/ParakeetEngine.swift:34-37). Windows has no such filter. |
 | Insertion | Done on Windows (PLAN-windows task 6, dictation.md step 8). Needs device checks. |
-| Formatting, recordings store, history, live preview | Windows lags: PLAN-windows tasks 9, 10 and 12. After recognition the Windows app inserts the raw transcript. |
-| Settings panes and the tour | macOS: General, Appearance, Polishing, Dictionary, About, and a 5-step tour with permissions and polishing. Windows (task 8): General, Appearance, About and a 4-step tour (welcome, microphone, look, try it). No language lock, polishing, dictionary, history, live preview, What's new, update card or launch at login yet. The microphone step explains Windows privacy settings and notes that apps running as administrator get the text copied, not pasted. |
+| Recordings store, history, dictionary learning, live preview | Windows lags: PLAN-windows tasks 10 and 12. Formatting is done (task 9, polishing.md, Windows); `new_terms` from the agent is parsed and dropped. |
+| Settings panes and the tour | macOS: General, Appearance, Polishing, Dictionary, About, and a 5-step tour with permissions and polishing. Windows (tasks 8 and 9): General, Appearance, Polishing, About and a 5-step tour (welcome, microphone, look, polish the text, try it). No language lock, dictionary, history, live preview, What's new, update card or launch at login yet. The microphone step explains Windows privacy settings and notes that apps running as administrator get the text copied, not pasted. |
 | Dictation key picker | Windows only: records the next key through the keyboard hook, from a fixed candidate list (hotkey.md, Windows). macOS offers three fixed choices. |
 | Tray | Windows: a left click opens Settings and a right click shows the menu. |
 | Text insertion, permissions, executable search paths, widget rendering | Per platform. |
-| Agent transport | Claude Code is driven through its stream-json mode, Codex through `app-server`. A port matches timings and output cleanup (polishing.md), not the transport. |
+| Agent transport | Claude Code is driven through its stream-json mode, Codex through `app-server`. A port matches timings and output cleanup (polishing.md), not the transport. Windows uses the same transports; discovery, spawning and the Job object are in polishing.md, Windows. |
 | Reply cleanup is written twice (Formatting/ClaudeCodeWorker.swift:218-225 and CodexFormatter.swift:117-127) | Kept as is; the spec describes one rule. |

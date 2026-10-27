@@ -45,15 +45,27 @@ Notes:
   replaces it.
 - Speaker notes go into the system prompt (polishing.md).
 - Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are kept in `settings.json` under `%APPDATA%\com.themarchenko.shepit`, with the same key names. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.
-- Windows panes: General (dictation key, recognizer status, show widget, microphone test), Appearance (style, glass,
-  fade when idle, reset position) and About (version, the Parakeet CC-BY-4.0 credit, show the welcome tour again).
-  Language lock, polishing, dictionary, history, live preview, recognizer choice, What's new, updates and launch at login are
-  not shown until their tasks land (README, Platform-specific). Settings opens on General.
+- Windows panes: General (dictation key, default mode, prompt-mode word limit, recognizer status, show widget, microphone test),
+  Appearance (style, glass, fade when idle, reset position), Polishing (provider, Claude model, executable paths, speaker notes)
+  and About (version, the Parakeet CC-BY-4.0 credit, show the welcome tour again). The Polishing tab sits between Appearance
+  and About and scrolls inside the 620x600 window. Language lock, dictionary, history, live preview, recognizer choice,
+  What's new, updates and launch at login are not shown until their tasks land (README, Platform-specific). Settings opens on General.
 - Windows `hotkey` is stored as the choice id above. A bad id falls back to `rightCtrl`. `onboardingCompleted` defaults
   to false and is set by every way of closing the tour (finish, Skip, Esc, Alt+F4).
 - Windows edits from the UI go through one strict patch: an object with any of `widgetStyle`, `glassOpacity`
   (clamped to 0.5-0.9), `fadeWhenIdle`, `widgetVisible` and `hotkey`. An unknown key, a wrong type or a bad id rejects the
   whole patch and changes nothing. `widgetAnchor` and `onboardingCompleted` cannot be patched; they have their own commands.
   Loading the file stays lenient, key by key.
+- Windows polishing keys (windows/core/src/settings.rs): `polishing`, `claudeModel`, `claudeExecutable`, `codexExecutable`,
+  `defaultMode`, `fastPathMaxWords`, `promptModeMinWords`, `speakerNotes` and `dictionary`, with the names and defaults in the
+  table above. Each is read on its own and falls back to its default alone; stored integers are not clamped on read, as on
+  macOS. The legacy `formatterEnabled` is read only when `polishing` is missing or not a valid id (false gives `off`, anything
+  else `claude`), as in AppSettings.swift:158-160, and stays in the file untouched. `dictionary` is read and written back as a
+  list of strings (a non-string entry gives an empty list) but cannot be patched until task 10. The patch also accepts the
+  other eight keys and clamps `fastPathMaxWords` to 0-30 and `promptModeMinWords` to 10-200, the macOS stepper ranges
+  (SettingsView.swift:39, 160); a wrong type, a bad id or an unknown key rejects the whole patch. The Polishing tab and the
+  tour step call `detect_agents`, which applies the fallback in polishing.md and saves it (app wiring: task 9 chunk C).
+  Changes to the provider, model, notes or either path replace the agent 1.5 s later; mode, word limits and dictionary apply
+  from the next dictation (settings.rs `changes`, :340-370).
 - Windows tour: if the app quits while the tour is open, the flag is not set and the tour shows again on the next
   launch. Accepted.
