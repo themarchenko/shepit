@@ -63,12 +63,20 @@ pub enum Polishing {
 impl Polishing {
     /// `claude`, `codex` or `off`.
     pub fn from_id(id: &str) -> Option<Polishing> {
-        let _ = id;
-        todo!("task 9 chunk A: Polishing::from_id")
+        match id {
+            "claude" => Some(Polishing::Claude),
+            "codex" => Some(Polishing::Codex),
+            "off" => Some(Polishing::Off),
+            _ => None,
+        }
     }
 
     pub fn id(&self) -> &'static str {
-        todo!("task 9 chunk A: Polishing::id")
+        match self {
+            Polishing::Claude => "claude",
+            Polishing::Codex => "codex",
+            Polishing::Off => "off",
+        }
     }
 }
 
@@ -81,12 +89,18 @@ pub enum ClaudeModel {
 impl ClaudeModel {
     /// `haiku` or `sonnet`.
     pub fn from_id(id: &str) -> Option<ClaudeModel> {
-        let _ = id;
-        todo!("task 9 chunk A: ClaudeModel::from_id")
+        match id {
+            "haiku" => Some(ClaudeModel::Haiku),
+            "sonnet" => Some(ClaudeModel::Sonnet),
+            _ => None,
+        }
     }
 
     pub fn id(&self) -> &'static str {
-        todo!("task 9 chunk A: ClaudeModel::id")
+        match self {
+            ClaudeModel::Haiku => "haiku",
+            ClaudeModel::Sonnet => "sonnet",
+        }
     }
 }
 
@@ -198,16 +212,58 @@ impl Settings {
                 .get(KEY_ONBOARDING)
                 .and_then(Value::as_bool)
                 .unwrap_or(d.onboarding_completed),
-            // Stub: the polishing keys are read in task 9 chunk A.
-            polishing: d.polishing,
-            claude_model: d.claude_model,
-            claude_executable: d.claude_executable,
-            codex_executable: d.codex_executable,
-            default_mode: d.default_mode,
-            fast_path_max_words: d.fast_path_max_words,
-            prompt_mode_min_words: d.prompt_mode_min_words,
-            speaker_notes: d.speaker_notes,
-            dictionary: d.dictionary,
+            // A bad or missing `polishing` defers to the legacy on/off switch, which counts as on
+            // unless it is the boolean false (AppSettings.swift:158-160).
+            polishing: map
+                .get(KEY_POLISHING)
+                .and_then(Value::as_str)
+                .and_then(Polishing::from_id)
+                .unwrap_or_else(|| {
+                    if map.get("formatterEnabled").and_then(Value::as_bool) == Some(false) {
+                        Polishing::Off
+                    } else {
+                        Polishing::Claude
+                    }
+                }),
+            claude_model: map
+                .get(KEY_CLAUDE_MODEL)
+                .and_then(Value::as_str)
+                .and_then(ClaudeModel::from_id)
+                .unwrap_or(d.claude_model),
+            claude_executable: map
+                .get(KEY_CLAUDE_EXE)
+                .and_then(Value::as_str)
+                .map_or(d.claude_executable, str::to_string),
+            codex_executable: map
+                .get(KEY_CODEX_EXE)
+                .and_then(Value::as_str)
+                .map_or(d.codex_executable, str::to_string),
+            default_mode: map
+                .get(KEY_DEFAULT_MODE)
+                .and_then(Value::as_str)
+                .and_then(Mode::from_id)
+                .unwrap_or(d.default_mode),
+            fast_path_max_words: map
+                .get(KEY_FAST_PATH)
+                .and_then(Value::as_i64)
+                .unwrap_or(d.fast_path_max_words),
+            prompt_mode_min_words: map
+                .get(KEY_PROMPT_MIN)
+                .and_then(Value::as_i64)
+                .unwrap_or(d.prompt_mode_min_words),
+            speaker_notes: map
+                .get(KEY_NOTES)
+                .and_then(Value::as_str)
+                .map_or(d.speaker_notes, str::to_string),
+            dictionary: map
+                .get(KEY_DICTIONARY)
+                .and_then(Value::as_array)
+                .and_then(|a| {
+                    a.iter()
+                        .map(|v| v.as_str().map(str::to_string))
+                        .collect::<Option<Vec<_>>>()
+                })
+                .unwrap_or(d.dictionary),
             extra: map
                 .into_iter()
                 .filter(|(k, _)| !KNOWN_KEYS.contains(&k.as_str()))
@@ -235,6 +291,27 @@ impl Settings {
             KEY_ONBOARDING.into(),
             Value::from(self.onboarding_completed),
         );
+        map.insert(KEY_POLISHING.into(), Value::from(self.polishing.id()));
+        map.insert(KEY_CLAUDE_MODEL.into(), Value::from(self.claude_model.id()));
+        map.insert(
+            KEY_CLAUDE_EXE.into(),
+            Value::from(self.claude_executable.as_str()),
+        );
+        map.insert(
+            KEY_CODEX_EXE.into(),
+            Value::from(self.codex_executable.as_str()),
+        );
+        map.insert(
+            KEY_DEFAULT_MODE.into(),
+            Value::from(self.default_mode.as_str()),
+        );
+        map.insert(KEY_FAST_PATH.into(), Value::from(self.fast_path_max_words));
+        map.insert(
+            KEY_PROMPT_MIN.into(),
+            Value::from(self.prompt_mode_min_words),
+        );
+        map.insert(KEY_NOTES.into(), Value::from(self.speaker_notes.as_str()));
+        map.insert(KEY_DICTIONARY.into(), Value::from(self.dictionary.clone()));
         match self.widget_anchor {
             Some(p) => {
                 let mut anchor = Map::new();
@@ -282,14 +359,27 @@ pub fn changes(old: &Settings, new: &Settings) -> Changes {
             || old.fade_when_idle != new.fade_when_idle,
         hotkey: old.hotkey != new.hotkey,
         visible: old.widget_visible != new.widget_visible,
-        // Stub: task 9 chunk A fills these in.
-        polishing: false,
-        formatting: false,
+        polishing: old.polishing != new.polishing
+            || old.claude_model != new.claude_model
+            || old.speaker_notes != new.speaker_notes
+            || old.claude_executable != new.claude_executable
+            || old.codex_executable != new.codex_executable,
+        formatting: old.default_mode != new.default_mode
+            || old.fast_path_max_words != new.fast_path_max_words
+            || old.prompt_mode_min_words != new.prompt_mode_min_words
+            || old.dictionary != new.dictionary,
     }
 }
 
+fn patch_string(value: &Value, key: &str) -> Result<String, String> {
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| format!("{key}: not a string"))
+}
+
 /// Applies a UI edit. The patch is a JSON object with any of `widgetStyle`, `glassOpacity`,
-/// `fadeWhenIdle`, `widgetVisible` and `hotkey`. An unknown key, a wrong type or a bad id rejects
+/// `fadeWhenIdle`, `widgetVisible`, `hotkey` and the polishing keys (not `dictionary`). An unknown key, a wrong type or a bad id rejects
 /// the whole patch and leaves `current` as it was. `glassOpacity` is clamped like a loaded file.
 pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String> {
     let Value::Object(map) = patch else {
@@ -327,6 +417,49 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
                     .and_then(Hotkey::from_id)
                     .ok_or_else(|| format!("{KEY_HOTKEY}: unknown key"))?;
             }
+            KEY_POLISHING => {
+                out.polishing = value
+                    .as_str()
+                    .and_then(Polishing::from_id)
+                    .ok_or_else(|| format!("{KEY_POLISHING}: unknown provider"))?;
+            }
+            KEY_CLAUDE_MODEL => {
+                out.claude_model = value
+                    .as_str()
+                    .and_then(ClaudeModel::from_id)
+                    .ok_or_else(|| format!("{KEY_CLAUDE_MODEL}: unknown model"))?;
+            }
+            KEY_CLAUDE_EXE => {
+                out.claude_executable = patch_string(value, KEY_CLAUDE_EXE)?;
+            }
+            KEY_CODEX_EXE => {
+                out.codex_executable = patch_string(value, KEY_CODEX_EXE)?;
+            }
+            KEY_DEFAULT_MODE => {
+                out.default_mode = value
+                    .as_str()
+                    .and_then(Mode::from_id)
+                    .ok_or_else(|| format!("{KEY_DEFAULT_MODE}: unknown mode"))?;
+            }
+            // The steppers of the macOS settings window (SettingsView.swift:39,160).
+            KEY_FAST_PATH => {
+                out.fast_path_max_words = value
+                    .as_i64()
+                    .map(|n| n.clamp(0, 30))
+                    .ok_or_else(|| format!("{KEY_FAST_PATH}: not an integer"))?;
+            }
+            KEY_PROMPT_MIN => {
+                out.prompt_mode_min_words = value
+                    .as_i64()
+                    .map(|n| n.clamp(10, 200))
+                    .ok_or_else(|| format!("{KEY_PROMPT_MIN}: not an integer"))?;
+            }
+            KEY_NOTES => {
+                out.speaker_notes = patch_string(value, KEY_NOTES)?;
+            }
+            KEY_DICTIONARY => {
+                return Err(format!("{KEY_DICTIONARY}: cannot be patched here"));
+            }
             // widgetAnchor and onboardingCompleted have their own commands.
             other => return Err(format!("unknown setting: {other}")),
         }
@@ -335,6 +468,7 @@ pub fn apply_patch(current: &Settings, patch: &Value) -> Result<Settings, String
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
 

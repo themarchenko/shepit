@@ -1,9 +1,13 @@
 //! One dictation from accepted transcript to final text: profile, mode, route, agent, cleanup,
 //! fallback. The agent sits behind `Polisher`, so this runs against a fake in tests.
 
-use super::prompt::FormatRequest;
-use super::route::Source;
+use super::prompt::{user_message, FormatRequest, PromptContext};
+use super::reply::{finish, parse_reply};
+use super::route::{route, Route, Source};
+use crate::cleanup::passthrough_clean;
 use crate::dictation::FormatJob;
+use crate::dictionary::correct;
+use crate::profile::{resolve_exe_profile, resolve_mode, word_count};
 use crate::settings::Settings;
 
 /// Why an agent call failed. The pipeline treats every variant the same way: local text and
@@ -48,8 +52,68 @@ pub struct Formatted {
 /// settings and the word count, the context keys, the dictionary. `language_hint` stays empty
 /// (Windows has no language lock). `secure` is true only when the captured password flag is true.
 pub fn build_request(job: &FormatJob, settings: &Settings) -> FormatRequest {
-    let _ = (job, settings);
-    todo!("task 9 chunk A: build_request")
+    let ctx = job.context.as_ref();
+    let profile = resolve_exe_profile(
+        ctx.and_then(|c| c.app_id.as_deref()),
+        ctx.and_then(|c| c.window_title.as_deref()),
+        None,
+    );
+    // Stored limits are not clamped, so a negative one counts as 0.
+    let min_words = settings.prompt_mode_min_words.max(0) as usize;
+    let mode = resolve_mode(
+        settings.default_mode,
+        profile,
+        word_count(&job.transcript),
+        min_words,
+    );
+    let context = ctx
+        .map(|c| PromptContext {
+            app: c.app_name.clone(),
+            bundle_id: c.app_id.clone(),
+            window_title: c.window_title.clone(),
+            url: None,
+            text_before_caret: c.text_before_caret.clone(),
+            selected_text: c.selected_text.clone(),
+        })
+        .unwrap_or_default();
+    FormatRequest {
+        transcript: job.transcript.clone(),
+        language_hint: None,
+        mode,
+        profile,
+        context,
+        dictionary: settings.dictionary.clone(),
+        examples: Vec::new(),
+        secure: ctx.is_some_and(|c| c.password == Some(true)),
+    }
+}
+
+/// Whitespace cleanup plus dictionary terms restored: the text of every path without an agent.
+fn local_text(request: &FormatRequest) -> String {
+    passthrough_clean(&correct(&request.transcript, &request.dictionary))
+}
+
+fn local(request: &FormatRequest, source: Source, note: Option<String>) -> Formatted {
+    Formatted {
+        text: local_text(request),
+        source,
+        language: request.language_hint.clone(),
+        new_terms: Vec::new(),
+        note,
+    }
+}
+
+/// Logs and notes carry the kind and sizes only, never reply or server text.
+fn error_note(e: &PolishError) -> String {
+    match e {
+        PolishError::NotRunning => "agent not running".into(),
+        PolishError::Timeout => "agent timed out".into(),
+        PolishError::Cancelled => "cancelled".into(),
+        PolishError::Exited(code) => format!("agent exited ({code})"),
+        PolishError::Api(_) => "agent reported an error".into(),
+        PolishError::BadReply(n) => format!("unreadable reply ({n} bytes)"),
+        PolishError::Paused => "agent paused after repeated failures".into(),
+    }
 }
 
 /// Routes one request. `polisher` is `None` when no agent is available. A cancelled job does not
@@ -60,8 +124,44 @@ pub fn format_request(
     polisher: Option<&mut dyn Polisher>,
     cancelled: &dyn Fn() -> bool,
 ) -> Formatted {
-    let _ = (request, fast_path_max_words, polisher, cancelled);
-    todo!("task 9 chunk A: format_request")
+    let agent_present = polisher.is_some();
+    match route(request, fast_path_max_words, agent_present) {
+        Route::Raw => Formatted {
+            text: passthrough_clean(&request.transcript),
+            source: Source::Passthrough,
+            language: request.language_hint.clone(),
+            new_terms: Vec::new(),
+            note: None,
+        },
+        Route::FastPath => local(request, Source::FastPath, None),
+        Route::Local => local(request, Source::Passthrough, None),
+        Route::Agent => {
+            let Some(polisher) = polisher else {
+                return local(request, Source::Passthrough, None);
+            };
+            if cancelled() {
+                return local(request, Source::Passthrough, None);
+            }
+            let reply = match polisher.polish(&user_message(request), cancelled) {
+                Ok(reply) => reply,
+                Err(e) => return local(request, Source::Fallback, Some(error_note(&e))),
+            };
+            match parse_reply(&reply) {
+                Some(p) => Formatted {
+                    text: finish(&p.text, request.profile),
+                    source: polisher.source(),
+                    language: p.language,
+                    new_terms: p.new_terms,
+                    note: None,
+                },
+                None => local(
+                    request,
+                    Source::Fallback,
+                    Some(error_note(&PolishError::BadReply(reply.len()))),
+                ),
+            }
+        }
+    }
 }
 
 /// `build_request` then `format_request` with the settings' word limit.
@@ -71,11 +171,12 @@ pub fn format_dictation(
     polisher: Option<&mut dyn Polisher>,
     cancelled: &dyn Fn() -> bool,
 ) -> Formatted {
-    let _ = (job, settings, polisher, cancelled);
-    todo!("task 9 chunk A: format_dictation")
+    let request = build_request(job, settings);
+    format_request(&request, settings.fast_path_max_words, polisher, cancelled)
 }
 
 #[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
     use crate::context::TargetContext;

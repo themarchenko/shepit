@@ -2,6 +2,7 @@
 //! `PromptBuilder.parseReply` and `CodexFormatter.finish` (the Claude copy is the same).
 
 use crate::profile::Profile;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedReply {
@@ -14,15 +15,75 @@ pub struct ParsedReply {
 /// newline and tab retry. `None` when there is no object or no string `text`. A `new_terms`
 /// that is not an array of strings counts as empty.
 pub fn parse_reply(reply: &str) -> Option<ParsedReply> {
-    let _ = reply;
-    todo!("task 9 chunk A: parse_reply")
+    let obj = first_object(reply)?;
+    let text = obj.get("text")?.as_str()?.to_string();
+    let language = obj
+        .get("language")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let new_terms = obj
+        .get("new_terms")
+        .and_then(|v| v.as_array())
+        .and_then(|a| {
+            a.iter()
+                .map(|t| t.as_str().map(str::to_string))
+                .collect::<Option<Vec<_>>>()
+        })
+        .unwrap_or_default();
+    Some(ParsedReply {
+        text,
+        language,
+        new_terms,
+    })
+}
+
+/// `JSONExtraction.firstObject` (Formatter.swift:75-93).
+fn first_object(reply: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let mut s = reply.trim().to_string();
+    if s.starts_with("```") {
+        s = s.replace("```json", "").replace("```", "");
+    }
+    let start = s.find('{')?;
+    let end = s.rfind('}')?;
+    if start >= end {
+        return None;
+    }
+    let candidate = &s[start..=end];
+    let parse = |t: &str| match serde_json::from_str::<serde_json::Value>(t) {
+        Ok(serde_json::Value::Object(m)) => Some(m),
+        _ => None,
+    };
+    parse(candidate).or_else(|| {
+        // Models sometimes put raw newlines and tabs inside strings.
+        parse(&candidate.replace('\n', "\\n").replace('\t', "\\t"))
+    })
+}
+
+/// `CharacterSet.newlines`: U+000A-U+000D, U+0085, U+2028, U+2029.
+fn is_newline(c: char) -> bool {
+    matches!(c, '\u{a}'..='\u{d}' | '\u{85}' | '\u{2028}' | '\u{2029}')
 }
 
 /// Trim newlines at both ends, strip trailing newlines again when the profile asks, uppercase a
 /// lowercase first letter.
 pub fn finish(text: &str, profile: &Profile) -> String {
-    let _ = (text, profile);
-    todo!("task 9 chunk A: finish")
+    let mut text = text.trim_matches(is_newline).to_string();
+    if profile.strip_trailing_newline {
+        // The trim above already removed every line break, so this loop is a no-op kept for
+        // parity with the Swift code.
+        while text.ends_with('\n') {
+            text.pop();
+        }
+    }
+    if let Some(first) = text.graphemes(true).next() {
+        let starts_lower_letter =
+            first.chars().next().is_some_and(char::is_alphabetic) && first.to_lowercase() == first;
+        if starts_lower_letter {
+            let rest = text[first.len()..].to_string();
+            text = first.to_uppercase() + &rest;
+        }
+    }
+    text
 }
 
 #[cfg(test)]

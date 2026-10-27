@@ -2,6 +2,7 @@
 //! plus the manager decision of 2026-10-27: a secure field never reaches the agent.
 
 use super::prompt::FormatRequest;
+use crate::profile::{word_count, Mode};
 
 /// Where the source id of a result comes from. The ids are the Swift raw values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,7 +17,13 @@ pub enum Source {
 impl Source {
     /// `FormatterSource.rawValue`: `claude`, `codex`, `passthrough`, `fastPath`, `fallback`.
     pub fn as_str(&self) -> &'static str {
-        todo!("task 9 chunk A: source ids")
+        match self {
+            Source::Claude => "claude",
+            Source::Codex => "codex",
+            Source::Passthrough => "passthrough",
+            Source::FastPath => "fastPath",
+            Source::Fallback => "fallback",
+        }
     }
 }
 
@@ -36,15 +43,27 @@ pub enum Route {
 /// agent. A secure field in raw mode keeps the raw result, and in fast-path size keeps the fast
 /// path: both already stay local.
 pub fn route(request: &FormatRequest, fast_path_max_words: i64, agent_present: bool) -> Route {
-    let _ = (request, fast_path_max_words, agent_present);
-    todo!("task 9 chunk A: route")
+    if request.mode == Mode::Raw {
+        return Route::Raw;
+    }
+    let words = word_count(&request.transcript) as i64;
+    if request.mode == Mode::Clean
+        && !request.profile.is_ai_target
+        && words <= fast_path_max_words.max(0)
+    {
+        return Route::FastPath;
+    }
+    if !agent_present || request.secure {
+        return Route::Local;
+    }
+    Route::Agent
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::polish::prompt::PromptContext;
-    use crate::profile::{profile_by_id, Mode};
+    use crate::profile::profile_by_id;
 
     fn req(mode: Mode, profile: &str, words: usize, secure: bool) -> FormatRequest {
         FormatRequest {

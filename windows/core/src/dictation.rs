@@ -88,11 +88,11 @@ pub enum State {
 }
 
 impl State {
-    /// DictationSession.swift:23-28, without the formatting and inserting states Windows lacks.
+    /// DictationSession.swift:23-28.
     fn is_busy(&self) -> bool {
         matches!(
             self,
-            State::LoadingModel | State::Transcribing | State::Inserting
+            State::LoadingModel | State::Transcribing | State::Formatting | State::Inserting
         )
     }
 }
@@ -230,6 +230,7 @@ pub struct Controller<R: Recorder> {
     live: Option<u64>,
     capture: Option<u64>,
     context: Option<TargetContext>,
+    pending_format: Option<FormatJob>,
     pending_insert: Option<InsertJob>,
     insert_preview: String,
     smoothed: f32,
@@ -252,6 +253,7 @@ impl<R: Recorder> Controller<R> {
             live: None,
             capture: None,
             context: None,
+            pending_format: None,
             pending_insert: None,
             insert_preview: String::new(),
             smoothed: 0.0,
@@ -316,6 +318,7 @@ impl<R: Recorder> Controller<R> {
         self.pending_job = None;
         self.live = None;
         self.capture = None;
+        self.pending_format = None;
         self.pending_insert = None;
     }
 
@@ -367,13 +370,12 @@ impl<R: Recorder> Controller<R> {
                 self.fail(NOTHING_RECOGNIZED.to_string(), at)
             }
             Ok(text) => {
-                self.insert_preview = done_preview(&text);
-                self.pending_insert = Some(InsertJob {
+                self.pending_format = Some(FormatJob {
                     id,
-                    text,
-                    captured_password: self.context.as_ref().and_then(|c| c.password),
+                    transcript: text,
+                    context: self.context.clone(),
                 });
-                self.state = State::Inserting;
+                self.state = State::Formatting;
             }
             Err(message) => self.fail(message, at),
         }
@@ -381,19 +383,34 @@ impl<R: Recorder> Controller<R> {
 
     /// The accepted transcript as a format job, handed over once.
     pub fn take_format(&mut self) -> Option<FormatJob> {
-        todo!("task 9 chunk A: take_format")
+        self.pending_format.take()
     }
 
     /// The id of the dictation being formatted, if any: the polish worker drops anything else.
     pub fn formatting_id(&self) -> Option<u64> {
-        todo!("task 9 chunk A: formatting_id")
+        if self.state == State::Formatting {
+            self.live
+        } else {
+            None
+        }
     }
 
     /// The polish worker finished dictation `id` with the final `text`. Dropped unless `id` is
     /// the live dictation and the state is Formatting. Moves to Inserting with an insert job.
     pub fn on_formatted(&mut self, id: u64, text: String, at: f64) {
-        let _ = (id, text, at);
-        todo!("task 9 chunk A: on_formatted")
+        let _ = at;
+        // The riskiest control of the polishing path: without it a late agent reply could paste
+        // cancelled text into whatever app has focus.
+        if self.live != Some(id) || self.state != State::Formatting {
+            return;
+        }
+        self.insert_preview = done_preview(&text);
+        self.pending_insert = Some(InsertJob {
+            id,
+            text,
+            captured_password: self.context.as_ref().and_then(|c| c.password),
+        });
+        self.state = State::Inserting;
     }
 
     /// The job created by the last stop, handed over once.
@@ -453,6 +470,7 @@ impl<R: Recorder> Controller<R> {
     }
 
     fn start(&mut self, at: f64, hands_free: bool) {
+        self.pending_format = None;
         self.pending_insert = None;
         self.live = None;
         self.capture = None;
@@ -533,7 +551,12 @@ impl<R: Recorder> Controller<R> {
                 String::new(),
                 Some(Stage::Transcribing),
             ),
-            State::Formatting => todo!("task 9 chunk A: Formatting view"),
+            State::Formatting => (
+                Phase::Processing,
+                false,
+                String::new(),
+                Some(Stage::Formatting),
+            ),
             State::Inserting => (
                 Phase::Processing,
                 false,
