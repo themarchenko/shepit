@@ -74,6 +74,9 @@ pub enum State {
     /// Waiting for the model to download or load (DictationSession.swift:11).
     LoadingModel,
     Transcribing,
+    /// Polishing the accepted transcript: any route, from the accepted transcript until the text
+    /// is ready (DictationSession.swift:188). Busy like transcribing.
+    Formatting,
     /// Pasting the accepted text (DictationSession.swift:9). Busy like transcribing.
     Inserting,
     Done {
@@ -111,7 +114,16 @@ pub struct Job {
     pub samples: Vec<f32>,
 }
 
-/// The accepted text, handed to the insert worker. `captured_password` is the flag read when
+/// The accepted transcript, handed to the polish worker. `context` is the captured target
+/// context, `None` when it never arrived. The id is the dictation id, so a late result is dropped.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FormatJob {
+    pub id: u64,
+    pub transcript: String,
+    pub context: Option<TargetContext>,
+}
+
+/// The final text, handed to the insert worker. `captured_password` is the flag read when
 /// recording started (`None` when unreadable or when the context never arrived).
 #[derive(Debug, Clone, PartialEq)]
 pub struct InsertJob {
@@ -170,6 +182,7 @@ pub enum Phase {
 pub enum Stage {
     Loading,
     Transcribing,
+    Formatting,
     Inserting,
 }
 
@@ -366,6 +379,23 @@ impl<R: Recorder> Controller<R> {
         }
     }
 
+    /// The accepted transcript as a format job, handed over once.
+    pub fn take_format(&mut self) -> Option<FormatJob> {
+        todo!("task 9 chunk A: take_format")
+    }
+
+    /// The id of the dictation being formatted, if any: the polish worker drops anything else.
+    pub fn formatting_id(&self) -> Option<u64> {
+        todo!("task 9 chunk A: formatting_id")
+    }
+
+    /// The polish worker finished dictation `id` with the final `text`. Dropped unless `id` is
+    /// the live dictation and the state is Formatting. Moves to Inserting with an insert job.
+    pub fn on_formatted(&mut self, id: u64, text: String, at: f64) {
+        let _ = (id, text, at);
+        todo!("task 9 chunk A: on_formatted")
+    }
+
     /// The job created by the last stop, handed over once.
     pub fn take_job(&mut self) -> Option<Job> {
         self.pending_job.take()
@@ -503,6 +533,7 @@ impl<R: Recorder> Controller<R> {
                 String::new(),
                 Some(Stage::Transcribing),
             ),
+            State::Formatting => todo!("task 9 chunk A: Formatting view"),
             State::Inserting => (
                 Phase::Processing,
                 false,
@@ -943,7 +974,12 @@ mod tests {
 
     #[test]
     fn press_began_is_ignored_while_busy_and_starts_from_done() {
-        for s in [State::LoadingModel, State::Transcribing, State::Inserting] {
+        for s in [
+            State::LoadingModel,
+            State::Transcribing,
+            State::Formatting,
+            State::Inserting,
+        ] {
             assert_eq!(action_for(&s, Event::PressBegan), Action::None);
         }
         let done = State::Done {
@@ -956,6 +992,7 @@ mod tests {
     fn esc_cancels_while_busy_and_is_ignored_in_done_and_failed() {
         assert_eq!(action_for(&State::LoadingModel, Event::Esc), Action::Cancel);
         assert_eq!(action_for(&State::Transcribing, Event::Esc), Action::Cancel);
+        assert_eq!(action_for(&State::Formatting, Event::Esc), Action::Cancel);
         assert_eq!(action_for(&State::Inserting, Event::Esc), Action::Cancel);
         let done = State::Done {
             preview: "x".into(),
@@ -1128,13 +1165,27 @@ mod tests {
         c.take_job().expect("job").id
     }
 
+    /// The polish worker's side: takes the format job and answers with `text` as the final text.
+    fn format_with(c: &mut Controller<FakeRecorder>, id: u64, text: &str, at: f64) {
+        let job = c.take_format().expect("format job");
+        assert_eq!(job.id, id);
+        c.on_formatted(id, text.into(), at);
+    }
+
     #[test]
     fn ok_result_is_done_for_two_and_a_half_seconds() {
         let (mut c, _s) = setup_ready();
         let id = transcribe(&mut c, 0.0);
         c.on_recognized(id, Ok("hello there".into()), 10.0);
         let v = c.view();
-        // Accepted text goes through Inserting; Done starts when the worker reports back.
+        // Accepted text goes through Formatting, then Inserting; Done starts when the insert
+        // worker reports back.
+        assert_eq!(
+            (v.phase, v.stage),
+            (Phase::Processing, Some(Stage::Formatting))
+        );
+        format_with(&mut c, id, "hello there", 10.2);
+        let v = c.view();
         assert_eq!(
             (v.phase, v.stage),
             (Phase::Processing, Some(Stage::Inserting))
@@ -1222,6 +1273,7 @@ mod tests {
         assert_eq!(c.view().phase, Phase::Processing);
         assert_eq!(c.current_job(), Some(new));
         c.on_recognized(new, Ok("fresh".into()), 6.0);
+        format_with(&mut c, new, "fresh", 6.2);
         assert_eq!(c.take_insert().map(|j| j.text), Some("fresh".to_string()));
         c.on_inserted(new, Ok(InsertOutcome::Pasted), 6.5);
         assert_eq!(c.view().message, "fresh");
@@ -1241,6 +1293,7 @@ mod tests {
         let (mut c, shared) = setup_ready();
         let id = transcribe(&mut c, 0.0);
         c.on_recognized(id, Ok("hello".into()), 2.0);
+        format_with(&mut c, id, "hello", 2.2);
         c.on_inserted(id, Ok(InsertOutcome::Pasted), 2.5);
         press(&mut c, 3.0);
         assert_eq!(c.view().phase, Phase::Listening);
@@ -1290,6 +1343,7 @@ mod tests {
         let job = c.take_job().expect("job");
         assert_eq!(job.id, id);
         c.on_recognized(id, Ok(text.into()), 2.0);
+        format_with(c, id, text, 2.2);
         id
     }
 
@@ -1406,6 +1460,7 @@ mod tests {
             release(&mut c, 1.0);
             c.take_job().unwrap();
             c.on_recognized(id, Ok("hello".into()), 2.0);
+            format_with(&mut c, id, "hello", 2.2);
             let job = c.take_insert().unwrap();
             assert_eq!((job.id, job.captured_password), (id, flag), "{flag:?}");
         }
@@ -1508,6 +1563,7 @@ mod tests {
         let (mut c, shared) = setup_ready();
         let id = transcribe(&mut c, 0.0);
         c.on_recognized(id, Ok("hello there".into()), 2.0);
+        format_with(&mut c, id, "hello there", 2.2);
         c.take_insert().expect("insert job");
         c.on_inserted(id, Ok(InsertOutcome::Pasted), 2.5);
         assert_eq!(c.view().phase, Phase::Done);
@@ -1640,6 +1696,15 @@ mod tests {
             WidgetInput::HoldBegan,
             WidgetInput::HoldEnded,
         ] {
+            c.on_widget(input, 6.5);
+            assert_eq!(c.view().stage, Some(Stage::Formatting), "{input:?}");
+        }
+        format_with(&mut c, id, "hello there", 6.8);
+        for input in [
+            WidgetInput::Click,
+            WidgetInput::HoldBegan,
+            WidgetInput::HoldEnded,
+        ] {
             c.on_widget(input, 7.0);
             assert_eq!(c.view().stage, Some(Stage::Inserting), "{input:?}");
         }
@@ -1702,5 +1767,230 @@ mod tests {
         assert_eq!(c.view().phase, Phase::Idle);
         c.on_widget(WidgetInput::Click, 5.0);
         assert_eq!(c.view().target, None);
+    }
+
+    // Formatting (Windows task 9): between the accepted transcript and the insert.
+
+    /// A dictation whose transcript was accepted and is being formatted.
+    fn formatting(c: &mut Controller<FakeRecorder>, text: &str) -> u64 {
+        let id = start_dictation(c, 0.0);
+        c.take_job().expect("job");
+        c.on_recognized(id, Ok(text.into()), 2.0);
+        id
+    }
+
+    #[test]
+    fn formatting_is_busy_and_shows_the_formatting_stage() {
+        let (mut c, shared) = setup_ready();
+        formatting(&mut c, "hello");
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.stage),
+            (Phase::Processing, Some(Stage::Formatting))
+        );
+        press(&mut c, 3.0);
+        assert_eq!(
+            shared.starts.get(),
+            1,
+            "a press while formatting is ignored"
+        );
+        assert_eq!(c.view().stage, Some(Stage::Formatting));
+    }
+
+    #[test]
+    fn an_accepted_transcript_gives_a_format_job_once() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting(&mut c, "hello there");
+        assert_eq!(
+            c.take_format(),
+            Some(FormatJob {
+                id,
+                transcript: "hello there".into(),
+                context: None,
+            })
+        );
+        assert_eq!(c.take_format(), None);
+        assert_eq!(
+            c.take_insert(),
+            None,
+            "nothing is inserted before it is formatted"
+        );
+    }
+
+    #[test]
+    fn the_format_job_carries_the_captured_context() {
+        let (mut c, _s) = setup_ready();
+        press(&mut c, 0.0);
+        let id = c.take_capture().unwrap();
+        let ctx = TargetContext {
+            app_id: Some("notepad.exe".into()),
+            app_name: Some("Notepad".into()),
+            window_title: Some("notes.txt".into()),
+            password: Some(false),
+            ..Default::default()
+        };
+        c.on_context(id, ctx.clone());
+        release(&mut c, 1.0);
+        c.take_job().unwrap();
+        c.on_recognized(id, Ok("hello".into()), 2.0);
+        assert_eq!(c.take_format().unwrap().context, Some(ctx));
+    }
+
+    #[test]
+    fn a_blank_or_junk_transcript_makes_no_format_job() {
+        for text in ["   ", "", "Thank you."] {
+            let (mut c, _s) = setup_ready();
+            let id = transcribe(&mut c, 0.0);
+            c.on_recognized(id, Ok(text.into()), 2.0);
+            assert_eq!(c.take_format(), None, "{text:?}");
+            assert_eq!(c.formatting_id(), None, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn formatting_id_is_the_dictation_while_formatting_only() {
+        let (mut c, _s) = setup_ready();
+        assert_eq!(c.formatting_id(), None);
+        let id = formatting(&mut c, "hello");
+        assert_eq!(c.formatting_id(), Some(id));
+        format_with(&mut c, id, "Hello", 3.0);
+        assert_eq!(c.formatting_id(), None);
+    }
+
+    #[test]
+    fn formatting_id_is_cleared_by_esc() {
+        let (mut c, _s) = setup_ready();
+        formatting(&mut c, "hello");
+        esc(&mut c, 2.5);
+        assert_eq!(c.formatting_id(), None);
+    }
+
+    #[test]
+    fn on_formatted_moves_to_inserting_with_the_final_text() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting(&mut c, "hello there");
+        c.take_format().unwrap();
+        c.on_formatted(id, "Hello, there.".into(), 3.0);
+        let v = c.view();
+        assert_eq!(
+            (v.phase, v.stage),
+            (Phase::Processing, Some(Stage::Inserting))
+        );
+        let job = c.take_insert().unwrap();
+        assert_eq!((job.id, job.text.as_str()), (id, "Hello, there."));
+        assert_eq!(c.take_insert(), None);
+    }
+
+    #[test]
+    fn the_insert_job_after_formatting_carries_the_captured_password_flag() {
+        for flag in [Some(true), Some(false), None] {
+            let (mut c, _s) = setup_ready();
+            press(&mut c, 0.0);
+            let id = c.take_capture().unwrap();
+            c.on_context(
+                id,
+                TargetContext {
+                    password: flag,
+                    ..Default::default()
+                },
+            );
+            release(&mut c, 1.0);
+            c.take_job().unwrap();
+            c.on_recognized(id, Ok("hello".into()), 2.0);
+            c.take_format().unwrap();
+            c.on_formatted(id, "Hello".into(), 2.5);
+            let job = c.take_insert().unwrap();
+            assert_eq!((job.id, job.captured_password), (id, flag), "{flag:?}");
+        }
+    }
+
+    #[test]
+    fn the_done_preview_is_the_formatted_text_not_the_transcript() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting(&mut c, "hello there");
+        format_with(&mut c, id, "Hello there, friend.", 3.0);
+        c.take_insert().unwrap();
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.5);
+        assert_eq!(c.view().message, "Hello there, friend.");
+    }
+
+    #[test]
+    fn esc_while_formatting_goes_idle_at_once() {
+        let (mut c, _s) = setup_ready();
+        formatting(&mut c, "hello");
+        esc(&mut c, 2.5);
+        assert_eq!(c.view().phase, Phase::Idle);
+        assert_eq!(c.take_format(), None, "an untaken format job is dropped");
+    }
+
+    // The riskiest control: a late agent reply (up to 25 s) must not paste cancelled text into
+    // whatever app has focus. The guard is the id and state check in `on_formatted`.
+
+    #[test]
+    fn esc_while_formatting_drops_the_late_result() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting(&mut c, "hello there");
+        c.take_format().unwrap();
+        esc(&mut c, 2.5);
+        c.on_formatted(id, "Late text from the agent".into(), 20.0);
+        assert_eq!(c.view().phase, Phase::Idle);
+        assert_eq!(c.take_insert(), None, "no insert job for cancelled text");
+    }
+
+    #[test]
+    fn an_old_formatted_result_is_ignored_while_a_newer_dictation_formats() {
+        let (mut c, _s) = setup_ready();
+        let old = formatting(&mut c, "first dictation");
+        c.take_format().unwrap();
+        esc(&mut c, 2.5);
+        press(&mut c, 3.0);
+        let new = c.take_capture().expect("capture id");
+        release(&mut c, 4.0);
+        assert_ne!(old, new);
+        let job = c.take_job().unwrap();
+        c.on_recognized(job.id, Ok("second dictation".into()), 5.0);
+        c.take_format().unwrap();
+        // The old agent reply arrives while the new dictation is formatting.
+        c.on_formatted(old, "Stale text".into(), 6.0);
+        assert_eq!(c.view().stage, Some(Stage::Formatting));
+        assert_eq!(c.take_insert(), None);
+        assert_eq!(c.formatting_id(), Some(new));
+        c.on_formatted(new, "Fresh text".into(), 7.0);
+        assert_eq!(c.take_insert().map(|j| j.text), Some("Fresh text".into()));
+    }
+
+    #[test]
+    fn a_formatted_result_outside_the_formatting_state_is_ignored() {
+        // Idle, never started.
+        let (mut c, _s) = setup_ready();
+        c.on_formatted(1, "text".into(), 1.0);
+        assert_eq!(c.take_insert(), None);
+        // Already inserting: a duplicate answer does not queue a second insert.
+        let id = formatting(&mut c, "hello");
+        format_with(&mut c, id, "Hello", 3.0);
+        c.take_insert().unwrap();
+        c.on_formatted(id, "Duplicate".into(), 3.1);
+        assert_eq!(c.take_insert(), None);
+        assert_eq!(c.view().stage, Some(Stage::Inserting));
+    }
+
+    #[test]
+    fn a_formatted_result_for_another_id_is_ignored() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting(&mut c, "hello");
+        c.take_format().unwrap();
+        c.on_formatted(id + 1, "Other".into(), 3.0);
+        assert_eq!(c.view().stage, Some(Stage::Formatting));
+        assert_eq!(c.take_insert(), None);
+    }
+
+    #[test]
+    fn esc_while_inserting_after_formatting_still_drops_the_outcome() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting(&mut c, "hello");
+        format_with(&mut c, id, "Hello", 3.0);
+        esc(&mut c, 3.5);
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 4.0);
+        assert_eq!(c.view().phase, Phase::Idle);
     }
 }
