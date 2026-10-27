@@ -102,15 +102,15 @@ struct TourView: View {
                 openedAccessibility = true
                 openAccessibilitySettings()
             }
-            if openedAccessibility && !accessibility {
-                Text("In System Settings, turn on Shepit in the Accessibility list. If it is already on, select it, remove it with the minus button and click Open System Settings here again.")
+            if !accessibility {
+                Text(accessibilityStaleHint)
                     .font(.system(size: 12))
                     .foregroundStyle(WidgetPalette.text.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(.opacity)
             }
         }
-        .animation(.easeOut(duration: 0.2), value: openedAccessibility && !accessibility)
+        .animation(.easeOut(duration: 0.2), value: accessibility)
     }
 
     private var look: some View {

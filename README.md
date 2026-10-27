@@ -74,6 +74,14 @@ so the permissions stay granted across updates. Coming from 0.2.x, grant Accessi
 Shepit is on in the list but nothing gets pasted, remove it with the minus button, click Open Privacy
 settings in Shepit's Settings and turn it on again.
 
+If Accessibility shows Shepit as on but Shepit says it is missing, macOS is holding the permission of
+a previous build, for example a dev build or 0.2.x. Select Shepit in the list, remove it with the minus
+button and turn it on again. To clear it from Terminal, run this and reopen Shepit:
+
+```
+tccutil reset Accessibility com.themarchenko.shepit
+```
+
 ## Use
 
 | Do this | To |
