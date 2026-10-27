@@ -48,12 +48,13 @@ Notes:
 - Windows panes: General (dictation key, default mode, prompt-mode word limit, recognizer status, show widget, microphone test),
   Appearance (style, glass, fade when idle, reset position), Polishing (provider, Claude model, executable paths, speaker notes),
   Dictionary (one term per line in a monospace box, sent on every input) and About (version, Recordings with an Open folder button (history.md), the Parakeet CC-BY-4.0 credit, the Updates group, show the welcome tour again). The Updates group has the `checkForUpdates` switch, a status line and Check now or Install… (updates-install.md, Installing an update (Windows)). The Polishing tab sits between Appearance
-  and Dictionary and scrolls inside the 620x600 window. Language lock, live preview, recognizer choice,
+  and Dictionary and scrolls inside the 620x600 window. Language lock, recognizer choice,
   What's new and launch at login are not shown until their tasks land (README, Platform-specific). Settings opens on General.
+- Windows reads `livePreview` (default true, wrong type falls back alone) when a recording starts and the General pane shows it as "Show the words while speaking" (widget.md, Live preview).
 - Windows `hotkey` is stored as the choice id above. A bad id falls back to `rightCtrl`. `onboardingCompleted` defaults
   to false and is set by every way of closing the tour (finish, Skip, Esc, Alt+F4).
 - Windows edits from the UI go through one strict patch: an object with any of `widgetStyle`, `glassOpacity`
-  (clamped to 0.5-0.9), `fadeWhenIdle`, `widgetVisible`, `hotkey` and `checkForUpdates`. An unknown key, a wrong type or a bad id rejects the
+  (clamped to 0.5-0.9), `fadeWhenIdle`, `widgetVisible`, `hotkey`, `checkForUpdates` and `livePreview`. An unknown key, a wrong type or a bad id rejects the
   whole patch and changes nothing. `widgetAnchor`, `onboardingCompleted`, `skippedUpdate` and `lastUpdateCheck` cannot be patched (`skippedUpdate` and `lastUpdateCheck` belong to the updater); they have their own commands.
   Loading the file stays lenient, key by key.
 - Windows polishing keys (windows/core/src/settings.rs): `polishing`, `claudeModel`, `claudeExecutable`, `codexExecutable`,

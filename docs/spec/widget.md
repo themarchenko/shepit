@@ -77,7 +77,7 @@ Windows only, where it differs from the macOS behaviour above.
 - The right-click menu (modes, language, history, settings) is not there yet. Right click does nothing. Known gap: the items need the settings pane and history, which come with tasks 8 and 10. The tray has "Show widget" and "Reset widget position".
 - Formatting stage (task 9): `Stage::Formatting` runs from the accepted transcript until the final text is ready, for every route, including raw and fast path where it is short. It counts as busy (windows/core/src/dictation.rs:95, 378). The widget payload is `processing` with stage `formatting`, caption "Formatting", step 1 of the three steps (windows/app/src/captionContent.ts:19, 31; widgetState.ts:4). The island step bar "Transcribe, Format, Insert" now fills the second step in this stage. The demo shows formatting for 1.15 s between transcribing (0.75 s) and inserting (0.4 s) (app wiring: task 9 chunk C).
 - Known gap: there is no screens-changed handling. A monitor that is unplugged while the widget sits on it is noticed at the next size change or drag, not at once.
-- Live text is empty until task 12. The layout already reads the flag.
+- Live text since task 12 (see Live preview, Windows). The layout reads the flag.
 
 ## Appearance settings
 
@@ -109,4 +109,16 @@ Source: Speech/LivePreview.swift. Setting `livePreview`, default on (AppSettings
 - With the setting off the preview is cleared and not started (DictationSession.swift:91-96).
 - The preview runs on the fast recognizer (Parakeet), whatever engine is selected (Speech/SpeechEngine.swift:140-146).
 
-Fixture for the join rule: `shared/fixtures/live-preview-join.json`.
+Fixtures: `shared/fixtures/live-preview-join.json` for the join rule, `shared/fixtures/live-preview-split.json` for the stable/unstable split (the last two words of the pass text are unstable, the rest joins the frozen text).
+
+Windows (windows/core/src/live.rs, windows/app/src-tauri/src/recognizer.rs), where it differs from the table above. Parakeet runs on the CPU there, so the window is smaller and the load is capped:
+
+- Freeze and tail are separate jobs. A freeze job decodes the tail up to the cut; its result is shown only together with the result of the tail job that follows it. After a freeze the tail job is sent at once, without the 1 s minimum.
+- Freeze window: the tail is frozen when it is longer than 6 s (96 000 samples). The cut is the quietest 100 ms frame between 4.0 and 5.5 s of the tail, the macOS ratio. No pass covers more than about 7 s of audio.
+- Cadence: the first pass at 1 s of audio. After a tail pass that took p seconds the next one waits `max(0.15, 0.5 - p, p)`, which keeps the duty at or below 50%. At most one pass is in flight, and each pass reads the newest audio when it starts.
+- Slow-pass stop: if any pass takes more than 1.0 s, the preview stops for the rest of that dictation and keeps its text.
+- One model and one recognizer thread: previews share the thread with the final pass. The model cannot be interrupted, so at release the final waits for at most the pass already running (up to about 0.7 s on CI-class hardware). That pass's result is dropped, and preview text never reaches the inserted text.
+- The keyboard hook thread runs at `THREAD_PRIORITY_HIGHEST`, so the sustained load does not delay keystrokes or the release stamp.
+- The setting is read when a recording starts. Changing it affects the next dictation.
+- The text clears on done, on fail, on Esc, when a short recording is discarded and on a stream error. It stays through processing, until one of those.
+- Language: no gate, see language.md.
