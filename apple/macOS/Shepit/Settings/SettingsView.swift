@@ -439,7 +439,10 @@ final class SettingsWindowController: NSWindowController {
 
         resize(to: nav.tab, animate: false)
         window.center()
-        tabChange = nav.$tab.dropFirst().removeDuplicates().sink { [weak self] tab in self?.resize(to: tab, animate: true) }
+        // $tab fires in willSet, while nav.tab still holds the old tab. Resizing and redrawing the window from
+        // inside that call drew the old pane and used up SwiftUI's update, so a tab took a second click.
+        tabChange = nav.$tab.dropFirst().removeDuplicates().receive(on: DispatchQueue.main)
+            .sink { [weak self] tab in self?.resize(to: tab, animate: true) }
     }
 
     required init?(coder: NSCoder) { fatalError("not supported") }
