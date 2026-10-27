@@ -3,7 +3,9 @@
 
 use crate::controller::Msg;
 use shepit_core::dictation::{Job, ModelStatus};
-use shepit_engine::download::{default_models_dir, ensure, is_installed, UreqFetch};
+use shepit_engine::download::{
+    default_models_dir, ensure, is_installed, verify_installed, UreqFetch,
+};
 use shepit_engine::pins::PARAKEET_V3_INT8;
 use shepit_engine::recognizer::Recognizer;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -106,15 +108,27 @@ impl Engine for ParakeetEngine {
     fn load(&mut self, progress: &mut dyn FnMut(f32)) -> Result<(), String> {
         let root = default_models_dir().ok_or("no local data folder for the model")?;
         let dir = root.join(PARAKEET_V3_INT8.dir_name);
-        if !is_installed(&dir, &PARAKEET_V3_INT8) {
+        let fetch = |progress: &mut dyn FnMut(f32)| {
             ensure(&dir, &PARAKEET_V3_INT8, &UreqFetch, &mut |done, total| {
                 progress(done as f32 / total.max(1) as f32)
-            })?;
+            })
+        };
+        if !is_installed(&dir, &PARAKEET_V3_INT8) {
+            fetch(progress)?;
         }
-        let recognizer = Recognizer::load(&dir).map_err(|e| {
-            // The engine crate words its own error the same way; avoid saying it twice.
-            e.strip_prefix(LOAD_PREFIX).unwrap_or(&e).to_string()
-        })?;
+        let strip = |e: String| e.strip_prefix(LOAD_PREFIX).unwrap_or(&e).to_string();
+        let recognizer = match Recognizer::load(&dir) {
+            Ok(r) => r,
+            Err(first) => {
+                // Installed files are trusted on size at launch. A failed load may mean a
+                // corrupted one: re-hash, drop bad files, download them again, try once more.
+                eprintln!("model load failed ({first}), verifying the installed files");
+                verify_installed(&dir, &PARAKEET_V3_INT8)?;
+                fetch(progress)?;
+                // The engine crate words its own error the same way; avoid saying it twice.
+                Recognizer::load(&dir).map_err(strip)?
+            }
+        };
         self.recognizer = Some(recognizer);
         Ok(())
     }

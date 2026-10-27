@@ -36,8 +36,11 @@ pub struct Runner<R: Recorder> {
 
 impl<R: Recorder> Runner<R> {
     /// `first_job_id` is where this controller's job ids start (see `Controller::with_first_job_id`).
-    pub fn new(recorder: R, first_job_id: u64) -> Self {
-        let controller = Controller::new(recorder).with_first_job_id(first_job_id);
+    /// `model` is the latest status the recognizer reported: it sends Ready once, so a controller
+    /// restarted later has to be told, or every dictation would wait for a Ready that never comes.
+    pub fn new(recorder: R, first_job_id: u64, model: ModelStatus) -> Self {
+        let mut controller = Controller::new(recorder).with_first_job_id(first_job_id);
+        controller.on_model(model);
         let last = controller.view();
         Self { controller, last }
     }
@@ -143,7 +146,7 @@ mod tests {
 
     /// Records a one second hold with the model ready; returns the runner in Transcribing.
     fn transcribing() -> Runner<FakeRecorder> {
-        let mut runner = Runner::new(FakeRecorder, 1);
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
         runner.step(Msg::Model(ModelStatus::Ready), 9.0);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         let up = runner.step(rctrl(WM_KEYUP), 11.0).expect("view changes");
@@ -153,7 +156,7 @@ mod tests {
 
     #[test]
     fn one_second_hold_goes_listening_then_transcribing() {
-        let mut runner = Runner::new(FakeRecorder, 1);
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
         runner.step(Msg::Model(ModelStatus::Ready), 9.0);
         let down = runner.step(rctrl(WM_KEYDOWN), 10.0).expect("view changes");
         assert_eq!(down.phase, Phase::Listening);
@@ -176,7 +179,7 @@ mod tests {
 
     #[test]
     fn first_job_id_is_the_one_given() {
-        let mut runner = Runner::new(FakeRecorder, 1 << 32);
+        let mut runner = Runner::new(FakeRecorder, 1 << 32, ModelStatus::Loading);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         runner.step(rctrl(WM_KEYUP), 11.0);
         assert_eq!(runner.take_job().map(|j| j.id), Some(1 << 32));
@@ -245,7 +248,7 @@ mod tests {
 
     #[test]
     fn a_dictation_before_the_model_waits_and_shows_the_download() {
-        let mut runner = Runner::new(FakeRecorder, 1);
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         let waiting = runner.step(rctrl(WM_KEYUP), 11.0).expect("view changes");
         assert_eq!(waiting.stage, Some(Stage::Loading));
@@ -261,8 +264,17 @@ mod tests {
     }
 
     #[test]
+    fn a_restarted_controller_starts_from_the_known_model_status() {
+        // The recognizer reports Ready once; a controller restarted after that must not wait for it.
+        let mut runner = Runner::new(FakeRecorder, 1 << 32, ModelStatus::Ready);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        let up = runner.step(rctrl(WM_KEYUP), 11.0).expect("view changes");
+        assert_eq!(up.stage, Some(Stage::Transcribing));
+    }
+
+    #[test]
     fn model_status_while_idle_changes_nothing() {
-        let mut runner = Runner::new(FakeRecorder, 1);
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
         assert!(runner
             .step(Msg::Model(ModelStatus::Downloading(0.5)), 1.0)
             .is_none());
@@ -284,7 +296,7 @@ mod tests {
 
     #[test]
     fn a_stream_error_while_listening_fails_the_view() {
-        let mut runner = Runner::new(FakeRecorder, 1);
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         let view = runner
             .step(Msg::StreamError(CaptureError::Other("lost".into())), 10.5)
@@ -295,13 +307,13 @@ mod tests {
 
     #[test]
     fn a_tick_with_no_change_returns_none() {
-        let mut runner = Runner::new(FakeRecorder, 1);
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
         assert!(runner.step(Msg::Tick, 1.0).is_none());
     }
 
     #[test]
     fn levels_while_listening_move_the_bars() {
-        let mut runner = Runner::new(FakeRecorder, 1);
+        let mut runner = Runner::new(FakeRecorder, 1, ModelStatus::Loading);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         let view = runner.step(Msg::Level(1.0), 10.1).expect("levels change");
         assert_eq!(view.levels.len(), 32);

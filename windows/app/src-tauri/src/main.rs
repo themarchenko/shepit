@@ -10,11 +10,11 @@ mod widget;
 use controller::{log_line, Msg, Runner};
 use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
-use shepit_core::dictation::{Job, Phase, View};
+use shepit_core::dictation::{Job, ModelStatus, Phase, View};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -109,11 +109,13 @@ fn run_controller(
     wanted: Arc<AtomicU64>,
 ) {
     let mut job_id_base: u64 = 0;
+    // Outlives the loop below: filled from every Model message before the controller sees it.
+    let model = Arc::new(Mutex::new(ModelStatus::Loading));
     loop {
         // Ids start at 1; 0 means "no job wanted".
         let first_job_id = job_id_base + 1;
         let result = catch_unwind(AssertUnwindSafe(|| {
-            controller_loop(&app, &tx, &rx, &jobs, &wanted, first_job_id)
+            controller_loop(&app, &tx, &rx, &jobs, &wanted, first_job_id, &model)
         }));
         if result.is_ok() {
             return;
@@ -135,9 +137,11 @@ fn controller_loop(
     jobs: &Sender<Job>,
     wanted: &AtomicU64,
     first_job_id: u64,
+    model: &Mutex<ModelStatus>,
 ) {
     let epoch = Instant::now();
-    let mut runner = Runner::new(CpalRecorder::new(tx.clone()), first_job_id);
+    let known = *model.lock().unwrap_or_else(|e| e.into_inner());
+    let mut runner = Runner::new(CpalRecorder::new(tx.clone()), first_job_id, known);
     let mut tooltip = String::from("Shepit");
     let mut last_view: Option<View> = None;
     let mut listening_since: Option<Instant> = None;
@@ -148,6 +152,7 @@ fn controller_loop(
             Err(RecvTimeoutError::Disconnected) => return,
         };
         if let Msg::Model(status) = &msg {
+            *model.lock().unwrap_or_else(|e| e.into_inner()) = *status;
             set_tooltip(app, &mut tooltip, tray::tooltip_for(*status));
         }
         // A tick after every message keeps the failed reset on time while keys keep arriving.
