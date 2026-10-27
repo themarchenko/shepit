@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reset-widget-position"
+description = "Enables the reset_widget_position command without any pre-configured scope."
+commands.allow = ["reset_widget_position"]
+
+[[permission]]
+identifier = "deny-reset-widget-position"
+description = "Denies the reset_widget_position command without any pre-configured scope."
+commands.deny = ["reset_widget_position"]

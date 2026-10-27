@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-microphone-privacy"
+description = "Enables the open_microphone_privacy command without any pre-configured scope."
+commands.allow = ["open_microphone_privacy"]
+
+[[permission]]
+identifier = "deny-open-microphone-privacy"
+description = "Denies the open_microphone_privacy command without any pre-configured scope."
+commands.deny = ["open_microphone_privacy"]
