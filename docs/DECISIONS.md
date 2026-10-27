@@ -737,7 +737,7 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
 - Settings read rule for `dictionary`: an array with any non-string element gives an empty list (the plan said to drop the
   non-strings; the landed read rule and its test were kept). The patch normalizes (split on line breaks, trim, drop blanks).
 - Deviations from the plan that landed: `Msg::SttMs` (timing sent before `Recognized`) and `Msg::FormattedWith` (profile, mode,
-  source, language, new terms, latency) were added next to the existing messages to leave about 140 call sites alone; the
+  source, language, new terms, latency) were added next to the existing messages to leave the many existing test call sites alone; the
   History window has its own capability file `history.json`, so it cannot call `update_settings`.
 - Device checks open: a row and a WAV after a dictation; none for a password field; Clear history on disk; Open folder; copy in
   WebView2; the History window at 100% and 150% scaling with a dark title bar; a learned term appearing in the open Dictionary
