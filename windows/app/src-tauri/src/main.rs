@@ -2,20 +2,31 @@
 
 mod controller;
 mod hook;
+mod recognizer;
 mod recorder;
 mod tray;
 mod widget;
 
-use controller::{Msg, Runner};
+use controller::{log_line, Msg, Runner};
+use recognizer::ParakeetEngine;
 use recorder::CpalRecorder;
-use shepit_core::dictation::{Phase, View};
+use shepit_core::dictation::{Job, Phase, View};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
+
+/// Looked up later to change the tooltip while the model downloads.
+const TRAY_ID: &str = "main";
+
+/// Added to the job id base per controller restart, so a result from the old controller can never
+/// match a job of the new one.
+const JOB_ID_STRIDE: u64 = 1 << 32;
 
 fn main() {
     tauri::Builder::default()
@@ -32,7 +43,7 @@ fn main() {
                 .item(&quit)
                 .build()?;
 
-            let mut tray = TrayIconBuilder::new()
+            let mut tray = TrayIconBuilder::with_id(TRAY_ID)
                 .tooltip("Shepit")
                 .menu(&menu)
                 .on_menu_event(|app, event| {
@@ -67,11 +78,21 @@ fn main() {
             // Bounded so a stalled controller cannot grow memory; senders drop on full.
             let (tx, rx) = mpsc::sync_channel::<Msg>(256);
             hook::start(tx.clone(), shepit_core::keys::VK_RCONTROL);
+            // One recognizer for the whole run: it outlives controller restarts, so the model is
+            // loaded once. It preloads (and downloads) at launch.
+            let (job_tx, job_rx) = mpsc::channel::<Job>();
+            let wanted = Arc::new(AtomicU64::new(0));
+            {
+                let (wanted, tx) = (wanted.clone(), tx.clone());
+                std::thread::Builder::new()
+                    .name("recognizer".into())
+                    .spawn(move || recognizer::run(ParakeetEngine::new(), job_rx, wanted, tx))?;
+            }
             let handle = app.handle().clone();
             // The recorder is built inside the thread: a cpal Stream may not be Send.
             std::thread::Builder::new()
                 .name("controller".into())
-                .spawn(move || run_controller(handle, tx, rx))?;
+                .spawn(move || run_controller(handle, tx, rx, job_tx, wanted))?;
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -80,23 +101,44 @@ fn main() {
 
 /// Runs the controller loop and restarts it with a fresh controller if it panics, so the hotkey
 /// keeps working. The receiver outlives the loop; only the controller state is lost.
-fn run_controller(app: AppHandle, tx: SyncSender<Msg>, rx: Receiver<Msg>) {
+fn run_controller(
+    app: AppHandle,
+    tx: SyncSender<Msg>,
+    rx: Receiver<Msg>,
+    jobs: Sender<Job>,
+    wanted: Arc<AtomicU64>,
+) {
+    let mut job_id_base: u64 = 0;
     loop {
-        let result = catch_unwind(AssertUnwindSafe(|| controller_loop(&app, &tx, &rx)));
+        // Ids start at 1; 0 means "no job wanted".
+        let first_job_id = job_id_base + 1;
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            controller_loop(&app, &tx, &rx, &jobs, &wanted, first_job_id)
+        }));
         if result.is_ok() {
             return;
         }
         // No payload in the log: it could carry key data.
         eprintln!("controller thread panicked, restarting");
+        job_id_base += JOB_ID_STRIDE;
+        wanted.store(0, Ordering::SeqCst);
         apply_view(&app, &widget::idle_view(), true);
     }
 }
 
 /// Owns the dictation controller: feeds it hook and level messages, polls it every 100 ms and
 /// pushes each view change to the widget.
-fn controller_loop(app: &AppHandle, tx: &SyncSender<Msg>, rx: &Receiver<Msg>) {
+fn controller_loop(
+    app: &AppHandle,
+    tx: &SyncSender<Msg>,
+    rx: &Receiver<Msg>,
+    jobs: &Sender<Job>,
+    wanted: &AtomicU64,
+    first_job_id: u64,
+) {
     let epoch = Instant::now();
-    let mut runner = Runner::new(CpalRecorder::new(tx.clone()));
+    let mut runner = Runner::new(CpalRecorder::new(tx.clone()), first_job_id);
+    let mut tooltip = String::from("Shepit");
     let mut last_view: Option<View> = None;
     let mut listening_since: Option<Instant> = None;
     loop {
@@ -105,15 +147,40 @@ fn controller_loop(app: &AppHandle, tx: &SyncSender<Msg>, rx: &Receiver<Msg>) {
             Err(RecvTimeoutError::Timeout) => Msg::Tick,
             Err(RecvTimeoutError::Disconnected) => return,
         };
+        if let Msg::Model(status) = &msg {
+            set_tooltip(app, &mut tooltip, tray::tooltip_for(*status));
+        }
         // A tick after every message keeps the failed reset on time while keys keep arriving.
         let now = Instant::now();
-        let changed = [
+        let mut changed = [
             runner.step_at(msg, epoch, now),
             runner.step_at(Msg::Tick, epoch, now),
         ]
         .into_iter()
         .flatten()
         .last();
+        // The wanted id goes first: the worker skips a job it has not started once Esc cleared it.
+        wanted.store(runner.wanted(), Ordering::SeqCst);
+        if let Some(job) = runner.take_job() {
+            let id = job.id;
+            if jobs.send(job).is_err() {
+                let fed = runner.step_at(
+                    Msg::Recognized {
+                        id,
+                        result: Err("Recognizer is not running".into()),
+                    },
+                    epoch,
+                    Instant::now(),
+                );
+                changed = fed.or(changed);
+                wanted.store(runner.wanted(), Ordering::SeqCst);
+            }
+        }
+        if let Some(text) = runner.take_result() {
+            if let Some(line) = log_line(&text, cfg!(debug_assertions)) {
+                println!("{line}");
+            }
+        }
         let Some(view) = changed else { continue };
         match (view.phase, listening_since) {
             (Phase::Listening, None) => listening_since = Some(now),
@@ -130,6 +197,18 @@ fn controller_loop(app: &AppHandle, tx: &SyncSender<Msg>, rx: &Receiver<Msg>) {
         apply_view(app, &view, resize);
         last_view = Some(view);
     }
+}
+
+fn set_tooltip(app: &AppHandle, current: &mut String, text: String) {
+    if *current == text {
+        return;
+    }
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        if let Err(err) = tray.set_tooltip(Some(text.as_str())) {
+            eprintln!("could not set the tray tooltip: {err}");
+        }
+    }
+    *current = text;
 }
 
 /// Re-seats the widget when `resize` is set, then sends it the state.

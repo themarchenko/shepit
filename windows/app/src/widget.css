@@ -39,6 +39,12 @@ body,
   width: 166px;
 }
 
+.pill.processing {
+  width: 112px;
+  height: 32px;
+}
+
+.pill.done,
 .pill.failed {
   width: 44px;
   height: 32px;
@@ -50,7 +56,7 @@ body,
   background: rgb(244, 242, 238);
 }
 
-/* Sits 8px above the failed pill: 26 + 32 + 8 from the window bottom. */
+/* Sits 8px above the pill: 26 + 32 + 8 from the window bottom. */
 .caption {
   position: absolute;
   left: 50%;
@@ -74,4 +80,9 @@ body,
   line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* WidgetPalette.dim: the processing label is quieter than a result. */
+.caption.dim {
+  color: rgba(244, 242, 238, 0.46);
 }

@@ -1,5 +1,5 @@
 use serde::Serialize;
-use shepit_core::dictation::{Phase, View};
+use shepit_core::dictation::{Phase, Stage, View};
 
 /// Logical window size for a view: the shape plus the shadow margin of 28 x 26 on each side, and
 /// for a failed view the 440 px caption row (WidgetModel.swift:84, 87-102, 132-147).
@@ -30,7 +30,8 @@ pub fn needs_resize(old: &View, new: &View) -> bool {
     old.phase != new.phase || old.hands_free != new.hands_free
 }
 
-/// The `widget-state` event payload: {"phase","handsFree","message","levels"}.
+/// The `widget-state` event payload: {"phase","handsFree","message","levels","stage","progress"}.
+/// `stage` and `progress` are always present and null when they do not apply.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WidgetState {
@@ -38,6 +39,8 @@ pub struct WidgetState {
     pub hands_free: bool,
     pub message: String,
     pub levels: Vec<f32>,
+    pub stage: Option<&'static str>,
+    pub progress: Option<f32>,
 }
 
 impl WidgetState {
@@ -54,6 +57,11 @@ impl WidgetState {
             hands_free: view.hands_free,
             message: view.message.clone(),
             levels: view.levels.clone(),
+            stage: view.stage.map(|s| match s {
+                Stage::Loading => "loading",
+                Stage::Transcribing => "transcribing",
+            }),
+            progress: view.progress,
         }
     }
 }
@@ -91,6 +99,7 @@ pub fn default_position(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shepit_core::dictation::Stage;
 
     fn view(phase: Phase, hands_free: bool, message: &str) -> View {
         View {
@@ -108,6 +117,8 @@ mod tests {
             view(Phase::Idle, false, ""),
             view(Phase::Listening, false, ""),
             view(Phase::Listening, true, ""),
+            view(Phase::Processing, false, ""),
+            view(Phase::Done, false, "hello"),
             view(Phase::Failed, false, "Microphone: no microphone found"),
         ]
     }
@@ -160,6 +171,26 @@ mod tests {
     }
 
     #[test]
+    fn processing_and_done_windows_are_520_by_126() {
+        assert_eq!(
+            window_size(&view(Phase::Processing, false, "")),
+            (520.0, 126.0)
+        );
+        assert_eq!(window_size(&view(Phase::Done, false, "hi")), (520.0, 126.0));
+    }
+
+    #[test]
+    fn a_stage_or_progress_change_alone_does_not_resize() {
+        let mut loading = view(Phase::Processing, false, "");
+        loading.stage = Some(Stage::Loading);
+        loading.progress = Some(0.3);
+        let mut transcribing = loading.clone();
+        transcribing.stage = Some(Stage::Transcribing);
+        transcribing.progress = None;
+        assert!(!needs_resize(&loading, &transcribing));
+    }
+
+    #[test]
     fn pill_stays_34_above_work_area_for_every_phase_at_scale_1() {
         for v in all_views() {
             let (w, h) = window_size(&v);
@@ -188,12 +219,49 @@ mod tests {
         let obj = json.as_object().unwrap();
         let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
         keys.sort();
-        assert_eq!(keys, ["handsFree", "levels", "message", "phase"]);
+        assert_eq!(
+            keys,
+            [
+                "handsFree",
+                "levels",
+                "message",
+                "phase",
+                "progress",
+                "stage"
+            ]
+        );
         assert_eq!(obj["phase"], "listening");
         assert_eq!(obj["handsFree"], true);
         assert_eq!(obj["message"], "");
         assert_eq!(obj["levels"].as_array().unwrap().len(), 32);
         assert_eq!(obj["levels"][31], 0.5);
+        // Present as null so the frontend never sees a missing key.
+        assert!(obj["progress"].is_null());
+        assert!(obj["stage"].is_null());
+    }
+
+    #[test]
+    fn processing_payload_carries_stage_and_progress() {
+        let mut v = view(Phase::Processing, false, "");
+        v.stage = Some(Stage::Loading);
+        v.progress = Some(0.5);
+        let json = serde_json::to_value(WidgetState::from_view(&v)).unwrap();
+        assert_eq!(json["phase"], "processing");
+        assert_eq!(json["stage"], "loading");
+        assert_eq!(json["progress"], 0.5);
+        v.stage = Some(Stage::Transcribing);
+        v.progress = None;
+        let json = serde_json::to_value(WidgetState::from_view(&v)).unwrap();
+        assert_eq!(json["stage"], "transcribing");
+        assert!(json["progress"].is_null());
+    }
+
+    #[test]
+    fn done_payload_carries_the_preview() {
+        let json =
+            serde_json::to_value(WidgetState::from_view(&view(Phase::Done, false, "hi"))).unwrap();
+        assert_eq!(json["phase"], "done");
+        assert_eq!(json["message"], "hi");
     }
 
     #[test]
@@ -202,7 +270,17 @@ mod tests {
             .iter()
             .map(|v| WidgetState::from_view(v).phase)
             .collect();
-        assert_eq!(phases, ["idle", "listening", "listening", "failed"]);
+        assert_eq!(
+            phases,
+            [
+                "idle",
+                "listening",
+                "listening",
+                "processing",
+                "done",
+                "failed"
+            ]
+        );
     }
 
     #[test]

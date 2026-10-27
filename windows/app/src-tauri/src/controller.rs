@@ -1,6 +1,6 @@
 //! The controller loop body, free of Tauri and cpal so it runs in tests on any host.
 
-use shepit_core::dictation::{CaptureError, Controller, Recorder, View};
+use shepit_core::dictation::{CaptureError, Controller, Job, ModelStatus, Recorder, View};
 use shepit_core::keys::RawKey;
 use std::time::Instant;
 
@@ -17,6 +17,13 @@ pub enum Msg {
     Level(f32),
     /// The capture stream reported an error while recording.
     StreamError(CaptureError),
+    /// The recognizer's download and load state.
+    Model(ModelStatus),
+    /// The recognizer finished (or gave up on) job `id`.
+    Recognized {
+        id: u64,
+        result: Result<String, String>,
+    },
     /// The 100 ms receive timeout: lets the failed state reset.
     Tick,
 }
@@ -28,8 +35,9 @@ pub struct Runner<R: Recorder> {
 }
 
 impl<R: Recorder> Runner<R> {
-    pub fn new(recorder: R) -> Self {
-        let controller = Controller::new(recorder);
+    /// `first_job_id` is where this controller's job ids start (see `Controller::with_first_job_id`).
+    pub fn new(recorder: R, first_job_id: u64) -> Self {
+        let controller = Controller::new(recorder).with_first_job_id(first_job_id);
         let last = controller.view();
         Self { controller, last }
     }
@@ -41,6 +49,8 @@ impl<R: Recorder> Runner<R> {
             Msg::Key(raw) | Msg::KeyAt(raw, _) => self.controller.on_key(raw, now),
             Msg::Level(level) => self.controller.on_level(level),
             Msg::StreamError(err) => self.controller.on_stream_error(err, now),
+            Msg::Model(status) => self.controller.on_model(status),
+            Msg::Recognized { id, result } => self.controller.on_recognized(id, result, now),
             Msg::Tick => self.controller.poll(now),
         }
         let view = self.controller.view();
@@ -62,19 +72,44 @@ impl<R: Recorder> Runner<R> {
         }
     }
 
-    /// Compatibility shim until the recognizer is wired (chunk C): the core now hands out a
-    /// `Job` instead of a raw capture.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub fn take_capture(&mut self) -> Option<Vec<f32>> {
-        self.controller.take_job().map(|job| job.samples)
+    /// The job created by the last stop, handed over once.
+    pub fn take_job(&mut self) -> Option<Job> {
+        self.controller.take_job()
+    }
+
+    /// The id of the job whose result is still wanted, or 0. Job ids start at 1.
+    pub fn wanted(&self) -> u64 {
+        self.controller.current_job().unwrap_or(0)
+    }
+
+    /// The accepted transcript, handed over once.
+    pub fn take_result(&mut self) -> Option<String> {
+        self.controller.take_result()
     }
 }
+
+/// The log line for an accepted transcript. Release builds pass `include_text` false: a
+/// transcript is the user's speech and stays out of the log. Debug builds log 80 characters.
+pub fn log_line(text: &str, include_text: bool) -> Option<String> {
+    if !include_text {
+        return None;
+    }
+    let shown: String = text
+        .chars()
+        .take(LOG_TEXT_CHARS)
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    Some(format!("transcript: {shown}"))
+}
+
+/// Debug builds log this many characters of a transcript (docs/spec/polishing.md:76).
+const LOG_TEXT_CHARS: usize = 80;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shepit_core::dictation::{CaptureError, Phase};
-    use shepit_core::keys::{LLKHF_EXTENDED, VK_RCONTROL, WM_KEYDOWN, WM_KEYUP};
+    use shepit_core::dictation::{CaptureError, Phase, Stage};
+    use shepit_core::keys::{LLKHF_EXTENDED, VK_ESCAPE, VK_RCONTROL, WM_KEYDOWN, WM_KEYUP};
 
     struct FakeRecorder;
 
@@ -98,29 +133,158 @@ mod tests {
         })
     }
 
+    fn esc() -> Msg {
+        Msg::Key(RawKey {
+            message: WM_KEYDOWN,
+            vk: VK_ESCAPE,
+            flags: 0,
+        })
+    }
+
+    /// Records a one second hold with the model ready; returns the runner in Transcribing.
+    fn transcribing() -> Runner<FakeRecorder> {
+        let mut runner = Runner::new(FakeRecorder, 1);
+        runner.step(Msg::Model(ModelStatus::Ready), 9.0);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        let up = runner.step(rctrl(WM_KEYUP), 11.0).expect("view changes");
+        assert_eq!(up.phase, Phase::Processing);
+        runner
+    }
+
     #[test]
-    fn one_second_hold_goes_listening_then_processing() {
-        let mut runner = Runner::new(FakeRecorder);
+    fn one_second_hold_goes_listening_then_transcribing() {
+        let mut runner = Runner::new(FakeRecorder, 1);
+        runner.step(Msg::Model(ModelStatus::Ready), 9.0);
         let down = runner.step(rctrl(WM_KEYDOWN), 10.0).expect("view changes");
         assert_eq!(down.phase, Phase::Listening);
         assert!(!down.hands_free);
 
-        // Chunk C wires the recognizer; until then a kept hold waits in Processing.
         let up = runner.step(rctrl(WM_KEYUP), 11.0).expect("view changes");
         assert_eq!(up.phase, Phase::Processing);
+        assert_eq!(up.stage, Some(Stage::Transcribing));
     }
 
     #[test]
-    fn a_kept_hold_leaves_its_audio_for_the_next_task() {
-        let mut runner = Runner::new(FakeRecorder);
+    fn a_kept_hold_hands_out_one_job_and_wants_its_id() {
+        let mut runner = transcribing();
+        assert_eq!(runner.wanted(), 1);
+        let job = runner.take_job().expect("a job");
+        assert_eq!(job.id, 1);
+        assert_eq!(job.samples.len(), 16_000);
+        assert!(runner.take_job().is_none());
+    }
+
+    #[test]
+    fn first_job_id_is_the_one_given() {
+        let mut runner = Runner::new(FakeRecorder, 1 << 32);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         runner.step(rctrl(WM_KEYUP), 11.0);
-        assert_eq!(runner.take_capture().map(|s| s.len()), Some(16_000));
+        assert_eq!(runner.take_job().map(|j| j.id), Some(1 << 32));
+    }
+
+    #[test]
+    fn a_result_for_the_job_finishes_it_and_hands_out_the_text() {
+        let mut runner = transcribing();
+        let done = runner
+            .step(
+                Msg::Recognized {
+                    id: 1,
+                    result: Ok("hello there".into()),
+                },
+                12.0,
+            )
+            .expect("view changes");
+        assert_eq!(done.phase, Phase::Done);
+        assert_eq!(done.message, "hello there");
+        assert_eq!(runner.wanted(), 0);
+        assert_eq!(runner.take_result().as_deref(), Some("hello there"));
+        assert!(runner.take_result().is_none());
+    }
+
+    #[test]
+    fn a_stale_result_is_dropped() {
+        let mut runner = transcribing();
+        let stale = Msg::Recognized {
+            id: 1 << 32,
+            result: Ok("old".into()),
+        };
+        assert!(runner.step(stale, 12.0).is_none());
+        assert_eq!(runner.wanted(), 1);
+        assert!(runner.take_result().is_none());
+    }
+
+    #[test]
+    fn esc_while_transcribing_goes_idle_and_the_late_result_is_ignored() {
+        let mut runner = transcribing();
+        let idle = runner.step(esc(), 11.5).expect("view changes");
+        assert_eq!(idle.phase, Phase::Idle);
+        assert_eq!(runner.wanted(), 0);
+        let late = Msg::Recognized {
+            id: 1,
+            result: Ok("late".into()),
+        };
+        assert!(runner.step(late, 12.0).is_none());
+        assert!(runner.take_result().is_none());
+    }
+
+    #[test]
+    fn a_recognizer_error_fails_the_view_with_its_text() {
+        let mut runner = transcribing();
+        let failed = runner
+            .step(
+                Msg::Recognized {
+                    id: 1,
+                    result: Err("Recognizer is not running".into()),
+                },
+                12.0,
+            )
+            .expect("view changes");
+        assert_eq!(failed.phase, Phase::Failed);
+        assert_eq!(failed.message, "Recognizer is not running");
+    }
+
+    #[test]
+    fn a_dictation_before_the_model_waits_and_shows_the_download() {
+        let mut runner = Runner::new(FakeRecorder, 1);
+        runner.step(rctrl(WM_KEYDOWN), 10.0);
+        let waiting = runner.step(rctrl(WM_KEYUP), 11.0).expect("view changes");
+        assert_eq!(waiting.stage, Some(Stage::Loading));
+        let p = runner
+            .step(Msg::Model(ModelStatus::Downloading(0.42)), 11.2)
+            .expect("progress shows");
+        assert_eq!(p.progress, Some(0.42));
+        let ready = runner
+            .step(Msg::Model(ModelStatus::Ready), 12.0)
+            .expect("view changes");
+        assert_eq!(ready.stage, Some(Stage::Transcribing));
+        assert_eq!(ready.progress, None);
+    }
+
+    #[test]
+    fn model_status_while_idle_changes_nothing() {
+        let mut runner = Runner::new(FakeRecorder, 1);
+        assert!(runner
+            .step(Msg::Model(ModelStatus::Downloading(0.5)), 1.0)
+            .is_none());
+    }
+
+    #[test]
+    fn log_line_is_none_when_text_is_not_allowed() {
+        assert_eq!(log_line("secret words", false), None);
+    }
+
+    #[test]
+    fn log_line_keeps_at_most_80_characters_of_text() {
+        let long = "ж".repeat(200);
+        let line = log_line(&long, true).expect("a line");
+        assert_eq!(line.matches('ж').count(), 80);
+        let short = log_line("hi\nthere", true).expect("a line");
+        assert!(short.ends_with("hi there"), "{short}");
     }
 
     #[test]
     fn a_stream_error_while_listening_fails_the_view() {
-        let mut runner = Runner::new(FakeRecorder);
+        let mut runner = Runner::new(FakeRecorder, 1);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         let view = runner
             .step(Msg::StreamError(CaptureError::Other("lost".into())), 10.5)
@@ -131,13 +295,13 @@ mod tests {
 
     #[test]
     fn a_tick_with_no_change_returns_none() {
-        let mut runner = Runner::new(FakeRecorder);
+        let mut runner = Runner::new(FakeRecorder, 1);
         assert!(runner.step(Msg::Tick, 1.0).is_none());
     }
 
     #[test]
     fn levels_while_listening_move_the_bars() {
-        let mut runner = Runner::new(FakeRecorder);
+        let mut runner = Runner::new(FakeRecorder, 1);
         runner.step(rctrl(WM_KEYDOWN), 10.0);
         let view = runner.step(Msg::Level(1.0), 10.1).expect("levels change");
         assert_eq!(view.levels.len(), 32);

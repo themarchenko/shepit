@@ -3749,6 +3749,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shepit-core",
+ "shepit-engine",
  "tauri",
  "tauri-build",
  "tauri-plugin-single-instance",
