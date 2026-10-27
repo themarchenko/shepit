@@ -52,7 +52,7 @@ Source: DictationSession.swift:140-227.
 
 1. Save the audio to the recordings store before anything can fail (:142-151). Save failures are logged and ignored.
 
-   Windows (windows/core/src/dictation.rs:397-402; windows/app/src-tauri/src/history_worker.rs): the audio is saved when the dictation ends, not at stop, so a dictation into a password field (captured flag true, or an insert refused for it) keeps no audio and no row. Every other end after the 0.4 s check keeps the audio: the speech gate, digital silence, a recognizer error or junk transcript, an insert error and Esc while busy. The WAV is written before the row and survives a history store error (history.md, Windows). macOS lags.
+   Windows (windows/core/src/dictation.rs:397-402; windows/app/src-tauri/src/history_worker.rs): the audio is saved when the dictation ends, not at stop, so a dictation into a password field (captured flag true, or an insert refused for it) keeps no audio and no row. Every other end after the 0.4 s check (the speech gate, digital silence, a recognizer error or junk transcript, an insert error, Esc while busy) keeps the audio only when the captured flag is false; an unread or unreadable flag (None) keeps nothing, because those ends can come before the flag arrives. The WAV is written before the row and survives a history store error (history.md, Windows). macOS lags.
 2. Speech gate (above). Fail "Nothing recognized".
 3. Get the selected engine; state `transcribing`, or `loading_model` first if another engine is loaded (:162-170).
 4. Transcribe. If the progressive transcriber already has a finished result, use it; else transcribe the whole recording with the hints (:174-179). Hints are built when recording starts (see dictionary.md and language.md).

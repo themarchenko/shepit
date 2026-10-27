@@ -391,13 +391,15 @@ impl<R: Recorder> Controller<R> {
     }
 
     /// Ends the current run, if any, into `finished`. `inserted` is the outcome when the text
-    /// reached the target; without it only the audio is kept. A dictation into a password field
-    /// keeps neither (the flag is the one captured when recording started), and neither does one
-    /// whose insert was refused for that reason.
+    /// reached the target; without it only the audio is kept. The flag is the one captured when
+    /// recording started. After an insert, a password field keeps neither audio nor row, and
+    /// neither does one whose insert was refused for that reason. Without an insert the audio is
+    /// kept only when the flag says the field was clear: an unread or unreadable flag (None) is
+    /// not proof, and an early end such as silence or Esc can come before the flag is read.
     fn finish(&mut self, inserted: Option<InsertOutcome>, refused: bool) {
         let Some(run) = self.run.take() else { return };
-        let password = self.context.as_ref().and_then(|c| c.password) == Some(true);
-        if password || refused {
+        let flag = self.context.as_ref().and_then(|c| c.password);
+        if refused || flag == Some(true) || (inserted.is_none() && flag != Some(false)) {
             return;
         }
         let record = match (inserted, run.formatted) {
@@ -1985,6 +1987,34 @@ mod tests {
     }
 
     #[test]
+    fn no_start_can_replace_a_run_that_is_still_formatting_or_inserting() {
+        // `start` drops `run` without finishing it. That is safe only because every way to start
+        // is refused while busy: a hotkey press and both widget inputs.
+        type Reach = fn(&mut Controller<FakeRecorder>) -> u64;
+        let stages: [(&str, Reach); 2] = [
+            ("formatting", |c| {
+                formatting_with(c, Some(app_context(Some(false))))
+            }),
+            ("inserting", |c| {
+                inserting_with(c, Some(app_context(Some(false))), meta())
+            }),
+        ];
+        for (what, reach) in stages {
+            let (mut c, shared) = setup_ready();
+            let id = reach(&mut c);
+            press(&mut c, 3.0);
+            c.on_widget(WidgetInput::Click, 3.1);
+            c.on_widget(WidgetInput::HoldBegan, 3.2);
+            assert_eq!(shared.starts.get(), 1, "{what}: a start got through");
+            esc(&mut c, 3.3);
+            let f = c
+                .take_finished()
+                .unwrap_or_else(|| panic!("{what}: run lost"));
+            assert_eq!(f.id, id, "{what}");
+        }
+    }
+
+    #[test]
     fn an_accepted_transcript_gives_a_format_job_once() {
         let (mut c, _s) = setup_ready();
         let id = formatting(&mut c, "hello there");
@@ -2413,12 +2443,16 @@ mod tests {
         type Reach = fn(&mut Controller<FakeRecorder>) -> u64;
         let stages: [(&str, Reach); 3] = [
             ("transcribing", |c| {
-                let id = begin(c, None);
+                let id = begin(c, Some(app_context(Some(false))));
                 c.take_job().expect("job");
                 id
             }),
-            ("formatting", |c| formatting_with(c, None)),
-            ("inserting", |c| inserting_with(c, None, meta())),
+            ("formatting", |c| {
+                formatting_with(c, Some(app_context(Some(false))))
+            }),
+            ("inserting", |c| {
+                inserting_with(c, Some(app_context(Some(false))), meta())
+            }),
         ];
         for (what, reach) in stages {
             let (mut c, _s) = setup_ready();
@@ -2508,6 +2542,59 @@ mod tests {
         shared.quiet.set(true);
         begin(&mut c, Some(app_context(Some(true))));
         assert_nothing_kept(&mut c, "speech gate");
+    }
+
+    #[test]
+    fn an_early_end_keeps_the_audio_only_when_the_flag_says_clear() {
+        // Digital silence, the speech gate, a recognizer error, Esc and an insert error all end
+        // without a successful insert. A flag that was never read or could not be read (None)
+        // is not proof the field was clear, so only Some(false) keeps the audio.
+        type End = fn(&mut Controller<FakeRecorder>, Option<bool>);
+        let ends: [(&str, End); 6] = [
+            ("digital silence", |c, flag| {
+                begin(c, Some(app_context(flag)));
+            }),
+            ("speech gate", |c, flag| {
+                begin(c, Some(app_context(flag)));
+            }),
+            ("recognizer error", |c, flag| {
+                let id = begin(c, Some(app_context(flag)));
+                c.take_job().expect("job");
+                c.on_recognized(id, Err("Transcription failed: boom".into()), 2.0);
+            }),
+            ("esc while formatting", |c, flag| {
+                formatting_with(c, Some(app_context(flag)));
+                esc(c, 2.5);
+            }),
+            ("insert error", |c, flag| {
+                let id = inserting_with(c, Some(app_context(flag)), meta());
+                c.on_inserted(id, Err(crate::insert::CLIPBOARD_BUSY.into()), 3.0);
+            }),
+            ("context never arrived", |c, _| {
+                let id = formatting_with(c, None);
+                c.on_formatted_with(id, "x".into(), meta(), 2.2);
+                c.take_insert().expect("insert job");
+                esc(c, 2.5);
+            }),
+        ];
+        for (what, end) in ends {
+            for flag in [None, Some(true), Some(false)] {
+                let (mut c, shared) = setup_ready();
+                match what {
+                    "digital silence" => shared.silent.set(true),
+                    "speech gate" => shared.quiet.set(true),
+                    _ => {}
+                }
+                end(&mut c, flag);
+                if what == "context never arrived" || flag != Some(false) {
+                    assert_nothing_kept(&mut c, &format!("{what} with {flag:?}"));
+                    assert_eq!(c.take_finished(), None);
+                } else {
+                    let f = c.take_finished().unwrap_or_else(|| panic!("{what}"));
+                    assert!(f.audio.is_some() && f.record.is_none(), "{what}");
+                }
+            }
+        }
     }
 
     #[test]
