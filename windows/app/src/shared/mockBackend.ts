@@ -179,9 +179,19 @@ function forceWindowSize(name: string) {
   }
 }
 
+// Headless Chrome with a virtual clock does not advance CSS transitions and animations, so a shot would
+// catch a step mid-fade and the dots mid-resize. ?still=1 jumps every one of them to its end state.
+function stopAnimations() {
+  const style = document.createElement("style");
+  style.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; }";
+  document.head.appendChild(style);
+}
+
 export function createMockBackend(): Backend {
-  const name = new URLSearchParams(window.location.search).get("mock") ?? "";
+  const query = new URLSearchParams(window.location.search);
+  const name = query.get("mock") ?? "";
   forceWindowSize(name);
+  if (query.get("still") === "1") stopAnimations();
   const sc = scenario(name);
   const state = {
     widgetStyle: sc.style,

@@ -50,7 +50,7 @@ chrome() { # output-file args...
 # SHOTS_ONLY="tour-1" renders just the matching states (a regex on the mock name).
 shot() { # page mock width height scale
   [[ -z "${SHOTS_ONLY:-}" || "$2" =~ $SHOTS_ONLY ]] || return 0
-  local file="$OUT/$2@$5x.png" url="http://localhost:$PORT/$1.html?mock=$2"
+  local file="$OUT/$2@$5x.png" url="http://localhost:$PORT/$1.html?mock=$2&still=1"
   chrome /dev/null --user-data-dir="$WORK/shot" --hide-scrollbars --force-device-scale-factor="$5" \
     --window-size="$3,$4" --virtual-time-budget=3600 --screenshot="$file" "$url"
   [ -s "$file" ] || { echo "missing $file" >&2; exit 1; }

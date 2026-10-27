@@ -10,6 +10,7 @@ import { useSettings, type PaneProps } from "../shared/useSettings";
 import { useDemo } from "../shared/widgetDemo";
 
 const STEP_COUNT = 4;
+const ESC_AFTER_PICK_MS = 400;
 
 // The window has no title bar. A press on a plain area drags it; this attribute marks those areas.
 const DRAG = { "data-tauri-drag-region": true } as const;
@@ -89,22 +90,31 @@ function Look({ settings, update }: PaneProps) {
 
 function TryIt({ settings }: PaneProps) {
   const box = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => box.current?.focus(), []);
+  // A dictation would only wait for the download, so the box stays off until the model is there.
   const downloading = settings.model.state === "downloading";
+  useEffect(() => {
+    if (!downloading) box.current?.focus();
+  }, [downloading]);
   return (
-    <>
+    <div className={downloading ? "sp-tour-waiting" : undefined} style={{ display: "contents" }}>
       <h1 {...DRAG}>Try it</h1>
       <p className="sp-tour-text" {...DRAG}>
         Click the box, hold <KeyCap label={settings.hotkey.label} /> and say a sentence.
       </p>
-      <textarea ref={box} className="sp-field" aria-label="Try dictating here" spellCheck={false} />
+      <textarea
+        ref={box}
+        className="sp-field"
+        aria-label="Try dictating here"
+        spellCheck={false}
+        disabled={downloading}
+      />
       <div className="sp-tour-model">
         <ModelStatus model={settings.model} />
         {downloading && (
           <p className="sp-note">The first dictation waits for the speech model to finish downloading.</p>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -112,6 +122,13 @@ export default function TourApp() {
   const { settings, update } = useSettings();
   const [step, setStep] = useState(0);
   const [picking, setPicking] = useState(false);
+  // When the last key pick ended. The hook ends a pick on Esc and the page can learn of it before the
+  // same Esc reaches the DOM, so that Esc must not also close the tour.
+  const pickEndedAt = useRef(0);
+  const onPickingChange = (p: boolean) => {
+    if (!p) pickEndedAt.current = performance.now();
+    setPicking(p);
+  };
 
   const last = step === STEP_COUNT - 1;
   const next = () => (last ? void finishTour() : setStep((s) => s + 1));
@@ -123,6 +140,8 @@ export default function TourApp() {
     const onKey = (e: KeyboardEvent) => {
       if (picking) return;
       if (e.key === "Escape") {
+        // Not a held key, and not the Esc that just ended a pick.
+        if (e.repeat || performance.now() - pickEndedAt.current < ESC_AFTER_PICK_MS) return;
         void finishTour();
       } else if (e.key === "Enter") {
         const tag = (e.target as HTMLElement | null)?.tagName;
@@ -137,7 +156,7 @@ export default function TourApp() {
   if (!settings) return null;
   const props = { settings, update };
   let body: ReactNode;
-  if (step === 0) body = <Welcome {...props} onPickingChange={setPicking} />;
+  if (step === 0) body = <Welcome {...props} onPickingChange={onPickingChange} />;
   else if (step === 1) body = <Microphone />;
   else if (step === 2) body = <Look {...props} />;
   else body = <TryIt {...props} />;

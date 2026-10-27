@@ -143,3 +143,15 @@ textarea.sp-field:focus-visible {
   flex-direction: column;
   gap: 6px;
 }
+
+/* While the model downloads, the whole step reads as not ready yet, not only the box. */
+.sp-tour-waiting h1,
+.sp-tour-waiting .sp-tour-text {
+  opacity: 0.5;
+}
+
+textarea.sp-field:disabled {
+  background: #fbfaf7;
+  color: #2c2b28;
+  opacity: 0.4;
+}
