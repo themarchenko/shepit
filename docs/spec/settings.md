@@ -46,9 +46,9 @@ Notes:
 - Speaker notes go into the system prompt (polishing.md).
 - Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are fields of the one `settings.json` file (windows/core/src/settings.rs, 19 known keys), with the same key names. Every write, including the updater's own `lastUpdateCheck`, goes through the settings store under one lock, so the About switch and the updater cannot overwrite each other. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.
 - Windows panes: General (dictation key, default mode, prompt-mode word limit, recognizer status, show widget, microphone test),
-  Appearance (style, glass, fade when idle, reset position), Polishing (provider, Claude model, executable paths, speaker notes)
-  and About (version, the Parakeet CC-BY-4.0 credit, the Updates group, show the welcome tour again). The Updates group has the `checkForUpdates` switch, a status line and Check now or Install... (updates-install.md, Installing an update (Windows)). The Polishing tab sits between Appearance
-  and About and scrolls inside the 620x600 window. Language lock, dictionary, history, live preview, recognizer choice,
+  Appearance (style, glass, fade when idle, reset position), Polishing (provider, Claude model, executable paths, speaker notes),
+  Dictionary (one term per line in a monospace box, sent on every input) and About (version, Recordings with an Open folder button (history.md), the Parakeet CC-BY-4.0 credit, the Updates group, show the welcome tour again). The Updates group has the `checkForUpdates` switch, a status line and Check now or Install... (updates-install.md, Installing an update (Windows)). The Polishing tab sits between Appearance
+  and Dictionary and scrolls inside the 620x600 window. Language lock, live preview, recognizer choice,
   What's new and launch at login are not shown until their tasks land (README, Platform-specific). Settings opens on General.
 - Windows `hotkey` is stored as the choice id above. A bad id falls back to `rightCtrl`. `onboardingCompleted` defaults
   to false and is set by every way of closing the tour (finish, Skip, Esc, Alt+F4).
@@ -61,7 +61,12 @@ Notes:
   table above. Each is read on its own and falls back to its default alone; stored integers are not clamped on read, as on
   macOS. The legacy `formatterEnabled` is read only when `polishing` is missing or not a valid id (false gives `off`, anything
   else `claude`), as in AppSettings.swift:158-160, and stays in the file untouched. `dictionary` is read and written back as a
-  list of strings (a non-string entry gives an empty list) but cannot be patched until task 10. The patch also accepts the
+  list of strings. Read rule (windows/core/src/settings.rs:273-281): a missing key, a value that is not an array, or an array
+  holding any non-string element gives an empty list; order and duplicates are kept. Patch rule (:520-526): `dictionary` must be
+  an array of strings, else the whole patch is rejected; every item is split on `\r\n`, `\r` or `\n`, trimmed, blanks dropped
+  (`normalize_terms`, windows/core/src/dictionary.rs:431), order and duplicates kept, no cap. A change sets both the
+  `formatting` and `dictionary` flags (:391-424) and applies from the next dictation. Learning appends through the same store
+  and lock, so a learned term and a concurrent edit both survive (dictionary.md). The patch also accepts the
   other eight keys and clamps `fastPathMaxWords` to 0-30 and `promptModeMinWords` to 10-200, the macOS stepper ranges
   (SettingsView.swift:39, 160); a wrong type, a bad id or an unknown key rejects the whole patch. The Polishing tab and the
   tour step call `detect_agents`, which applies the fallback in polishing.md and saves it (app wiring: task 9 chunk C).

@@ -715,6 +715,34 @@ Five macOS changes found while porting to Windows. The spec gap rows they closed
   Quit from the tray and End task both leaving no claude, node or codex process; Esc during Formatting pastes nothing later;
   a Cyrillic or spaced profile path; no agent installed shows the amber note.
 
+## 2026-10-27: Windows history and dictionary learning (task 10)
+
+- Storage: `%LOCALAPPDATA%\com.themarchenko.shepit` (`app_local_data_dir()`): `shepit.sqlite` and `recordings\`. Not the roaming
+  `%APPDATA%`, because dictated text and audio do not belong in profile sync (same reasoning as the clipboard marking in #14).
+  Not the install folder `%LOCALAPPDATA%\Shepit`, which the installer and uninstaller manage. What the NSIS uninstaller does
+  with the new folder is a device check.
+- Schema: the macOS `dictations` table, same column names, types and order, with `audioFile` from version 2 and `PRAGMA user_version`
+  2. `createdAt` is GRDB's text form in UTC. Nothing claims either app can open the other's file. `rusqlite =0.41.0` with
+  `bundled`, pinned with `=`; the store is in the app crate because core does no file I/O. Locking `Cargo.lock` moved no version,
+  but `hashbrown 0.17.1` gained a `foldhash` dependency through feature unification.
+- UTC names: recordings are `yyyyMMdd-HHmmss-SSS.wav` in UTC, where macOS uses local time. Prune sorts by name, and UTC keeps
+  that equal to time order through a daylight-saving change.
+- Learning only from the agent's `new_terms`, as on macOS. Reading the field after the paste (UIA) would be new on both
+  platforms and would read text the user typed. `finalText` stays NULL on both platforms. No recognizer hint on Windows:
+  Parakeet takes no vocabulary.
+- Decided with the manager, Windows first, reversible, same pattern as the clipboard marking: a dictation into a password field
+  keeps no audio and no row, and the History window has Clear history (rows, `*.wav`, `secure_delete` on, `VACUUM`). macOS has
+  neither; both are queued. For the password rule Windows saves the audio when the dictation ends, not at stop.
+- No import or export, as on macOS. The window loads the newest 200 rows; rows are not capped.
+- Settings read rule for `dictionary`: an array with any non-string element gives an empty list (the plan said to drop the
+  non-strings; the landed read rule and its test were kept). The patch normalizes (split on line breaks, trim, drop blanks).
+- Deviations from the plan that landed: `Msg::SttMs` (timing sent before `Recognized`) and `Msg::FormattedWith` (profile, mode,
+  source, language, new terms, latency) were added next to the existing messages to leave about 140 call sites alone; the
+  History window has its own capability file `history.json`, so it cannot call `update_settings`.
+- Device checks open: a row and a WAV after a dictation; none for a password field; Clear history on disk; Open folder; copy in
+  WebView2; the History window at 100% and 150% scaling with a dark title bar; a learned term appearing in the open Dictionary
+  pane; the uninstaller and the folder.
+
 ## Pending (Phase 0)
 
 - Recognizer verdict for Ukrainian and mixed speech: record `spike/record.sh`, run

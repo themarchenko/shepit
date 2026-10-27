@@ -11,6 +11,8 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore`. The dictionary is a
 | Agent prompt | The last 120 entries (the newest) as "Dictionary (preferred spellings): a, b, c" | Formatting/PromptBuilder.swift:70-74 |
 | Learning | Entries the agent reports (below) | Learning/DictionaryCorrector.swift:226-243 |
 
+Windows: there is no recognizer vocabulary. Parakeet takes none on either platform (Speech/ParakeetEngine.swift:36; windows/engine/src/recognizer.rs:22) and Windows has no Whisper yet, so entries drive local correction (all) and the agent prompt (last 120) only. The Dictionary pane footer leaves out the Whisper sentence.
+
 Both slices take the newest entries (last 120 for the prompt, last 30 for the recognizer). Learned terms are appended, so a prompt that took the first 120 would never show the agent a term learned past that point (docs/DECISIONS.md, 2026-10-27).
 
 ## Learning
@@ -28,6 +30,8 @@ Fixture: `shared/fixtures/dictionary-learning.json`. Source: Learning/Dictionary
 Then return the kept terms (trimmed, original case), limited to `300 - existing.count` entries (never negative). The dictionary maximum is 300 (:227). Why the strictness: the agent's list is noisy (:223-225).
 
 After each dictation the session appends the new entries to the dictionary (DictationSession.swift:202-206).
+
+Windows: the agent's `new_terms` are the only source, as on macOS; nothing reads the target field after the paste. `new_entries` (windows/core/src/dictionary.rs:399-425) runs against the current list inside the settings store's lock and appends the result, so `settings-changed` reaches an open Dictionary pane (windows/app/src-tauri/src/settings_store.rs, `learned` and `learn`). The pane replaces its text only when the terms in it differ from the incoming list, so a learned term shows up without undoing typing. The 300 cap applies to learning only: `normalize_terms` (:431) does not cap hand-entered terms (settings.md). The learning cases in the fixture also run in the Rust test `windows/core/tests/shared_fixtures.rs`.
 
 ## Correction without a language model
 

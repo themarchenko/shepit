@@ -51,6 +51,8 @@ Fixture: none (float input). The Rust port is `speech_seconds` in `windows/core/
 Source: DictationSession.swift:140-227.
 
 1. Save the audio to the recordings store before anything can fail (:142-151). Save failures are logged and ignored.
+
+   Windows (windows/core/src/dictation.rs:397-402; windows/app/src-tauri/src/history_worker.rs): the audio is saved when the dictation ends, not at stop, so a dictation into a password field (captured flag true, or an insert refused for it) keeps no audio and no row. Every other end after the 0.4 s check keeps the audio: the speech gate, digital silence, a recognizer error or junk transcript, an insert error and Esc while busy. The WAV is written before the row and survives a history store error (history.md, Windows). macOS lags.
 2. Speech gate (above). Fail "Nothing recognized".
 3. Get the selected engine; state `transcribing`, or `loading_model` first if another engine is loaded (:162-170).
 4. Transcribe. If the progressive transcriber already has a finished result, use it; else transcribe the whole recording with the hints (:174-179). Hints are built when recording starts (see dictionary.md and language.md).
@@ -61,6 +63,8 @@ Source: DictationSession.swift:140-227.
 
    Windows (windows/app/src-tauri/src/insert.rs, insert_win.rs; decisions in windows/core/src/insert.rs): the state is `inserting` from accepted recognition until the restore finishes; it counts as busy, so a press is ignored and Esc returns to idle. The worker saves every restorable clipboard format in enumeration order, skipping GDI handles and private ranges (formats 2, 3, 9, 14, 0x80, 0x82, 0x83, 0x8E, 0x200-0x3FF; `is_restorable_format`, insert.rs:62). It puts the text as `CF_UNICODETEXT` under a message-only owner window, reads `GetClipboardSequenceNumber`, and sends Ctrl+V in one `SendInput` call (Ctrl down, V down, V up, Ctrl up; no extended flag, which would be Right Ctrl, the hotkey; `paste_keys`, insert.rs:94). After 350 ms (`RESTORE_DELAY_MS`, insert.rs:5) it restores the saved formats only if the sequence number is unchanged, the same rule as the macOS change count. Password rule: refuse with "A password field is active; nothing was inserted" when the field was a password at recording start (captured) or is one at insert time (now); an unreadable flag (UIA error, elevated target) pastes anyway (`decide`, insert.rs:48). If `OpenClipboard` still fails after 5 tries 20 ms apart: "The clipboard is in use by another app; nothing was inserted". If `SendInput` accepts fewer than 4 events the worker sends the key-ups, leaves the text on the clipboard and shows done "Copied (press Ctrl+V to paste): <preview>" with status `clipboard`. Ctrl+V is used for consoles too; Shift+Insert is the fallback if a device check fails. Esc while inserting returns to idle but the worker still finishes the restore (macOS does the same since 2026-10-27).
 9. Save a history record, set `done`, reset after 2.5 s (:210-221).
+
+   Windows: the row is written by a history thread once the insert has returned Pasted or ClipboardOnly, with the sttMs measured around `transcribe` and the profile, mode, source, language and latency of the format result (history.md). A fallback when the polish thread is gone sends plain `Msg::Formatted`, which keeps the audio but writes no row.
 
 - Cancellation at any await returns to idle without a message (:222-223). Any other error fails with the error text (:224-225).
 - The target app, window title, URL, caret text and selection are captured when recording starts, not when it ends (:72).

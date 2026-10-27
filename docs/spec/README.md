@@ -12,6 +12,7 @@ Platform mechanisms (key monitors, panels, installers) appear only where a rule 
 | [dictation.md](dictation.md) | Session states, limits, speech gate, pipeline order, hallucination filter |
 | [language.md](language.md) | Language lock, Whisper retry, live-preview language |
 | [local-cleanup.md](local-cleanup.md) | Routing between raw, fast path and agent; text cleanup; word count |
+| [history.md](history.md) | When a history row is written, schema, recordings, the History window, Windows storage and privacy |
 | [dictionary.md](dictionary.md) | Where the dictionary is used, learning, correction algorithm |
 | [profiles-modes.md](profiles-modes.md) | Modes, built-in profiles, profile and mode resolution |
 | [polishing.md](polishing.md) | Providers, system prompt, per-dictation message, agent limits, Windows agent runtime |
@@ -80,8 +81,10 @@ Paths below are relative to `apple/` where they point at code.
 | Recognizer | macOS: FluidAudio Parakeet v3 and WhisperKit, models fetched by the libraries. Windows: Parakeet v3 int8 through `transcribe-rs`, files pinned by commit and SHA-256 (`windows/engine/src/pins.rs`), stored under `%LOCALAPPDATA%\Shepit\models`. |
 | Parakeet script filter | macOS passes a language hint that filters decoder candidates by script, only for a hard language lock (Speech/ParakeetEngine.swift:34-37). Windows has no such filter. |
 | Insertion | Done on Windows (PLAN-windows task 6, dictation.md step 8). Needs device checks. |
-| Recordings store, history, dictionary learning, live preview | Windows lags: PLAN-windows tasks 10 and 12. Formatting is done (task 9, polishing.md, Windows); `new_terms` from the agent is parsed and dropped. |
-| Settings panes and the tour | macOS: General, Appearance, Polishing, Dictionary, About, and a 5-step tour with permissions and polishing. Windows (tasks 8 and 9): General, Appearance, Polishing, About and a 5-step tour (welcome, microphone, look, polish the text, try it). No language lock, dictionary, history, live preview, What's new or launch at login yet. Updates: the About group, a tray item and a bottom right update card (updates-install.md). The microphone step explains Windows privacy settings and notes that apps running as administrator get the text copied, not pasted. |
+| Live preview | Windows lags: PLAN-windows task 12. |
+| Clear history, and no audio for password-field dictations | Windows only. macOS has no Clear history button and saves the audio before the speech gate, so it keeps audio spoken into a password field (history.md, Windows). macOS lags. |
+| Recognizer vocabulary from the dictionary | macOS only: the last 30 entries go to Whisper. Parakeet takes no vocabulary on either platform and Windows has no Whisper (dictionary.md). |
+| Settings panes and the tour | macOS: General, Appearance, Polishing, Dictionary, About, and a 5-step tour with permissions and polishing. Windows (tasks 8 to 10): General, Appearance, Polishing, Dictionary, About and a 5-step tour (welcome, microphone, look, polish the text, try it). No language lock, live preview, What's new or launch at login yet. Updates: the About group, a tray item and a bottom right update card (updates-install.md). The microphone step explains Windows privacy settings and notes that apps running as administrator get the text copied, not pasted. |
 | Dictation key picker | Windows only: records the next key through the keyboard hook, from a fixed candidate list (hotkey.md, Windows). macOS offers three fixed choices. |
 | Tray | Windows: a left click opens Settings and a right click shows the menu. |
 | Text insertion, permissions, executable search paths, widget rendering | Per platform. |

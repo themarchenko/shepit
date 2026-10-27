@@ -85,7 +85,11 @@ windows/
    tour step, Formatting stage). Device checks open: discovery on real installs, no console flash, a signed-in
    Claude Code and Codex, no leftover process after quit or Task Manager kill. See DECISIONS 2026-10-27:
    Windows polishing.
-10. **History and dictionary learning**.
+10. **History and dictionary learning**. SQLite history with the macOS schema, the last 200 recordings, a `dictionary`
+    setting and learning from the agent's `new_terms`, a History window, a Dictionary tab and a Recordings row in About.
+    Status 2026-10-27: code, tests and docs written (draft PR #25). Device checks open: row and WAV on a real PC, a password
+    field leaving neither, Clear history on disk, Open folder, copy in WebView2, scaling, the uninstaller and the folder.
+    See DECISIONS 2026-10-27: Windows history and dictionary learning.
 11. **Release and install** [complex]. Tag builds the NSIS installer on Windows CI, signs the update
     payload, publishes it to the same GitHub release next to `Shepit.dmg`, `install.ps1`, updater.
     The macOS release flow must keep working unchanged. README gets the Windows install section
