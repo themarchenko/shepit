@@ -386,6 +386,9 @@ pub struct Changes {
     pub formatting: bool,
     /// `checkForUpdates`. The skipped version and the last check time flag nothing.
     pub updates: bool,
+    /// `dictionary`. Also flags `formatting`; this one tells the app the Dictionary pane has
+    /// something new to show.
+    pub dictionary: bool,
 }
 
 impl Changes {
@@ -396,6 +399,7 @@ impl Changes {
             || self.polishing
             || self.formatting
             || self.updates
+            || self.dictionary
     }
 }
 
@@ -417,6 +421,8 @@ pub fn changes(old: &Settings, new: &Settings) -> Changes {
             || old.prompt_mode_min_words != new.prompt_mode_min_words
             || old.dictionary != new.dictionary,
         updates: old.check_for_updates != new.check_for_updates,
+        // Stub until the history work lands.
+        dictionary: false,
     }
 }
 
@@ -1348,10 +1354,77 @@ mod tests {
     }
 
     #[test]
-    fn a_patch_cannot_set_the_dictionary() {
+    fn a_patch_sets_the_dictionary_split_trimmed_and_without_blanks() {
         let base = Settings::default();
-        let err = patch_with(&base, r#"{"dictionary":["A"]}"#).unwrap_err();
-        assert!(err.contains("dictionary"), "{err}");
+        let s = patch_with(
+            &base,
+            r#"{"dictionary":["  Vercel ","A\r\nB","","  ","C\rD","E\nF"]}"#,
+        )
+        .unwrap();
+        assert_eq!(s.dictionary, ["Vercel", "A", "B", "C", "D", "E", "F"]);
+    }
+
+    #[test]
+    fn a_dictionary_patch_keeps_order_and_duplicates_and_replaces_the_list() {
+        let mut base = Settings::default();
+        base.dictionary = vec!["Old".into()];
+        let s = patch_with(&base, r#"{"dictionary":["B","a","B"]}"#).unwrap();
+        assert_eq!(s.dictionary, ["B", "a", "B"]);
+        let s = patch_with(&base, r#"{"dictionary":[]}"#).unwrap();
+        assert!(s.dictionary.is_empty());
+    }
+
+    #[test]
+    fn a_dictionary_patch_of_the_wrong_type_rejects_the_whole_patch() {
+        let mut base = Settings::default();
+        base.dictionary = vec!["Keep".into()];
+        for bad in [
+            r#"{"dictionary":"A"}"#,
+            r#"{"dictionary":null}"#,
+            r#"{"dictionary":5}"#,
+            r#"{"dictionary":{"a":1}}"#,
+            r#"{"dictionary":["A",2]}"#,
+            r#"{"dictionary":["A",null]}"#,
+            r#"{"dictionary":["A",["B"]]}"#,
+            r#"{"speakerNotes":"x","dictionary":"A"}"#,
+        ] {
+            let err = patch_with(&base, bad).unwrap_err();
+            assert!(err.contains("dictionary"), "{bad}: {err}");
+        }
+        assert_eq!(base.dictionary, ["Keep"]);
+    }
+
+    #[test]
+    fn a_dictionary_edit_flags_the_dictionary_and_formatting() {
+        let base = Settings::default();
+        let mut new = base.clone();
+        new.dictionary = vec!["Shepit".into()];
+        let c = changes(&base, &new);
+        assert_eq!(
+            c,
+            Changes {
+                dictionary: true,
+                formatting: true,
+                ..Changes::default()
+            }
+        );
+        assert!(c.any());
+        assert!(!changes(&new, &new).dictionary);
+    }
+
+    #[test]
+    fn the_dictionary_round_trips_through_the_file() {
+        let mut s = Settings::default();
+        s.dictionary = vec!["Shepit".into(), "Vercel".into(), "Shepit".into()];
+        let back = parse(&s.to_json());
+        assert_eq!(back.dictionary, ["Shepit", "Vercel", "Shepit"]);
+        assert_eq!(back, s);
+    }
+
+    #[test]
+    fn a_stored_dictionary_keeps_order_and_duplicates() {
+        let s = parse(r#"{"dictionary":["B","A","B"]}"#);
+        assert_eq!(s.dictionary, ["B", "A", "B"]);
     }
 
     #[test]
@@ -1399,11 +1472,11 @@ mod tests {
     #[test]
     fn each_formatting_setting_flags_formatting_only() {
         let base = Settings::default();
-        let edits: [fn(&mut Settings); 4] = [
+        // The dictionary also flags `dictionary`; its own test is above.
+        let edits: [fn(&mut Settings); 3] = [
             |s| s.default_mode = Mode::Raw,
             |s| s.fast_path_max_words = 3,
             |s| s.prompt_mode_min_words = 60,
-            |s| s.dictionary = vec!["Shepit".into()],
         ];
         for (i, edit) in edits.iter().enumerate() {
             let mut new = base.clone();

@@ -425,6 +425,14 @@ pub fn new_entries(reported: &[String], existing: &[String]) -> Vec<String> {
     out
 }
 
+/// The terms of a hand-edited dictionary (the Dictionary pane, SettingsView.swift:197-201): every
+/// item is split on `\r\n`, `\r` or `\n`, trimmed, and empty pieces are dropped. Order and duplicates
+/// are kept and there is no cap, as on macOS.
+pub fn normalize_terms(items: &[String]) -> Vec<String> {
+    let _ = items;
+    todo!("dictionary::normalize_terms")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -449,5 +457,55 @@ mod tests {
         assert_eq!(similarity("KLATKA", "KLATKP"), None);
         assert_eq!(similarity("KLATKAT", "KLATKPP"), None);
         assert_eq!(similarity("KLAT", "KLAT"), None);
+    }
+
+    fn strings(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn terms_are_split_on_every_line_ending() {
+        let got = normalize_terms(&strings(&["A\r\nB", "C\rD", "E\nF"]));
+        assert_eq!(got, strings(&["A", "B", "C", "D", "E", "F"]));
+    }
+
+    #[test]
+    fn terms_are_trimmed_and_blank_lines_dropped() {
+        let got = normalize_terms(&strings(&["  Vercel  ", "", "   ", "\t", "x\n\n\ny", "\n"]));
+        assert_eq!(got, strings(&["Vercel", "x", "y"]));
+    }
+
+    #[test]
+    fn terms_keep_order_and_duplicates() {
+        let got = normalize_terms(&strings(&["B", "a", "B", "A"]));
+        assert_eq!(got, strings(&["B", "a", "B", "A"]));
+    }
+
+    #[test]
+    fn hand_entered_terms_are_not_capped() {
+        let many: Vec<String> = (0..350).map(|i| format!("Term{i}")).collect();
+        assert_eq!(normalize_terms(&many).len(), 350);
+    }
+
+    #[test]
+    fn learning_fills_only_the_room_left_under_the_cap() {
+        let reported = strings(&["Supabase", "Vercel"]);
+        let existing = |n: usize| -> Vec<String> { (0..n).map(|i| format!("Old{i}")).collect() };
+        assert_eq!(
+            new_entries(&reported, &existing(299)),
+            strings(&["Supabase"])
+        );
+        assert!(new_entries(&reported, &existing(300)).is_empty());
+        assert!(new_entries(&reported, &existing(350)).is_empty());
+    }
+
+    #[test]
+    fn learning_looks_at_the_list_as_it_is_now() {
+        // A term typed by hand since the last dictation is not learned a second time.
+        let reported = strings(&["Supabase", "handleSubmit"]);
+        assert_eq!(
+            new_entries(&reported, &strings(&["supabase"])),
+            strings(&["handleSubmit"])
+        );
     }
 }

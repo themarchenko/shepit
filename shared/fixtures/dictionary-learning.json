@@ -23,6 +23,106 @@
         "handleSubmit",
         "UserService.swift"
       ]
+    },
+    {
+      "name": "LearningDedupesCaseInsensitively/1",
+      "input": {
+        "reported": [
+          "  Supabase  ",
+          "supabase",
+          "SUPABASE"
+        ],
+        "existing": []
+      },
+      "expected": [
+        "Supabase"
+      ]
+    },
+    {
+      "name": "LearningLengthBounds/1",
+      "input": {
+        "reported": [
+          "A",
+          "Ab",
+          "Abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "Abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "existing": []
+      },
+      "expected": [
+        "Ab",
+        "Abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ]
+    },
+    {
+      "name": "LearningMaxThreeWords/1",
+      "input": {
+        "reported": [
+          "Claude Code CLI",
+          "Claude Code CLI Tool"
+        ],
+        "existing": []
+      },
+      "expected": [
+        "Claude Code CLI"
+      ]
+    },
+    {
+      "name": "LearningNeedsAMarker/1",
+      "input": {
+        "reported": [
+          "gpt4",
+          "user_id",
+          "next.config",
+          "plainword",
+          "git rebase"
+        ],
+        "existing": []
+      },
+      "expected": [
+        "gpt4",
+        "user_id",
+        "next.config"
+      ]
+    },
+    {
+      "name": "LearningRejectsNonAscii/1",
+      "input": {
+        "reported": [
+          "Café",
+          "Київ2",
+          "naïveUI"
+        ],
+        "existing": []
+      },
+      "expected": []
+    },
+    {
+      "name": "LearningNeedsALetter/1",
+      "input": {
+        "reported": [
+          "2024",
+          "1.0.3",
+          "__"
+        ],
+        "existing": []
+      },
+      "expected": []
+    },
+    {
+      "name": "LearningSkipsKnownTermsAnyCase/1",
+      "input": {
+        "reported": [
+          "VERCEL",
+          "Supabase"
+        ],
+        "existing": [
+          "vercel"
+        ]
+      },
+      "expected": [
+        "Supabase"
+      ]
     }
   ]
 }

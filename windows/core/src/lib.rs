@@ -7,6 +7,7 @@ pub mod context;
 pub mod dictation;
 pub mod dictionary;
 pub mod gesture;
+pub mod history;
 pub mod insert;
 pub mod keys;
 pub mod mic;

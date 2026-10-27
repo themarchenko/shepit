@@ -91,7 +91,7 @@ struct DictionaryLearningInput {
 
 #[test]
 fn dictionary_learning_matches_shared_fixture() {
-    let f = support::load::<DictionaryLearningInput, Vec<String>>("dictionary-learning.json", 1)
+    let f = support::load::<DictionaryLearningInput, Vec<String>>("dictionary-learning.json", 8)
         .unwrap();
     let failing: Vec<&str> = f
         .cases

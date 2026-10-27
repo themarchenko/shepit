@@ -7,6 +7,7 @@ use crate::context::TargetContext;
 use crate::gesture::{HotkeyGesture, Output};
 use crate::insert::{clipboard_only_message, InsertOutcome};
 use crate::keys::{Hotkey, KeyEvent, KeyFilter, RawKey};
+use crate::polish::route::Source;
 use crate::speech::{done_preview, has_enough_speech, is_junk};
 
 /// Failed state resets to idle after 4 s (DictationSession.swift:234).
@@ -130,6 +131,50 @@ pub struct InsertJob {
     pub id: u64,
     pub text: String,
     pub captured_password: Option<bool>,
+}
+
+/// What the polish worker knows about a finished format, beyond the text: the profile and mode it
+/// resolved, the result's source and language, the terms it reports as fixed and how long the
+/// agent took.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FormatMeta {
+    pub profile: String,
+    pub mode: String,
+    pub source: Source,
+    pub language: Option<String>,
+    pub new_terms: Vec<String>,
+    pub llm_ms: u64,
+}
+
+/// Every column of a history row except `id`, `createdAt` (the store stamps it), `finalText`
+/// (never written, as on macOS) and `audioFile` (known after the WAV is saved).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecordDraft {
+    /// The exe name (macOS `bundleID`).
+    pub app_id: Option<String>,
+    pub app_name: Option<String>,
+    pub window_title: Option<String>,
+    pub profile: String,
+    pub mode: String,
+    pub engine: String,
+    pub raw_text: String,
+    pub formatted_text: String,
+    pub language: Option<String>,
+    pub audio_seconds: f64,
+    pub stt_ms: u64,
+    pub llm_ms: u64,
+    pub formatter_source: String,
+    pub insert_method: String,
+    pub status: String,
+}
+
+/// How one dictation that passed the 0.4 s length check ended. `audio` is what to save as a WAV,
+/// `record` the history row. A password field gives neither.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Finished {
+    pub id: u64,
+    pub audio: Option<Vec<f32>>,
+    pub record: Option<RecordDraft>,
 }
 
 /// Gesture and key outputs that reach the session.
@@ -411,6 +456,31 @@ impl<R: Recorder> Controller<R> {
             captured_password: self.context.as_ref().and_then(|c| c.password),
         });
         self.state = State::Inserting;
+    }
+
+    /// How long the recognizer took on dictation `id`, in ms. Dropped unless `id` is the live one.
+    pub fn on_stt_ms(&mut self, id: u64, ms: u64) {
+        // Stub: the history work stores it.
+        let _ = (id, ms);
+    }
+
+    /// `on_formatted` with what the history needs. The same drop rules apply.
+    pub fn on_formatted_with(&mut self, id: u64, text: String, meta: FormatMeta, at: f64) {
+        // Stub: the history work keeps the meta.
+        let _ = meta;
+        self.on_formatted(id, text, at);
+    }
+
+    /// The end of the last dictation that passed the length check, handed over once. Esc while
+    /// recording and a recording that was too short give nothing.
+    pub fn take_finished(&mut self) -> Option<Finished> {
+        None
+    }
+
+    /// The terms the agent reported for the live dictation, handed over once. Esc or a stale id
+    /// gives none.
+    pub fn take_new_terms(&mut self) -> Vec<String> {
+        Vec::new()
     }
 
     /// The job created by the last stop, handed over once.
@@ -2015,5 +2085,385 @@ mod tests {
         esc(&mut c, 3.5);
         c.on_inserted(id, Ok(InsertOutcome::Pasted), 4.0);
         assert_eq!(c.view().phase, Phase::Idle);
+    }
+
+    // History (Windows task 10): what a finished dictation hands to the history worker.
+
+    /// What `FakeRecorder` returns for one second.
+    fn one_second() -> Vec<f32> {
+        let mut v = vec![0.0; 8_000];
+        v.extend(vec![0.1; 8_000]);
+        v
+    }
+
+    fn app_context(password: Option<bool>) -> TargetContext {
+        TargetContext {
+            app_id: Some("code.exe".into()),
+            app_name: Some("Visual Studio Code".into()),
+            window_title: Some("main.rs - shepit".into()),
+            password,
+            ..Default::default()
+        }
+    }
+
+    fn meta() -> FormatMeta {
+        FormatMeta {
+            profile: "generic".into(),
+            mode: "clean".into(),
+            source: Source::Claude,
+            language: Some("en".into()),
+            new_terms: vec!["Vercel".into()],
+            llm_ms: 420,
+        }
+    }
+
+    /// Records one second with the context (if any) already captured. The recognizer job is not taken.
+    fn begin(c: &mut Controller<FakeRecorder>, context: Option<TargetContext>) -> u64 {
+        press(c, 0.0);
+        let id = c.take_capture().expect("capture id");
+        if let Some(context) = context {
+            c.on_context(id, context);
+        }
+        release(c, 1.0);
+        id
+    }
+
+    /// Recognized in 350 ms; the format job is waiting.
+    fn formatting_with(c: &mut Controller<FakeRecorder>, context: Option<TargetContext>) -> u64 {
+        let id = begin(c, context);
+        c.take_job().expect("job");
+        c.on_stt_ms(id, 350);
+        c.on_recognized(id, Ok("hello there".into()), 2.0);
+        c.take_format().expect("format job");
+        id
+    }
+
+    /// Formatted as "Hello there." and waiting for the insert.
+    fn inserting_with(
+        c: &mut Controller<FakeRecorder>,
+        context: Option<TargetContext>,
+        meta: FormatMeta,
+    ) -> u64 {
+        let id = formatting_with(c, context);
+        c.on_formatted_with(id, "Hello there.".into(), meta, 2.2);
+        c.take_insert().expect("insert job");
+        id
+    }
+
+    fn assert_nothing_kept(c: &mut Controller<FakeRecorder>, what: &str) {
+        if let Some(f) = c.take_finished() {
+            assert!(f.audio.is_none(), "{what}: audio kept");
+            assert!(f.record.is_none(), "{what}: row kept");
+        }
+    }
+
+    #[test]
+    fn finished_after_done_has_record_and_audio() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting_with(&mut c, Some(app_context(Some(false))), meta());
+        assert_eq!(c.take_finished(), None, "not before the insert answers");
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+        let f = c.take_finished().expect("finished");
+        assert_eq!(f.id, id);
+        assert_eq!(f.audio, Some(one_second()));
+        assert_eq!(
+            f.record,
+            Some(RecordDraft {
+                app_id: Some("code.exe".into()),
+                app_name: Some("Visual Studio Code".into()),
+                window_title: Some("main.rs - shepit".into()),
+                profile: "generic".into(),
+                mode: "clean".into(),
+                engine: "parakeet-v3".into(),
+                raw_text: "hello there".into(),
+                formatted_text: "Hello there.".into(),
+                language: Some("en".into()),
+                audio_seconds: 1.0,
+                stt_ms: 350,
+                llm_ms: 420,
+                formatter_source: "claude".into(),
+                insert_method: "paste".into(),
+                status: "inserted".into(),
+            })
+        );
+        assert_eq!(c.take_finished(), None, "handed over once");
+    }
+
+    #[test]
+    fn a_clipboard_only_insert_is_a_clipboard_row() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting_with(&mut c, Some(app_context(Some(false))), meta());
+        c.on_inserted(id, Ok(InsertOutcome::ClipboardOnly), 3.0);
+        let r = c.take_finished().and_then(|f| f.record).expect("row");
+        assert_eq!(
+            (r.insert_method.as_str(), r.status.as_str()),
+            ("clipboardOnly", "clipboard")
+        );
+    }
+
+    #[test]
+    fn a_dictation_without_a_context_has_no_app_and_still_a_row() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting_with(&mut c, None, meta());
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+        let f = c.take_finished().expect("finished");
+        assert!(f.audio.is_some());
+        let r = f.record.expect("row");
+        assert_eq!((r.app_id, r.app_name, r.window_title), (None, None, None));
+    }
+
+    #[test]
+    fn the_row_language_is_the_format_result_or_none() {
+        let (mut c, _s) = setup_ready();
+        let mut m = meta();
+        m.language = None;
+        let id = inserting_with(&mut c, None, m);
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+        assert_eq!(
+            c.take_finished().and_then(|f| f.record).unwrap().language,
+            None
+        );
+    }
+
+    #[test]
+    fn the_row_source_is_the_result_source_id() {
+        for (source, id) in [
+            (Source::Claude, "claude"),
+            (Source::Codex, "codex"),
+            (Source::Passthrough, "passthrough"),
+            (Source::FastPath, "fastPath"),
+            (Source::Fallback, "fallback"),
+        ] {
+            let (mut c, _s) = setup_ready();
+            let mut m = meta();
+            m.source = source;
+            let dictation = inserting_with(&mut c, None, m);
+            c.on_inserted(dictation, Ok(InsertOutcome::Pasted), 3.0);
+            let r = c.take_finished().and_then(|f| f.record).unwrap();
+            assert_eq!(r.formatter_source, id);
+        }
+    }
+
+    #[test]
+    fn the_stt_time_of_another_dictation_is_ignored() {
+        let (mut c, _s) = setup_ready();
+        let id = begin(&mut c, None);
+        c.take_job().expect("job");
+        c.on_stt_ms(id + 100, 9_999);
+        c.on_recognized(id, Ok("hello there".into()), 2.0);
+        c.take_format().expect("format job");
+        c.on_formatted_with(id, "Hello there.".into(), meta(), 2.2);
+        c.take_insert().expect("insert job");
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+        assert_eq!(c.take_finished().and_then(|f| f.record).unwrap().stt_ms, 0);
+    }
+
+    #[test]
+    fn a_stale_insert_answer_finishes_nothing() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting_with(&mut c, None, meta());
+        c.on_inserted(id + 1, Ok(InsertOutcome::Pasted), 3.0);
+        assert_eq!(c.take_finished(), None);
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.1);
+        assert_eq!(c.take_finished().map(|f| f.id), Some(id));
+    }
+
+    #[test]
+    fn speech_gate_failure_keeps_audio_only() {
+        for (what, quiet, silent) in [("quiet room", true, false), ("muted mic", false, true)] {
+            let (mut c, shared) = setup_ready();
+            shared.quiet.set(quiet);
+            shared.silent.set(silent);
+            let id = begin(&mut c, Some(app_context(Some(false))));
+            assert!(matches!(c.view().phase, Phase::Failed), "{what}");
+            let f = c.take_finished().expect(what);
+            assert_eq!(f.id, id, "{what}");
+            assert_eq!(f.audio.map(|a| a.len()), Some(16_000), "{what}");
+            assert_eq!(f.record, None, "{what}");
+            assert_eq!(c.take_finished(), None, "{what}: once");
+        }
+    }
+
+    #[test]
+    fn recognizer_errors_and_junk_keep_audio_only() {
+        let results: [Result<String, String>; 3] = [
+            Err("Transcription failed: boom".into()),
+            Ok("   ".into()),
+            Ok("Thank you.".into()),
+        ];
+        for result in results {
+            let (mut c, _s) = setup_ready();
+            let id = begin(&mut c, Some(app_context(Some(false))));
+            c.take_job().expect("job");
+            c.on_recognized(id, result.clone(), 2.0);
+            let f = c.take_finished().unwrap_or_else(|| panic!("{result:?}"));
+            assert_eq!(
+                (f.id, f.audio.is_some(), f.record),
+                (id, true, None),
+                "{result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_insert_error_keeps_audio_only() {
+        let (mut c, _s) = setup_ready();
+        let id = inserting_with(&mut c, Some(app_context(Some(false))), meta());
+        c.on_inserted(id, Err(crate::insert::CLIPBOARD_BUSY.into()), 3.0);
+        let f = c.take_finished().expect("finished");
+        assert_eq!((f.id, f.audio.is_some(), f.record), (id, true, None));
+    }
+
+    #[test]
+    fn esc_while_busy_keeps_audio_only() {
+        type Reach = fn(&mut Controller<FakeRecorder>) -> u64;
+        let stages: [(&str, Reach); 3] = [
+            ("transcribing", |c| {
+                let id = begin(c, None);
+                c.take_job().expect("job");
+                id
+            }),
+            ("formatting", |c| formatting_with(c, None)),
+            ("inserting", |c| inserting_with(c, None, meta())),
+        ];
+        for (what, reach) in stages {
+            let (mut c, _s) = setup_ready();
+            let id = reach(&mut c);
+            esc(&mut c, 2.5);
+            let f = c.take_finished().unwrap_or_else(|| panic!("{what}"));
+            assert_eq!(
+                (f.id, f.audio.is_some(), f.record),
+                (id, true, None),
+                "{what}"
+            );
+        }
+    }
+
+    #[test]
+    fn esc_while_recording_and_too_short_finish_nothing() {
+        let (mut c, shared) = setup_ready();
+        press(&mut c, 0.0);
+        esc(&mut c, 0.5);
+        assert_eq!(c.take_finished(), None, "esc while recording");
+        shared.stop_len.set(6399);
+        begin(&mut c, None);
+        assert_eq!(c.take_finished(), None, "under 0.4 s");
+        esc(&mut c, 3.0);
+        assert_eq!(c.take_finished(), None, "esc when idle");
+    }
+
+    #[test]
+    fn nothing_finishes_while_the_dictation_is_still_running() {
+        let (mut c, _s) = setup_ready();
+        let id = begin(&mut c, None);
+        assert_eq!(c.take_finished(), None, "transcribing");
+        c.take_job().expect("job");
+        c.on_recognized(id, Ok("hello there".into()), 2.0);
+        assert_eq!(c.take_finished(), None, "formatting");
+        c.on_formatted_with(id, "Hello.".into(), meta(), 2.2);
+        assert_eq!(c.take_finished(), None, "inserting");
+    }
+
+    #[test]
+    fn password_dictation_keeps_no_audio() {
+        // Captured Some(true), every way the dictation can end.
+        type End = fn(&mut Controller<FakeRecorder>);
+        let ends: [(&str, End); 6] = [
+            ("pasted", |c| {
+                let id = inserting_with(c, Some(app_context(Some(true))), meta());
+                c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+            }),
+            ("clipboard only", |c| {
+                let id = inserting_with(c, Some(app_context(Some(true))), meta());
+                c.on_inserted(id, Ok(InsertOutcome::ClipboardOnly), 3.0);
+            }),
+            ("insert error", |c| {
+                let id = inserting_with(c, Some(app_context(Some(true))), meta());
+                c.on_inserted(id, Err(crate::insert::CLIPBOARD_BUSY.into()), 3.0);
+            }),
+            ("recognizer error", |c| {
+                let id = begin(c, Some(app_context(Some(true))));
+                c.take_job().expect("job");
+                c.on_recognized(id, Err("Transcription failed: boom".into()), 2.0);
+            }),
+            ("esc while formatting", |c| {
+                formatting_with(c, Some(app_context(Some(true))));
+                esc(c, 2.5);
+            }),
+            ("esc while transcribing", |c| {
+                begin(c, Some(app_context(Some(true))));
+                c.take_job().expect("job");
+                esc(c, 1.5);
+            }),
+        ];
+        // The control: the same dictation in a clear field is kept, so the loop below cannot pass
+        // just because nothing is ever kept.
+        let (mut c, _s) = setup_ready();
+        let id = inserting_with(&mut c, Some(app_context(Some(false))), meta());
+        c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+        assert!(c.take_finished().is_some_and(|f| f.audio.is_some()));
+        for (what, end) in ends {
+            let (mut c, _s) = setup_ready();
+            end(&mut c);
+            assert_nothing_kept(&mut c, what);
+        }
+        let (mut c, shared) = setup_ready();
+        shared.quiet.set(true);
+        begin(&mut c, Some(app_context(Some(true))));
+        assert_nothing_kept(&mut c, "speech gate");
+    }
+
+    #[test]
+    fn an_unreadable_or_clear_password_flag_keeps_the_audio() {
+        for flag in [Some(false), None] {
+            let (mut c, _s) = setup_ready();
+            let id = inserting_with(&mut c, Some(app_context(flag)), meta());
+            c.on_inserted(id, Ok(InsertOutcome::Pasted), 3.0);
+            let f = c.take_finished().expect("finished");
+            assert!(f.audio.is_some() && f.record.is_some(), "{flag:?}");
+        }
+    }
+
+    #[test]
+    fn a_refused_insert_keeps_no_audio_and_no_row() {
+        // The password field was focused after recording started: the captured flag said no, the
+        // check before the paste said yes.
+        for flag in [Some(false), None] {
+            let (mut c, _s) = setup_ready();
+            let id = inserting_with(&mut c, Some(app_context(flag)), meta());
+            c.on_inserted(id, Err(crate::insert::PASSWORD_REFUSED.into()), 3.0);
+            assert_nothing_kept(&mut c, &format!("refused after {flag:?}"));
+        }
+    }
+
+    #[test]
+    fn new_terms_come_out_once_for_the_live_dictation() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting_with(&mut c, None);
+        assert!(c.take_new_terms().is_empty(), "before the result");
+        c.on_formatted_with(id, "Hello there.".into(), meta(), 2.2);
+        assert_eq!(c.take_new_terms(), ["Vercel"]);
+        assert!(c.take_new_terms().is_empty(), "handed over once");
+    }
+
+    #[test]
+    fn esc_or_a_stale_id_gives_no_new_terms() {
+        let (mut c, _s) = setup_ready();
+        let id = formatting_with(&mut c, None);
+        c.on_formatted_with(id + 1, "Late.".into(), meta(), 2.2);
+        assert!(c.take_new_terms().is_empty(), "stale id");
+        c.on_formatted_with(id, "On time.".into(), meta(), 2.3);
+        assert_eq!(c.take_new_terms(), ["Vercel"], "the live id still works");
+        let (mut c, _s) = setup_ready();
+        let id = formatting_with(&mut c, None);
+        esc(&mut c, 2.4);
+        c.on_formatted_with(id, "Cancelled.".into(), meta(), 2.5);
+        assert!(c.take_new_terms().is_empty(), "after esc");
+
+        let (mut c, _s) = setup_ready();
+        let id = formatting_with(&mut c, None);
+        c.on_formatted_with(id, "Hello.".into(), meta(), 2.2);
+        esc(&mut c, 2.3);
+        assert!(c.take_new_terms().is_empty(), "esc before they were taken");
     }
 }
