@@ -4,6 +4,7 @@ mod support;
 
 use serde::Deserialize;
 use shepit_core::dictation::Phase;
+use shepit_core::keys::{is_accepted, Hotkey, VK_ESCAPE};
 use shepit_core::profile::{exe_tables, resolve_exe_profile};
 use shepit_core::widget::{layout_for, LayoutInput, Style};
 use std::collections::BTreeSet;
@@ -186,4 +187,66 @@ fn the_layout_fixture_covers_every_style_and_state() {
             assert!(f.cases.iter().any(|c| c.name == name), "no case {name}");
         }
     }
+}
+
+#[derive(Deserialize)]
+struct KeyCase {
+    vk: u32,
+    flags: u32,
+}
+
+type KeyFixture = support::Envelope<KeyCase, Option<String>>;
+
+fn key_fixture() -> KeyFixture {
+    support::load_from(&windows_fixture("hotkey-candidates-windows.json"), 30).unwrap()
+}
+
+#[test]
+fn hotkey_candidates_windows_matches_fixture() {
+    let f = key_fixture();
+    let failing: Vec<&str> = f
+        .cases
+        .iter()
+        .filter(|c| {
+            Hotkey::candidate(c.input.vk, c.input.flags).map(|h| h.id().to_string()) != c.expected
+        })
+        .map(|c| c.name.as_str())
+        .collect();
+    assert!(failing.is_empty(), "failing cases: {failing:?}");
+}
+
+#[test]
+fn the_key_fixture_names_every_hotkey() {
+    let f = key_fixture();
+    for h in Hotkey::ALL {
+        assert!(
+            f.cases
+                .iter()
+                .any(|c| c.expected.as_deref() == Some(h.id())),
+            "no case for {}",
+            h.id()
+        );
+    }
+}
+
+#[test]
+fn the_key_fixture_has_refused_keys() {
+    let f = key_fixture();
+    assert!(f.cases.iter().filter(|c| c.expected.is_none()).count() >= 10);
+}
+
+#[test]
+fn the_picking_hook_filter_follows_the_key_fixture() {
+    // What the picker may see is what the fixture calls a candidate, plus Esc.
+    let f = key_fixture();
+    let failing: Vec<&str> = f
+        .cases
+        .iter()
+        .filter(|c| {
+            let want = c.expected.is_some() || c.input.vk == VK_ESCAPE;
+            is_accepted(c.input.vk, c.input.flags, Hotkey::default(), true) != want
+        })
+        .map(|c| c.name.as_str())
+        .collect();
+    assert!(failing.is_empty(), "failing cases: {failing:?}");
 }
