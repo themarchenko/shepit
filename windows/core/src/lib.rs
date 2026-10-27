@@ -12,3 +12,4 @@ pub mod keys;
 pub mod profile;
 pub mod resample;
 pub mod speech;
+pub mod update;

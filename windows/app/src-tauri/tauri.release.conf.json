@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "createUpdaterArtifacts": true,
+    "resources": {
+      "runtime/DirectML.dll": "DirectML.dll"
+    }
+  }
+}
