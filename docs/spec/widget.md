@@ -26,7 +26,7 @@ Source: macOS/Shepit/Widget/WidgetModel.swift:8-30; macOS/Shepit/Widget/WidgetCo
 
 Source: macOS/Shepit/Widget/WidgetController.swift:51-55.
 
-- Click: toggle hands-free (DictationSession.swift:129-136).
+- Click: toggle hands-free (DictationSession.swift:130-137).
 - Press and hold: start recording on press, stop on release (not hands-free).
 - Drag ends: save the new position.
 - Right click: menu.
@@ -96,18 +96,25 @@ Source: Speech/LivePreview.swift. Setting `livePreview`, default on (AppSettings
 
 | Rule | Value | Source |
 |---|---|---|
-| Pass interval | 0.5 s, and at least 0.15 s of rest | :41, 96 |
-| First pass needs | 16 000 samples (1 s) | :43, 66 |
-| Freeze: tail longer than | 12 s | :69 |
-| Freeze cut | quietest 100 ms frame between 8 s and 11 s of the tail | :70, 131-148 |
-| Unstable words | the last 2 words of the current pass | :121 |
-| Join of two parts | non-empty parts joined with one space | :127-129 |
+| Pass interval | 0.5 s, and at least 0.15 s of rest | :62, 148 |
+| First pass needs | 16 000 samples (1 s) | :64, 105, 111 |
+| Freeze: tail longer than | 12 s | :113 |
+| Freeze cut | quietest 100 ms frame between 8 s and 11 s of the tail | :114, 203-219 |
+| Unstable words | the last 2 words of the current pass | :191-196 |
+| Join of two parts | non-empty parts joined with one space | :198-200 |
+| Head handoff | a Whisper piece that ends later than the last head replaces all frozen text | :100-110 |
+| Letter map | ы→и, э→е, ъ→ʼ (U+02BC), ё→е, also uppercase, only when the pass or head language is `uk` | :156-166 |
+| Dictionary | `DictionaryCorrector` over head, each frozen part and every pass | :93-99, 156-158 |
 
 - A pass decodes only the audio after the last freeze point. Frozen text is decoded once more and kept.
-- The preview text has a stable part and an unstable part; the unstable part may be rewritten by the next pass (:21-25).
-- Stopping recording keeps the last text on screen; it is cleared when the result is inserted, when the recording is discarded for being shorter than the minimum (DictationSession.swift:110-114), or when the dictation is cancelled or fails (DictationSession.swift:107, 219, 230; the discard path clears it at :112).
-- With the setting off the preview is cleared and not started (DictationSession.swift:91-96).
-- The preview runs on the fast recognizer (Parakeet), whatever engine is selected (Speech/SpeechEngine.swift:140-146).
+- Whisper head: when the selected engine is Whisper, `ProgressiveTranscriber` transcribes the recording in pieces while the user speaks (ProgressiveTranscriber.swift:17, 68). The preview takes the text so far and the sample where it ends (`PreviewHead`). From then on the stable text starts with Whisper's text, the Parakeet text before that point is dropped, and Parakeet decodes only the audio after it. Each new piece replaces the previous head. A piece with no speech moves the end sample on and adds no text. A failed piece leaves the last head. DictationSession passes it in at :94.
+- Letter map: Parakeet's Cyrillic model also writes Russian-only letters in Ukrainian speech. They are mapped in shown text only when the language of that text is `uk` (the lock, the sticky winner, or the winner of an early pass; the head's own language). English and Russian text is left alone.
+- Dictionary: shown text goes through `DictionaryCorrector` with the user's dictionary, after the letter map so a term written with one of those letters is kept. Each part is corrected once (head, each frozen part) and the current pass on every publish.
+- The preview text is display only. The inserted text and history come from the final transcript (DictationSession.swift:175-220) and are not mapped or corrected by the preview.
+- The preview text has a stable part and an unstable part; the unstable part may be rewritten by the next pass (:38-52).
+- Stopping recording keeps the last text on screen; it is cleared when the result is inserted, when the recording is discarded for being shorter than the minimum (DictationSession.swift:111-117), or when the dictation is cancelled or fails (DictationSession.swift:123, 233; the discard path clears it at :113, a finished insert at :222).
+- With the setting off the preview is cleared and not started (DictationSession.swift:91-97).
+- The preview runs on the fast recognizer (Parakeet), whatever engine is selected (Speech/SpeechEngine.swift:139-150).
 
 Fixtures: `shared/fixtures/live-preview-join.json` for the join rule, `shared/fixtures/live-preview-split.json` for the stable/unstable split (the last two words of the pass text are unstable, the rest joins the frozen text).
 
@@ -122,3 +129,4 @@ Windows (windows/core/src/live.rs, windows/app/src-tauri/src/recognizer.rs), whe
 - The setting is read when a recording starts. Changing it affects the next dictation.
 - The text clears on done, on fail, on Esc, when a short recording is discarded and on a stream error. It stays through processing, until one of those.
 - Language: no gate, see language.md.
+- No Whisper head, no letter map and no dictionary correction in the preview: known gap. The Windows preview is Parakeet text only, so early mistakes stay on screen until release.
