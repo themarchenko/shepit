@@ -13,6 +13,9 @@ public final class ProgressiveTranscriber {
     static let pieceTrigger = 14 * 16_000
     static let cutWindow = (lower: 7 * 16_000, upper: 12 * 16_000)
 
+    /// The text so far and the sample it ends at, for the live preview to show instead of its own early text.
+    public private(set) var head: PreviewHead?
+
     private var task: Task<Void, Never>?
     private var engine: SpeechEngine?
     private var hints = TranscriptionHints()
@@ -35,6 +38,7 @@ public final class ProgressiveTranscriber {
         text = ""
         language = nil
         doneSamples = 0
+        head = nil
         failed = false
         inFlight = false
         stopping = false
@@ -60,6 +64,9 @@ public final class ProgressiveTranscriber {
                     return
                 }
                 self.doneSamples += cut
+                // Set in the same step as doneSamples so the preview never sees text and end sample apart.
+                self.head = PreviewHead(text: self.text, samples: self.doneSamples,
+                                        language: self.hints.language ?? self.language)
             }
         }
     }
