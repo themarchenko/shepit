@@ -26,4 +26,45 @@ final class RecordingStoreTests: XCTestCase {
         XCTAssertLessThan(earlier, later)
         XCTAssertTrue(earlier.hasSuffix(".wav"))
     }
+
+    private func tempDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shepit-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    func testClearRemovesEveryRegularFileAndKeepsSubdirectories() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for name in ["a.wav", "b.wav.tmp", "c.wav.tmp.1234", "other.txt"] {
+            try Data([1, 2, 3]).write(to: dir.appendingPathComponent(name))
+        }
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("keep"), withIntermediateDirectories: true)
+        XCTAssertEqual(try RecordingStore.clear(in: dir), 4)
+        let left = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertEqual(left, ["keep"])
+    }
+
+    func testClearKeepsGoingAfterOneFileFails() throws {
+        let dir = try tempDir()
+        let stuck = dir.appendingPathComponent("a.wav")
+        defer {
+            try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: stuck.path)
+            try? FileManager.default.removeItem(at: dir)
+        }
+        for name in ["a.wav", "b.wav", "c.wav"] {
+            try Data([1]).write(to: dir.appendingPathComponent(name))
+        }
+        // The immutable flag makes removal of this one file fail while its siblings stay deletable.
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: stuck.path)
+        XCTAssertThrowsError(try RecordingStore.clear(in: dir))
+        let left = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertEqual(left.sorted(), ["a.wav"])
+    }
+
+    func testClearOnMissingDirectoryReturnsZero() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shepit-test-missing-\(UUID().uuidString)")
+        XCTAssertEqual(try RecordingStore.clear(in: dir), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.path))
+    }
 }

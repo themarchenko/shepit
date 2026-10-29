@@ -60,7 +60,11 @@ public final class HistoryStore: Sendable {
     private let dbQueue: DatabaseQueue
 
     public init(url: URL) throws {
-        dbQueue = try DatabaseQueue(path: url.path)
+        var config = Configuration()
+        // Set on every connection before any write, so deleted text is overwritten instead of
+        // lingering in free pages.
+        config.prepareDatabase { db in try db.execute(sql: "PRAGMA secure_delete = ON") }
+        dbQueue = try DatabaseQueue(path: url.path, configuration: config)
         try migrate()
     }
 
@@ -117,5 +121,16 @@ public final class HistoryStore: Sendable {
 
     public func count() throws -> Int {
         try dbQueue.read { db in try DictationRecord.fetchCount(db) }
+    }
+
+    /// Deletes every row. VACUUM runs outside the write transaction (SQLite forbids it inside one)
+    /// and rewrites the file so the deleted text is not left behind.
+    public func clear() throws {
+        try dbQueue.write { db in try db.execute(sql: "DELETE FROM dictations") }
+        try dbQueue.vacuum()
+    }
+
+    func secureDeleteEnabled() throws -> Bool {
+        try dbQueue.read { db in try Int.fetchOne(db, sql: "PRAGMA secure_delete") == 1 }
     }
 }
