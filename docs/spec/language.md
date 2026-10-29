@@ -6,8 +6,8 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore`. The speaker uses Uk
 
 - `languageLock` is `auto` (default) or a language code (Settings/AppSettings.swift:173). `auto` means no lock.
 - At the start of a recording the recognizer gets `language = nil` for `auto`, else the lock (Pipeline/DictationSession.swift:85). The live preview gets the same language (:93).
-- The formatter's language hint is the lock if set, else the language the recognizer reported (DictationSession.swift:194). A missing language is sent to the formatter as `auto` (Formatting/PromptBuilder.swift:58).
-- The history record stores the formatter's language if it gave one, else the recognizer's (DictationSession.swift:213).
+- The formatter's language hint is the lock if set, else the language the recognizer reported (DictationSession.swift:195). A missing language is sent to the formatter as `auto` (Formatting/PromptBuilder.swift:58).
+- The history record stores the formatter's language if it gave one, else the recognizer's (DictationSession.swift:216).
 
 ## Whisper retry
 
@@ -25,6 +25,8 @@ When it returns a language, the engine must decode the same audio again with tha
 
 ## Live preview language
 
-Source: Speech/LivePreview.swift:45-59, 74-92. With a lock, every pass uses it. Without one, each pass before 3.5 s of audio decodes as `uk` and as `en`; the pass is shown only if the better confidence is at least 0.6 and the two differ by at least 0.2. From 3.5 s of audio on, the more confident language (`uk` on a tie) is kept for the rest of the recording. See widget.md for the pass timing.
+Source: Speech/LivePreview.swift:70-78, 121-138. With a lock, every pass uses it. Without one, each pass before 3.5 s of audio decodes as `uk` and as `en`; the pass is shown only if the better confidence is at least 0.6 and the two differ by at least 0.2. From 3.5 s of audio on, the more confident language (`uk` on a tie) is kept for the rest of the recording. See widget.md for the pass timing.
+
+Russian-only letters (ы, э, ъ, ё) in preview text are mapped to Ukrainian ones only when the language of that text is `uk` (:156-166); the language of a pass is the lock, the sticky winner, or the early-pass winner, and a Whisper head uses its own language. Windows has no letter map either: known gap.
 
 Windows has no live-preview language gate: Parakeet there takes no language hint and returns no confidence, so each pass decodes once with the model's own detection. Ukrainian may show in the wrong script for the first seconds. Known gap, macOS keeps the gate.

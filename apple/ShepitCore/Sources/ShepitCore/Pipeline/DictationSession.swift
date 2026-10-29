@@ -90,7 +90,8 @@ public final class DictationSession: ObservableObject {
                           hints: recognitionHints)
         if settings.livePreview {
             live.start(source: recorder, engine: { await engines.previewEngine() },
-                       hints: TranscriptionHints(language: settings.languageLock == "auto" ? nil : settings.languageLock))
+                       hints: TranscriptionHints(language: settings.languageLock == "auto" ? nil : settings.languageLock),
+                       head: { [progressive] in progressive.head }, dictionary: settings.dictionary)
         } else {
             live.clear()
         }

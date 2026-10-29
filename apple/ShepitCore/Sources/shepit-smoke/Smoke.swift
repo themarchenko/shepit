@@ -12,6 +12,9 @@
 // --live plays each file in real time through the live preview (Parakeet) and prints every update.
 // --progressive plays each file in real time through Whisper's piecewise transcription and compares the
 // wait after release with transcribing the whole file at once.
+// --live --progressive runs both as the app does: the preview takes Whisper's text for the start and
+// Parakeet decodes only after it. --dict-pad N pads the dictionary (--vocab terms first) with synthetic
+// terms up to N entries, to time the preview's dictionary correction on a long dictionary.
 // --codex polishes through `codex app-server` instead of Claude Code; --model then takes a Codex model slug
 // (default gpt-6-luna) and --effort a reasoning effort (default low).
 
@@ -34,6 +37,7 @@ struct Smoke {
         var live = false
         var progressive = false
         var before: String?
+        var dictPad = 0
         var hints = TranscriptionHints()
 
         var args = Array(CommandLine.arguments.dropFirst())
@@ -62,6 +66,7 @@ struct Smoke {
             case "--live": live = true
             case "--progressive": progressive = true
             case "--before": before = args.removeFirst()
+            case "--dict-pad": dictPad = Int(args.removeFirst()) ?? 0
             default:
                 print("unknown argument \(a)")
                 exit(2)
@@ -69,8 +74,19 @@ struct Smoke {
         }
         if engineIDs.isEmpty { engineIDs = [.parakeetV3] }
         let files = expand(audio)
+        var previewDictionary = hints.vocabulary
+        var n = 0
+        while previewDictionary.count < dictPad {
+            // Deterministic two-word terms that will not match real speech.
+            previewDictionary.append("zorvex\(n) quindal\(n)")
+            n += 1
+        }
+        if live, progressive {
+            await runLiveProgressive(files, hints: hints, dictionary: previewDictionary)
+            return
+        }
         if live {
-            await runLive(files, hints: hints)
+            await runLive(files, hints: hints, dictionary: previewDictionary)
             return
         }
         if progressive {
@@ -78,7 +94,7 @@ struct Smoke {
             return
         }
         guard !files.isEmpty || !texts.isEmpty else {
-            print("usage: shepit-smoke (--audio FILE_OR_DIR | --text TRANSCRIPT)... [--engine ID]... [--lang uk|en] [--vocab \"a, b\"] [--profile ID] [--mode clean|prompt|raw] [--model haiku|sonnet|SLUG] [--codex] [--effort low|medium] [--no-claude] [--live] [--progressive] [--before TEXT]")
+            print("usage: shepit-smoke (--audio FILE_OR_DIR | --text TRANSCRIPT)... [--engine ID]... [--lang uk|en] [--vocab \"a, b\"] [--profile ID] [--mode clean|prompt|raw] [--model haiku|sonnet|SLUG] [--codex] [--effort low|medium] [--no-claude] [--live] [--progressive] [--dict-pad N] [--before TEXT]")
             exit(2)
         }
 
@@ -214,7 +230,7 @@ struct Smoke {
 
     /// Feeds each file to the live preview as if it were being spoken, then prints what the preview showed.
     @MainActor
-    static func runLive(_ files: [URL], hints: TranscriptionHints) async {
+    static func runLive(_ files: [URL], hints: TranscriptionHints, dictionary: [String]) async {
         let engines = EngineManager()
         do {
             _ = try await engines.engine(for: .parakeetV3)
@@ -232,12 +248,73 @@ struct Smoke {
                 print(String(format: "  %5.1f s  %@ [%@]", source.elapsed, text.stable, text.unstable))
             }
             preview.start(source: source, engine: { await engines.previewEngine() },
-                          hints: TranscriptionHints(language: hints.language))
+                          hints: TranscriptionHints(language: hints.language), dictionary: dictionary)
             try? await Task.sleep(for: .seconds(Double(samples.count) / 16_000 + 0.6))
             preview.stop()
             watch.cancel()
             if !passes.isEmpty {
                 print(String(format: "  %d updates, pass time %.2f-%.2f s", passes.count, passes.min()!, passes.max()!))
+            }
+        }
+    }
+
+    /// The app's combination: Whisper pieces feed the preview's head, Parakeet covers the rest.
+    @MainActor
+    static func runLiveProgressive(_ files: [URL], hints: TranscriptionHints, dictionary: [String]) async {
+        let engines = EngineManager()
+        guard let whisper = try? await engines.engine(for: .whisperTurbo) else {
+            print("whisper failed to load"); exit(1)
+        }
+        let loadStart = Date()
+        while await engines.previewEngine() == nil {
+            if Date().timeIntervalSince(loadStart) > 120 { print("parakeet did not load"); exit(1) }
+            try? await Task.sleep(for: .seconds(0.5))
+        }
+        print("dictionary: \(dictionary.count) terms")
+        for url in files {
+            guard let samples = try? AudioFile.loadSamples16k(url) else { continue }
+            let seconds = Double(samples.count) / 16_000
+            print(String(format: "\n[%@] %.1f s", url.lastPathComponent, seconds))
+            let source = PlaybackSource(samples)
+            let pieces = ProgressiveTranscriber()
+            let preview = LivePreview()
+            var passes: [Double] = []
+            var corrections: [Double] = []
+            var last = LivePreview.Text.empty
+            let watch = preview.$text.removeDuplicates().dropFirst().sink { text in
+                passes.append(preview.lastPassSeconds)
+                corrections.append(preview.lastCorrectionSeconds)
+                last = text
+                print(String(format: "  %5.1f s  %@ [%@]", source.elapsed, text.stable, text.unstable))
+            }
+            pieces.start(source: source, engine: { whisper }, hints: hints)
+            preview.start(source: source, engine: { await engines.previewEngine() },
+                          hints: TranscriptionHints(language: hints.language),
+                          head: { pieces.head }, dictionary: dictionary)
+            var seenHead = 0
+            let end = seconds + 0.6
+            while source.elapsed < end {
+                if let h = pieces.head, h.samples != seenHead {
+                    seenHead = h.samples
+                    print(String(format: "  %5.1f s  head -> %.1f s", source.elapsed, Double(h.samples) / 16_000))
+                }
+                try? await Task.sleep(for: .seconds(0.05))
+            }
+            preview.stop()
+            watch.cancel()
+            if !passes.isEmpty {
+                print(String(format: "  %d updates, pass time %.2f-%.2f s", passes.count, passes.min()!, passes.max()!))
+            }
+            if !corrections.isEmpty {
+                let sorted = corrections.sorted()
+                print(String(format: "  correction (%d terms) per publish: max %.2f ms, median %.2f ms", dictionary.count,
+                             sorted.last! * 1000, sorted[sorted.count / 2] * 1000))
+            }
+            print("  last preview: \(last.full)")
+            if let done = await pieces.complete(samples) {
+                print("  final (\(done.transcript.language ?? "?")): \(done.transcript.text)")
+            } else {
+                print("  final: progressive not used")
             }
         }
     }
