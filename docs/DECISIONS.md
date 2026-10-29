@@ -2,6 +2,14 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-10-29: macOS Clear history
+
+- The History window gets "Clear History…" with a confirmation, as on Windows. It deletes every row and every regular file in the recordings folder (subdirectories stay); `secure_delete` is on for the connection and `VACUUM` runs after the delete, so the text does not stay in free pages.
+- Rows first, then files, even if the rows failed; the first error is shown. Same order as Windows.
+- A clear during a dictation is allowed and a row or WAV written meanwhile can survive. Accepted on both platforms, not worth a lock.
+- The confirmation count is `HistoryStore.count()`, since the window shows at most 200 rows.
+- The widget's "Copy last result" text is reset on clear, so deleted text is not still one click away.
+
 ## 2026-10-27: Windows updater wiring and update card (task 11)
 
 - Update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are fields of core `Settings` in the one task 8 file, not a second store. Every write goes through `settings_store::apply` under one lock, so the updater's `lastUpdateCheck` and the About switch cannot overwrite each other. Only `checkForUpdates` is in the strict patch; the other two are the updater's.
