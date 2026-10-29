@@ -12,6 +12,10 @@ enum WhatsNew {
 
     /// Newest first.
     static let releases: [(version: String, items: [Item])] = [
+        ("0.4.1", [
+            Item(symbol: "trash", title: "Clear history",
+                 detail: "The History window has a Clear History button. It deletes every dictation and recording after you confirm."),
+        ]),
         ("0.3.0", [
             Item(symbol: "arrow.down.circle", title: "Updates from GitHub",
                  detail: "Shepit checks once a day and installs a new version in one click. Settings → About has the switch and a Check now button."),

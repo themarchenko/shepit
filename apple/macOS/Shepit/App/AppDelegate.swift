@@ -301,7 +301,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showHistory() {
-        if historyWindow == nil { historyWindow = HistoryWindowController(history: history) }
+        if historyWindow == nil {
+            historyWindow = HistoryWindowController(history: history, onCleared: { [weak self] in
+                self?.session.forgetLastRecord()
+            })
+        }
         historyWindow?.show()
     }
 }

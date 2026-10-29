@@ -4,7 +4,13 @@ import ShepitCore
 
 struct HistoryView: View {
     let history: HistoryStore?
+    /// Called after a clear so the app can drop in-memory copies of the deleted text.
+    var onCleared: () -> Void = {}
     @State private var records: [DictationRecord] = []
+    /// Total rows in the store. `records` stops at 200, so it cannot say how much a clear deletes.
+    @State private var total = 0
+    @State private var confirmingClear = false
+    @State private var clearing = false
     @State private var error: String?
 
     var body: some View {
@@ -12,6 +18,8 @@ struct HistoryView: View {
             HStack {
                 Text("\(records.count) dictations").foregroundStyle(.secondary)
                 Spacer()
+                Button("Clear History…") { askToClear() }
+                    .disabled(total == 0 || clearing)
                 Button("Refresh") { reload() }
             }
             .padding(10)
@@ -41,6 +49,42 @@ struct HistoryView: View {
         }
         .frame(minWidth: 620, minHeight: 420)
         .onAppear { reload() }
+        .alert("Clear history?", isPresented: $confirmingClear) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { clear() }
+        } message: {
+            Text("Delete all \(total) dictations and their recordings? This cannot be undone.")
+        }
+    }
+
+    /// Reads the count now so the alert names what a Delete would remove at this moment.
+    private func askToClear() {
+        guard let history else { return }
+        do {
+            total = try history.count()
+            confirmingClear = true
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func clear() {
+        guard let history, !clearing else { return }
+        clearing = true
+        // VACUUM and the file removals can take a while, so they stay off the main thread.
+        Task {
+            let firstError: String? = await Task.detached {
+                // Rows first, then files, even when the rows failed: a partial clear should still remove what it can.
+                var firstError: Error?
+                do { try history.clear() } catch { firstError = error }
+                do { try RecordingStore.clear(in: AppPaths.recordingsDirectory) } catch { firstError = firstError ?? error }
+                return firstError?.localizedDescription
+            }.value
+            reload()
+            if let firstError { error = "Could not clear history: \(firstError)" }
+            clearing = false
+            onCleared()
+        }
     }
 
     private func reload() {
@@ -50,6 +94,7 @@ struct HistoryView: View {
         }
         do {
             records = try history.recent(limit: 200)
+            total = try history.count()
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -59,8 +104,8 @@ struct HistoryView: View {
 
 @MainActor
 final class HistoryWindowController: NSWindowController {
-    init(history: HistoryStore?) {
-        let hosting = NSHostingController(rootView: HistoryView(history: history))
+    init(history: HistoryStore?, onCleared: @escaping () -> Void = {}) {
+        let hosting = NSHostingController(rootView: HistoryView(history: history, onCleared: onCleared))
         let window = NSWindow(contentViewController: hosting)
         window.title = "Shepit History"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
