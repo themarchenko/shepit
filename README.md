@@ -29,8 +29,8 @@ and updates. It recognizes with Parakeet only; Whisper is macOS only for now.
   are added on their own. On Windows the dictionary fixes spellings locally and in the agent's
   prompt; it does not steer the recognizer.
 - History: Shepit History in the menu lists your recent dictations with the raw and the inserted
-  text, and a copy button. It keeps what you dictated until you clear it (Windows has a Clear
-  history button).
+  text, and a copy button. It keeps what you dictated until you clear it with the Clear History button
+  in that window.
 - Three widget styles: flow pill, caption bar or island, on black glass. Drag the widget
   anywhere and it stays there.
 
@@ -130,7 +130,8 @@ icon. A short tour runs on first launch.
 
 - Audio is recorded and recognized on your Mac. The last 200 recordings are kept in
   `~/Library/Application Support/Shepit/recordings/` so you can compare recognizers on your own
-  voice. Delete the folder whenever you like.
+  voice. Clear History in the History window deletes them together with the dictation text, or delete
+  the folder yourself.
 - With polishing on, the agent you picked receives the recognized text and some context about where
   it goes: the app name, window title, page URL in browsers, up to 500 characters before the cursor
   and any selected text. The agent then sends that to Anthropic or OpenAI under your own account.

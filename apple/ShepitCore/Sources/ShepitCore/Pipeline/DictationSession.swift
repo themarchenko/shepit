@@ -30,6 +30,9 @@ public final class DictationSession: ObservableObject {
     /// Mode requested for the next dictation; nil means the setting's default.
     @Published public var modeOverride: Mode?
     @Published public private(set) var lastRecord: DictationRecord?
+
+    /// Called after the history is cleared so "Copy last result" cannot offer deleted text.
+    public func forgetLastRecord() { lastRecord = nil }
     /// The words so far while recording; kept through processing, cleared once the result is in.
     public let live = LivePreview()
     private let progressive = ProgressiveTranscriber()

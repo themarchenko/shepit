@@ -2,6 +2,14 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-10-29: macOS Clear history
+
+- The History window gets "Clear History…" with a confirmation, as on Windows. It deletes every row and every regular file in the recordings folder (subdirectories stay); `secure_delete` is on for the connection and `VACUUM` runs after the delete, so the text does not stay in free pages.
+- Rows first, then files, even if the rows failed; the first error is shown. Same order as Windows.
+- A clear during a dictation is allowed and a row or WAV written meanwhile can survive. Accepted on both platforms, not worth a lock.
+- The confirmation count is `HistoryStore.count()`, since the window shows at most 200 rows.
+- The widget's "Copy last result" text is reset on clear, so deleted text is not still one click away.
+
 ## 2026-10-28: live preview takes Whisper's head
 
 - Problem: the preview's frozen text was Parakeet's own decode, so its early mistakes stayed on screen for the whole dictation although Whisper (`ProgressiveTranscriber`) already had those seconds right. On a 47.7 s Ukrainian recording the preview kept misrecognized words such as "забыта", "басить", "пасіч" and "нище", and some ы/э/ъ/ё letters, from the first seconds to the end.

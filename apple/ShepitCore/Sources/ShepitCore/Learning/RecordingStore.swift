@@ -35,6 +35,36 @@ public enum RecordingStore {
         }
     }
 
+    /// Removes every regular file in the folder: WAVs, half-written `.wav.tmp` and whatever a crashed
+    /// atomic save left. Subdirectories stay. A missing folder is zero files; any other listing error
+    /// throws. A failed removal does not stop the rest; the first such error is thrown at the end.
+    /// Returns how many files were removed.
+    @discardableResult
+    public static func clear(in dir: URL) throws -> Int {
+        let fm = FileManager.default
+        let entries: [URL]
+        do {
+            // Sorted so a partial failure leaves the same files every time.
+            entries = try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isRegularFileKey])
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
+            return 0
+        }
+        var removed = 0
+        var firstError: Error?
+        for entry in entries {
+            guard (try? entry.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+            do {
+                try fm.removeItem(at: entry)
+                removed += 1
+            } catch {
+                firstError = firstError ?? error
+            }
+        }
+        if let firstError { throw firstError }
+        return removed
+    }
+
     public static func allRecordings() -> [URL] {
         let fm = FileManager.default
         let names = (try? fm.contentsOfDirectory(atPath: AppPaths.recordingsDirectory.path)) ?? []
