@@ -22,7 +22,8 @@ final class ReviewPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    /// The app is an accessory with no main menu, so Cmd-X/C/V/A/Z never reach the text view on their own.
+    /// Shepit is not the active app while this non-activating panel is key, so the hidden main menu's Edit items
+    /// do not apply here and Cmd-X/C/V/A/Z are handled below.
     /// On a non-Latin layout (Ukrainian) the key code stands in for the letter; Latin layouts such as Dvorak keep
     /// their own letters.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {

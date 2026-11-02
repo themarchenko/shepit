@@ -29,6 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             history = try HistoryStore(url: AppPaths.databaseURL)
         } catch {
             Log.store.error("history store unavailable: \(String(describing: error), privacy: .public)")
+        // An accessory app never shows a menu bar, but key equivalents reach the key window through the main
+        // menu while Shepit is active, which is what makes Cmd-C/V/A/Z work in Settings fields and the tour.
+        NSApp.mainMenu = MainMenu.make()
         }
         polisher = makePolisher()
         formatting = FormattingService(claude: polisher)
