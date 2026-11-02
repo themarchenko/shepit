@@ -75,12 +75,8 @@ struct TourView: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 14) {
             title("Speak instead of typing")
-            HStack(spacing: 5) {
-                Text("Hold")
-                KeyCap(label: settings.hotkey.keyLabel)
-                Text(", say what you want to write, let go.")
-            }
-            .foregroundStyle(WidgetPalette.text.opacity(0.7))
+            KeyCapLine(sentence: String(localized: "Hold \(KeyCapLine.slot), say what you want to write, let go."),
+                       key: settings.hotkey.keyLabel, font: .body, color: WidgetPalette.text.opacity(0.7))
             Text("Shepit types it into the app you are in, in Ukrainian or English.")
                 .foregroundStyle(WidgetPalette.text.opacity(0.7))
             fieldMock(demoText.isEmpty ? nil : demoText)
@@ -141,12 +137,8 @@ struct TourView: View {
     private var tryIt: some View {
         VStack(alignment: .leading, spacing: 14) {
             title("Try it")
-            HStack(spacing: 5) {
-                Text("Click the box, hold")
-                KeyCap(label: settings.hotkey.keyLabel)
-                Text("and say a sentence.")
-            }
-            .foregroundStyle(WidgetPalette.text.opacity(0.7))
+            KeyCapLine(sentence: String(localized: "Click the box, hold \(KeyCapLine.slot) and say a sentence."),
+                       key: settings.hotkey.keyLabel, font: .body, color: WidgetPalette.text.opacity(0.7))
             TextEditor(text: $tryText)
                 .font(.system(size: 14))
                 .scrollContentBackground(.hidden)
@@ -182,7 +174,7 @@ struct TourView: View {
             if step > 0 {
                 Button("Back") { step -= 1 }.buttonStyle(QuietButtonStyle())
             }
-            Button(step == Self.stepCount - 1 ? "Start dictating" : "Continue") {
+            Button(step == Self.stepCount - 1 ? LocalizedStringKey("Start dictating") : LocalizedStringKey("Continue")) {
                 if step == Self.stepCount - 1 { finish() } else { step += 1 }
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -190,7 +182,7 @@ struct TourView: View {
         }
     }
 
-    private func title(_ text: String) -> some View {
+    private func title(_ text: LocalizedStringKey) -> some View {
         Text(text).font(.system(size: 22, weight: .semibold))
     }
 
@@ -209,7 +201,8 @@ struct TourView: View {
         .animation(.easeOut(duration: 0.3), value: text)
     }
 
-    private func permissionRow(symbol: String, name: String, detail: String, granted: Bool, button: String,
+    private func permissionRow(symbol: String, name: LocalizedStringKey, detail: LocalizedStringKey, granted: Bool,
+                               button: LocalizedStringKey,
                                action: @escaping () -> Void) -> some View {
         HStack(spacing: 12) {
             Image(systemName: symbol).font(.system(size: 20)).frame(width: 28)

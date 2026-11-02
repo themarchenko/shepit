@@ -80,19 +80,19 @@ final class CalibrationModel: ObservableObject {
     var caption: String {
         guard case let .reading(section, index) = flow.stage else { return "" }
         switch section {
-        case .words: return "Words · \(index + 1) of \(CalibrationScript.words(for: policy).count)"
-        case .phrases: return "Phrases · \(index + 1) of \(CalibrationScript.phrases(for: policy).count)"
-        case .targeted: return "A few more · \(index + 1) of \(targetCount)"
+        case .words: return String(localized: "Words · \(index + 1) of \(CalibrationScript.words(for: policy).count)")
+        case .phrases: return String(localized: "Phrases · \(index + 1) of \(CalibrationScript.phrases(for: policy).count)")
+        case .targeted: return String(localized: "A few more · \(index + 1) of \(targetCount)")
         }
     }
 
     var status: String? {
         switch phase {
-        case .listening: return "Listening…"
-        case .checking: return "Checking…"
+        case .listening: return String(localized: "Listening…")
+        case .checking: return String(localized: "Checking…")
         case .idle:
             guard let take = flow.currentTake else { return nil }
-            return take.cleaned.isEmpty ? "Did not catch that. Try again." : "Heard: \(take.cleaned)"
+            return take.cleaned.isEmpty ? String(localized: "Did not catch that. Try again.") : String(localized: "Heard: \(take.cleaned)")
         }
     }
 
@@ -202,7 +202,7 @@ final class CalibrationModel: ObservableObject {
     private func fail(_ error: Error) {
         if let error = error as? CalibrationError, error == .tooFewTakes {
             tooFew = true
-            errorText = "Read at least three items, then try again."
+            errorText = String(localized: "Read at least three items, then try again.")
         } else {
             tooFew = false
             errorText = Doctor.agentFailureText(kind: CalibrationCoach.failureKind(error))
@@ -344,7 +344,7 @@ struct CalibrationView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(model.caption).font(.system(size: 13, weight: .medium))
                 if section == .targeted {
-                    Text(model.usedAgent ? "Picked for the sounds that went wrong" : "Sounds recognizers often miss")
+                    Text(model.usedAgent ? LocalizedStringKey("Picked for the sounds that went wrong") : LocalizedStringKey("Sounds recognizers often miss"))
                         .font(.system(size: 12))
                         .foregroundStyle(WidgetPalette.text.opacity(0.55))
                 }
@@ -357,13 +357,9 @@ struct CalibrationView: View {
                 .frame(maxWidth: .infinity, minHeight: 150, maxHeight: 150)
                 .padding(.horizontal, 20)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.05)))
-            HStack(spacing: 5) {
-                Text("Hold")
-                KeyCap(label: settings.hotkey.keyLabel)
-                Text("and read it aloud, or hold the button")
-            }
-            .foregroundStyle(WidgetPalette.text.opacity(0.7))
-            .frame(maxWidth: .infinity)
+            KeyCapLine(sentence: String(localized: "Hold \(KeyCapLine.slot) and read it aloud, or hold the button"),
+                       key: settings.hotkey.keyLabel, font: .body, color: WidgetPalette.text.opacity(0.7))
+                .frame(maxWidth: .infinity)
             micButton.frame(maxWidth: .infinity)
             Text(model.status ?? " ")
                 .font(.system(size: 13))
@@ -397,7 +393,7 @@ struct CalibrationView: View {
             .accessibilityLabel("Hold to record")
     }
 
-    private func thinking(_ text: String) -> some View {
+    private func thinking(_ text: LocalizedStringKey) -> some View {
         VStack(spacing: 14) {
             Spacer()
             ProgressView().controlSize(.large)
@@ -477,7 +473,7 @@ struct CalibrationView: View {
                 if model.currentTake != nil {
                     Button("Again") { model.again() }.buttonStyle(QuietButtonStyle()).disabled(!model.canStep).opacity(model.canStep ? 1 : 0.4)
                 }
-                Button(model.currentTake == nil ? "Skip" : "Next") { model.next() }
+                Button(model.currentTake == nil ? LocalizedStringKey("Skip") : LocalizedStringKey("Next")) { model.next() }
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction).disabled(!model.canStep).opacity(model.canStep ? 1 : 0.4)
             case .pickingSentences, .writingNotes:
                 EmptyView()
@@ -492,7 +488,7 @@ struct CalibrationView: View {
         .frame(minHeight: 28)
     }
 
-    private func title(_ text: String) -> some View {
+    private func title(_ text: LocalizedStringKey) -> some View {
         Text(text).font(.system(size: 22, weight: .semibold))
     }
 }

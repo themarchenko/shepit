@@ -1,51 +1,51 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "%lld dictations" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld dictation"
+  "sourceLanguage": "en",
+  "strings": {
+    "%lld dictations": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld dictation"
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld dictations"
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld dictations"
                 }
               }
             }
           }
         },
-        "uk" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld диктування"
+        "uk": {
+          "variations": {
+            "plural": {
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld диктування"
                 }
               },
-              "few" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld диктування"
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld диктувань"
                 }
               },
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld диктувань"
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld диктування"
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld диктування"
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld диктування"
                 }
               }
             }
@@ -53,1313 +53,491 @@
         }
       }
     },
-    ", say what you want to write, let go." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ", скажіть, що хочете написати, і відпустіть."
+    "A few more · %lld of %lld": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ще кілька · %lld з %lld"
           }
         }
       }
     },
-    "About" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Про програму"
+    "About": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Про програму"
           }
         }
       }
     },
-    "About the speaker" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Про мовця"
+    "About the speaker": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Про мовця"
           }
         }
       }
     },
-    "Accessibility (needed to paste)" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Універсальний доступ (потрібен для вставлення)"
+    "Accessibility": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Універсальний доступ"
           }
         }
       }
     },
-    "Add to dictionary" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Додати до словника"
+    "Accessibility (needed to paste)": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Універсальний доступ (потрібен для вставлення)"
           }
         }
       }
     },
-    "Again" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ще раз"
+    "Add to dictionary": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати до словника"
           }
         }
       }
     },
-    "Allowed" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Дозволено"
+    "Again": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ще раз"
           }
         }
       }
     },
-    "Already on in the list? Doctor can reset it." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Уже ввімкнено в списку? Діагностика може це скинути."
+    "Allow": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дозволити"
           }
         }
       }
     },
-    "An AI agent you already use can fix punctuation, names and code terms. It gets the text only, never the audio." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ШІ-агент, яким ви вже користуєтеся, може виправити розділові знаки, імена й терміни з коду. Він отримує лише текст, ніколи не звук."
+    "Allowed": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дозволено"
           }
         }
       }
     },
-    "App language" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мова програми"
+    "Already on in the list? Doctor can reset it.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уже ввімкнено в списку? Діагностика може це скинути."
           }
         }
       }
     },
-    "Appearance" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вигляд"
+    "An AI agent you already use can fix punctuation, names and code terms. It gets the text only, never the audio.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ШІ-агент, яким ви вже користуєтеся, може виправити розділові знаки, імена й терміни з коду. Він отримує лише текст, ніколи не звук."
           }
         }
       }
     },
-    "Applies after Shepit restarts." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Набуде чинності після перезапуску Shepit."
+    "App language": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мова програми"
           }
         }
       }
     },
-    "Back" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Назад"
+    "Appearance": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вигляд"
           }
         }
       }
     },
-    "Build from my voice" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Створити за моїм голосом"
+    "Applies after Shepit restarts.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Набуде чинності після перезапуску Shepit."
           }
         }
       }
     },
-    "Cancel" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Скасувати"
+    "Back": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Назад"
           }
         }
       }
     },
-    "Check again" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірити ще раз"
+    "Build from my voice": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Створити за моїм голосом"
           }
         }
       }
     },
-    "Check for Updates…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірити оновлення…"
+    "Cancel": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скасувати"
           }
         }
       }
     },
-    "Check for updates once a day" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевіряти оновлення раз на день"
+    "Check again": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірити ще раз"
           }
         }
       }
     },
-    "Check now" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірити"
+    "Check for Updates…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірити оновлення…"
           }
         }
       }
     },
-    "Check the text before it is pasted" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірте текст перед вставленням"
+    "Check for updates once a day": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевіряти оновлення раз на день"
           }
         }
       }
     },
-    "Checked %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірено: %@"
+    "Check now": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірити"
           }
         }
       }
     },
-    "Checking GitHub…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірка GitHub…"
+    "Check the text before it is pasted": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірте текст перед вставленням"
           }
         }
       }
     },
-    "Checking for updates" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірка оновлень"
+    "Checked %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірено: %@"
           }
         }
       }
     },
-    "Checking the signature and putting the new version in place. Shepit reopens on its own." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перевірка підпису й заміна версії. Shepit запуститься сам."
+    "Checking GitHub…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірка GitHub…"
           }
         }
       }
     },
-    "Claude Code" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude Code"
+    "Checking for updates": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірка оновлень"
           }
         }
       }
     },
-    "Clear History…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Очистити історію…"
+    "Checking the signature and putting the new version in place. Shepit reopens on its own.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірка підпису й заміна версії. Shepit запуститься сам."
           }
         }
       }
     },
-    "Clear history?" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Очистити історію?"
+    "Checking…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевірка…"
           }
         }
       }
     },
-    "Click the box, hold" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Клацніть поле, утримуйте"
+    "Claude Code": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code"
           }
         }
       }
     },
-    "Close" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Закрити"
+    "Clear History…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистити історію…"
           }
         }
       }
     },
-    "Codex" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Codex"
+    "Clear history": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очищення історії"
           }
         }
       }
     },
-    "Continue" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Продовжити"
+    "Clear history?": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистити історію?"
           }
         }
       }
     },
-    "Copy" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Скопіювати"
+    "Click the box, hold %@ and say a sentence.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Клацніть поле, утримуйте %@ і промовте речення."
           }
         }
       }
     },
-    "Copy last result" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Копіювати останній результат"
+    "Close": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрити"
           }
         }
       }
     },
-    "Could not check for updates" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Не вдалося перевірити оновлення"
+    "Codex": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex"
           }
         }
       }
     },
-    "Could not clear history: %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Не вдалося очистити історію: %@"
+    "Continue": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продовжити"
           }
         }
       }
     },
-    "Cut" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вирізати"
+    "Copy": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопіювати"
           }
         }
       }
     },
-    "Darker" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Темніше"
+    "Copy last result": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копіювати останній результат"
           }
         }
       }
     },
-    "Default mode" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Типовий режим"
+    "Could not check for updates": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося перевірити оновлення"
           }
         }
       }
     },
-    "Delete" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Видалити"
+    "Could not clear history: %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося очистити історію: %@"
           }
         }
       }
     },
-    "Delete all %lld dictations and their recordings? This cannot be undone." : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Delete %lld dictation and its recording? This cannot be undone."
+    "Could not write the notes": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося скласти нотатки"
+          }
+        }
+      }
+    },
+    "Cut": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вирізати"
+          }
+        }
+      }
+    },
+    "Darker": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Темніше"
+          }
+        }
+      }
+    },
+    "Default mode": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Типовий режим"
+          }
+        }
+      }
+    },
+    "Delete": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Видалити"
+          }
+        }
+      }
+    },
+    "Delete all %lld dictations and their recordings? This cannot be undone.": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld dictation and its recording? This cannot be undone."
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Delete all %lld dictations and their recordings? This cannot be undone."
-                }
-              }
-            }
-          }
-        },
-        "uk" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Видалити %lld диктування і його запис? Цю дію не можна скасувати."
-                }
-              },
-              "few" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Видалити всі %lld диктування і їхні записи? Цю дію не можна скасувати."
-                }
-              },
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Видалити всі %lld диктувань і їхні записи? Цю дію не можна скасувати."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Видалити всі %lld диктування і їхні записи? Цю дію не можна скасувати."
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "Dictation key" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Клавіша диктування"
-          }
-        }
-      }
-    },
-    "Dictionary" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Словник"
-          }
-        }
-      }
-    },
-    "Doctor…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Діагностика…"
-          }
-        }
-      }
-    },
-    "Down to half after 3 seconds" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "До половини за 3 секунди"
-          }
-        }
-      }
-    },
-    "Downloading %@: %lld%%" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Завантаження %@: %lld%%"
-          }
-        }
-      }
-    },
-    "Downloading… %lld of %lld MB" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Завантаження… %lld з %lld МБ"
-          }
-        }
-      }
-    },
-    "Downloading… %lld%%" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Завантаження… %lld%%"
-          }
-        }
-      }
-    },
-    "Drag the widget anywhere; it stays there across launches" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перетягніть віджет куди завгодно, він залишиться там і після перезапуску"
-          }
-        }
-      }
-    },
-    "Edit" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Редагування"
-          }
-        }
-      }
-    },
-    "Empty. Use Build from my voice, or describe your accent and the words the recognizer gets wrong." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Порожньо. Натисніть «Створити за моїм голосом» або опишіть свій акцент і слова, які розпізнавач сприймає хибно."
-          }
-        }
-      }
-    },
-    "Enter pastes · Shift+Enter new line · Esc cancels" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enter вставляє · Shift+Enter новий рядок · Esc скасовує"
-          }
-        }
-      }
-    },
-    "Executable" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Виконуваний файл"
-          }
-        }
-      }
-    },
-    "Fade when idle" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Згасати в очікуванні"
-          }
-        }
-      }
-    },
-    "Failed: %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Помилка: %@"
-          }
-        }
-      }
-    },
-    "Format" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Формат"
-          }
-        }
-      }
-    },
-    "Formatting" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Форматування"
-          }
-        }
-      }
-    },
-    "Formatting…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Форматування…"
-          }
-        }
-      }
-    },
-    "Found" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Знайдено"
-          }
-        }
-      }
-    },
-    "Found automatically" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Знайдено автоматично"
-          }
-        }
-      }
-    },
-    "General" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Загальні"
-          }
-        }
-      }
-    },
-    "Glass" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Скло"
-          }
-        }
-      }
-    },
-    "Goes into the agent's instructions: accent, sounds the recognizer gets wrong, habits. Any language." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Потрапляє в інструкції агента: акцент, звуки, які розпізнавач сприймає хибно, звички. Будь-якою мовою."
-          }
-        }
-      }
-    },
-    "Got it" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зрозуміло"
-          }
-        }
-      }
-    },
-    "Hands-free" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Без рук"
-          }
-        }
-      }
-    },
-    "Hide widget" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сховати віджет"
-          }
-        }
-      }
-    },
-    "History store is unavailable" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сховище історії недоступне"
-          }
-        }
-      }
-    },
-    "History…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Історія…"
-          }
-        }
-      }
-    },
-    "Hold" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Тримайте"
-          }
-        }
-      }
-    },
-    "Hold %@ to talk · click for hands-free" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Тримайте %@ · клік: без рук"
-          }
-        }
-      }
-    },
-    "Hold %@ · click for hands-free" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Тримайте %@ · клік: без рук"
-          }
-        }
-      }
-    },
-    "Hold Shift as you let go of %@ to see and edit the text first. Enter pastes, Esc cancels. Settings → General can do this for every dictation." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Утримуйте Shift, відпускаючи %@, щоб спершу переглянути й відредагувати текст. Enter вставляє, Esc скасовує. Це можна ввімкнути для кожного диктування в Параметри → Загальні."
-          }
-        }
-      }
-    },
-    "Hold Shift as you let go of the key to check and edit the text before it is pasted." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Утримуйте Shift, відпускаючи клавішу, щоб перевірити й відредагувати текст перед вставленням."
-          }
-        }
-      }
-    },
-    "Hold to record" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Утримуйте, щоб записати"
-          }
-        }
-      }
-    },
-    "Hold to talk, double tap for hands-free." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Утримуйте, щоб говорити, двічі натисніть для режиму без рук."
-          }
-        }
-      }
-    },
-    "Idle · hold %@ to dictate" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Очікування · утримуйте %@ для диктування"
-          }
-        }
-      }
-    },
-    "Insert" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вставити"
-          }
-        }
-      }
-    },
-    "Insert what you said. Spacing, capitals and dictionary terms are still fixed." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вставляє сказане; пробіли, регістр і терміни зі словника виправляються."
-          }
-        }
-      }
-    },
-    "Inserted" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вставлено"
-          }
-        }
-      }
-    },
-    "Inserted into %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вставлено в %@"
-          }
-        }
-      }
-    },
-    "Inserting" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вставлення"
-          }
-        }
-      }
-    },
-    "Inserting…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вставлення…"
-          }
-        }
-      }
-    },
-    "Install Claude Code from claude.ai/code, then run claude once to sign in." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Інсталюйте Claude Code з claude.ai/code, потім один раз запустіть claude, щоб увійти."
-          }
-        }
-      }
-    },
-    "Install and reopen" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Інсталювати й перезапустити"
-          }
-        }
-      }
-    },
-    "Install with npm i -g @openai/codex, then run codex once to sign in." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Інсталюйте через npm i -g @openai/codex і один раз запустіть codex, щоб увійти."
-          }
-        }
-      }
-    },
-    "Installing %@…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Інсталяція %@…"
-          }
-        }
-      }
-    },
-    "Install…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Інсталювати…"
-          }
-        }
-      }
-    },
-    "Language" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мова"
-          }
-        }
-      }
-    },
-    "Languages you speak" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мови, якими ви говорите"
-          }
-        }
-      }
-    },
-    "Last 200 dictations, kept for comparing recognizers" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Останні 200 диктувань, зберігаються для порівняння розпізнавачів"
-          }
-        }
-      }
-    },
-    "Last check failed" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Остання перевірка не вдалася"
-          }
-        }
-      }
-    },
-    "Later" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пізніше"
-          }
-        }
-      }
-    },
-    "Launch at login" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Запускати під час входу"
-          }
-        }
-      }
-    },
-    "Lighter" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Світліше"
-          }
-        }
-      }
-    },
-    "Listening" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Слухаю"
-          }
-        }
-      }
-    },
-    "Listening (hands-free)" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Слухаю (без рук)"
-          }
-        }
-      }
-    },
-    "Loading model" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Завантаження моделі"
-          }
-        }
-      }
-    },
-    "Loading recognizer…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Завантаження розпізнавача…"
-          }
-        }
-      }
-    },
-    "Microphone" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мікрофон"
-          }
-        }
-      }
-    },
-    "Model" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Модель"
-          }
-        }
-      }
-    },
-    "Needs Claude Code or Codex." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Потрібен Claude Code або Codex."
-          }
-        }
-      }
-    },
-    "New in Shepit" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Нове в Shepit"
-          }
-        }
-      }
-    },
-    "Next" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Далі"
-          }
-        }
-      }
-    },
-    "Next dictation mode" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Режим наступного диктування"
-          }
-        }
-      }
-    },
-    "No AI agent found on this Mac, so Shepit inserts the text as heard. Install Claude Code or Codex and it shows up here." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "На цьому Mac не знайдено ШІ-агента, тому Shepit вставляє текст як почув. Інсталюйте Claude Code або Codex, і він з’явиться тут."
-          }
-        }
-      }
-    },
-    "Not checked yet" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ще не перевіряли"
-          }
-        }
-      }
-    },
-    "Not installed" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Не інстальовано"
-          }
-        }
-      }
-    },
-    "OK" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OK"
-          }
-        }
-      }
-    },
-    "One per line: names, products and identifiers the recognizer gets wrong. Terms the polishing agent fixes are added here; the newest 30 also go to Whisper as a hint." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "По одному в рядку: імена, назви продуктів та ідентифікатори, які розпізнавач сприймає хибно. Сюди додаються терміни, які виправляє агент шліфування; 30 найновіших також іде у Whisper як підказка."
-          }
-        }
-      }
-    },
-    "Only the phrases and what Shepit heard go to %@. Never audio." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "До %@ надходять лише фрази й те, що почув Shepit. Звук не надсилається ніколи."
-          }
-        }
-      }
-    },
-    "Open Appearance" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Відкрити «Вигляд»"
-          }
-        }
-      }
-    },
-    "Open Doctor" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Відкрити Діагностику"
-          }
-        }
-      }
-    },
-    "Open Privacy settings" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Відкрити параметри приватності"
-          }
-        }
-      }
-    },
-    "Open Settings" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Відкрити параметри"
-          }
-        }
-      }
-    },
-    "Open folder" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Відкрити папку"
-          }
-        }
-      }
-    },
-    "Open release page" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Відкрити сторінку випуску"
-          }
-        }
-      }
-    },
-    "Outside AI apps. Dictionary terms are still fixed." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Поза програмами з ШІ. Терміни зі словника все одно виправляються."
-          }
-        }
-      }
-    },
-    "Paste" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вставити"
-          }
-        }
-      }
-    },
-    "Permissions" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Дозволи"
-          }
-        }
-      }
-    },
-    "Picked for the sounds that went wrong" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Підібрано для звуків, які розпізналися з помилками"
-          }
-        }
-      }
-    },
-    "Polishing" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Шліфування"
-          }
-        }
-      }
-    },
-    "Polishing reads these before every dictation. Edit anything." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Шліфування читає це перед кожним диктуванням. Можна редагувати будь-що."
-          }
-        }
-      }
-    },
-    "Position" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Положення"
-          }
-        }
-      }
-    },
-    "Prompt mode in AI apps from %lld words" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Prompt mode in AI apps from %lld word"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Prompt mode in AI apps from %lld words"
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete all %lld dictations and their recordings? This cannot be undone."
                 }
               }
             }
           }
         },
-        "uk" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Режим «Промпт» у програмах з ШІ від %lld слова"
+        "uk": {
+          "variations": {
+            "plural": {
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Видалити всі %lld диктування і їхні записи? Цю дію не можна скасувати."
                 }
               },
-              "few" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Режим «Промпт» у програмах з ШІ від %lld слів"
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Видалити всі %lld диктувань і їхні записи? Цю дію не можна скасувати."
                 }
               },
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Режим «Промпт» у програмах з ШІ від %lld слів"
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Видалити %lld диктування і його запис? Цю дію не можна скасувати."
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Режим «Промпт» у програмах з ШІ від %lld слова"
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Видалити всі %lld диктування і їхні записи? Цю дію не можна скасувати."
                 }
               }
             }
@@ -1367,381 +545,1021 @@
         }
       }
     },
-    "Quit Shepit" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вийти з Shepit"
+    "Dictation key": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Клавіша диктування"
           }
         }
       }
     },
-    "Read a few words and phrases aloud. %@ compares them with what Shepit heard and writes notes that help polishing. About 3 minutes." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Прочитайте вголос кілька слів і фраз. %@ порівняє їх із тим, що почув Shepit, і складе нотатки, які допоможуть шліфуванню. Близько 3 хвилин."
+    "Dictionary": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Словник"
           }
         }
       }
     },
-    "Recognition" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнавання"
+    "Did not catch that. Try again.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося розчути. Спробуйте ще раз."
           }
         }
       }
     },
-    "Recognition runs on this Mac with Whisper and Parakeet. Polishing uses the agent you pick." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнавання працює на цьому Mac через Whisper і Parakeet. Шліфування використовує обраного вами агента."
+    "Doctor": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Діагностика"
           }
         }
       }
     },
-    "Recognition stays on this Mac. Polishing sends the recognized text, never the audio, to the agent you pick." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнавання лишається на цьому Mac. Шліфування надсилає агенту лише текст, не звук."
+    "Doctor…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Діагностика…"
           }
         }
       }
     },
-    "Recognizer" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнавач"
+    "Down to half after 3 seconds": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До половини за 3 секунди"
           }
         }
       }
     },
-    "Recordings" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Записи"
+    "Downloading %@: %lld%%": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження %@: %lld%%"
           }
         }
       }
     },
-    "Redo" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Повторити"
+    "Downloading… %lld of %lld MB": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження… %lld з %lld МБ"
           }
         }
       }
     },
-    "Refresh" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оновити"
+    "Downloading… %lld%%": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження… %lld%%"
           }
         }
       }
     },
-    "Reset position" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Скинути положення"
+    "Drag the widget anywhere; it stays there across launches": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перетягніть віджет куди завгодно, він залишиться там і після перезапуску"
           }
         }
       }
     },
-    "Restart Shepit" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перезапустити Shepit"
+    "Edit": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Редагування"
           }
         }
       }
     },
-    "Review before pasting" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перегляд перед вставленням"
+    "Empty. Use Build from my voice, or describe your accent and the words the recognizer gets wrong.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Порожньо. Натисніть «Створити за моїм голосом» або опишіть свій акцент і слова, які розпізнавач сприймає хибно."
           }
         }
       }
     },
-    "Review: Enter pastes, Esc cancels" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Перегляд: Enter вставляє, Esc скасовує"
+    "Enter pastes · Shift+Enter new line · Esc cancels": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter вставляє · Shift+Enter новий рядок · Esc скасовує"
           }
         }
       }
     },
-    "Runs Parakeet next to the recognizer" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Запускає Parakeet поруч із розпізнавачем"
+    "Executable": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Виконуваний файл"
           }
         }
       }
     },
-    "Runs on this Mac. Models download on first use (0.6-1.6 GB)." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Працює на цьому Mac. Моделі завантажуються під час першого використання (0,6-1,6 ГБ)."
+    "Fade when idle": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Згасати в очікуванні"
           }
         }
       }
     },
-    "Save" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зберегти"
+    "Failed: %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помилка: %@"
           }
         }
       }
     },
-    "Select All" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вибрати все"
+    "Finds what keeps Shepit from working, like a permission macOS still holds for an older build, and fixes it in a click. Open it from the menu bar icon or the widget menu.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Знаходить, що заважає Shepit працювати, наприклад дозвіл, який macOS досі тримає для старої збірки, і виправляє це одним кліком. Відкрийте її з піктограми в рядку меню або з меню віджета."
           }
         }
       }
     },
-    "Settings" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Параметри"
+    "Flow pill, caption bar or island, in Settings → Appearance.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пігулка, смуга субтитрів або острів: Параметри → Вигляд."
           }
         }
       }
     },
-    "Settings…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Параметри…"
+    "Format": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Формат"
           }
         }
       }
     },
-    "Shepit" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shepit"
+    "Formatting": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Форматування"
           }
         }
       }
     },
-    "Shepit %@ is out" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Вийшов Shepit %@"
+    "Formatting…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Форматування…"
           }
         }
       }
     },
-    "Shepit Doctor" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Діагностика Shepit"
+    "Found": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Знайдено"
           }
         }
       }
     },
-    "Shepit History" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Історія Shepit"
+    "Found automatically": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Знайдено автоматично"
           }
         }
       }
     },
-    "Shepit is up to date" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "У вас найновіша версія Shepit"
+    "General": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загальні"
           }
         }
       }
     },
-    "Shepit needs attention" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shepit потребує уваги"
+    "Glass": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скло"
           }
         }
       }
     },
-    "Shepit types it into the app you are in, in Ukrainian or English." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shepit вводить текст у програму, у якій ви працюєте, українською або англійською."
+    "Goes into the agent's instructions: accent, sounds the recognizer gets wrong, habits. Any language.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Потрапляє в інструкції агента: акцент, звуки, які розпізнавач сприймає хибно, звички. Будь-якою мовою."
           }
         }
       }
     },
-    "Show" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показати"
+    "Got it": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зрозуміло"
           }
         }
       }
     },
-    "Show again" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показати знову"
+    "Hands-free": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без рук"
           }
         }
       }
     },
-    "Show floating widget" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показувати плаваючий віджет"
+    "Heard: %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почуто: %@"
           }
         }
       }
     },
-    "Show the words while speaking" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показувати слова під час мовлення"
+    "Hide widget": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сховати віджет"
           }
         }
       }
     },
-    "Show widget" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Показати віджет"
+    "History store is unavailable": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сховище історії недоступне"
           }
         }
       }
     },
-    "Shows the text in a panel first: Enter pastes, Esc cancels. Hold Shift when you release the key to review just one dictation." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Спершу показує текст у панелі: Enter вставляє, Esc скасовує. Утримуйте Shift, коли відпускаєте клавішу, щоб переглянути лише одне диктування."
+    "History…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Історія…"
           }
         }
       }
     },
-    "Skip" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пропустити"
+    "Hold %@ and read it aloud, or hold the button": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Утримуйте %@ і читайте вголос або утримуйте кнопку"
           }
         }
       }
     },
-    "Skip polishing for phrases up to %lld words" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Skip polishing for phrases up to %lld word"
+    "Hold %@ to talk · click for hands-free": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тримайте %@ · клік: без рук"
+          }
+        }
+      }
+    },
+    "Hold %@ · click for hands-free": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тримайте %@ · клік: без рук"
+          }
+        }
+      }
+    },
+    "Hold %@, say what you want to write, let go.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Утримуйте %@ і кажіть, що хочете написати. Потім відпустіть."
+          }
+        }
+      }
+    },
+    "Hold Shift as you let go of %@ to see and edit the text first. Enter pastes, Esc cancels. Settings → General can do this for every dictation.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Утримуйте Shift, відпускаючи %@, щоб спершу переглянути й відредагувати текст. Enter вставляє, Esc скасовує. Це можна ввімкнути для кожного диктування в Параметри → Загальні."
+          }
+        }
+      }
+    },
+    "Hold Shift as you let go of the key to check and edit the text before it is pasted.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Утримуйте Shift, відпускаючи клавішу, щоб перевірити й відредагувати текст перед вставленням."
+          }
+        }
+      }
+    },
+    "Hold Shift as you release the dictation key to check and edit the text first. Enter pastes, Esc cancels. Settings → General turns it on for every dictation.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Утримуйте Shift, відпускаючи клавішу диктування, щоб спершу переглянути й відредагувати текст. Enter вставляє, Esc скасовує. Параметри → Загальні вмикає це для кожного диктування."
+          }
+        }
+      }
+    },
+    "Hold to record": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Утримуйте, щоб записати"
+          }
+        }
+      }
+    },
+    "Hold to talk, double tap for hands-free.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Утримуйте, щоб говорити, двічі натисніть для режиму без рук."
+          }
+        }
+      }
+    },
+    "Idle · hold %@ to dictate": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очікування · утримуйте %@ для диктування"
+          }
+        }
+      }
+    },
+    "Insert": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставити"
+          }
+        }
+      }
+    },
+    "Insert what you said. Spacing, capitals and dictionary terms are still fixed.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставляє сказане; пробіли, регістр і терміни зі словника виправляються."
+          }
+        }
+      }
+    },
+    "Inserted": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставлено"
+          }
+        }
+      }
+    },
+    "Inserted into %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставлено в %@"
+          }
+        }
+      }
+    },
+    "Inserting": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставлення"
+          }
+        }
+      }
+    },
+    "Inserting…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставлення…"
+          }
+        }
+      }
+    },
+    "Install Claude Code from claude.ai/code, then run claude once to sign in.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інсталюйте Claude Code з claude.ai/code, потім один раз запустіть claude, щоб увійти."
+          }
+        }
+      }
+    },
+    "Install and reopen": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інсталювати й перезапустити"
+          }
+        }
+      }
+    },
+    "Install with npm i -g @openai/codex, then run codex once to sign in.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інсталюйте через npm i -g @openai/codex і один раз запустіть codex, щоб увійти."
+          }
+        }
+      }
+    },
+    "Installing %@…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інсталяція %@…"
+          }
+        }
+      }
+    },
+    "Install…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Інсталювати…"
+          }
+        }
+      }
+    },
+    "Language": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мова"
+          }
+        }
+      }
+    },
+    "Languages you speak": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мови, якими ви говорите"
+          }
+        }
+      }
+    },
+    "Last 200 dictations, kept for comparing recognizers": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Останні 200 диктувань, зберігаються для порівняння розпізнавачів"
+          }
+        }
+      }
+    },
+    "Last check failed": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остання перевірка не вдалася"
+          }
+        }
+      }
+    },
+    "Later": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пізніше"
+          }
+        }
+      }
+    },
+    "Launch at login": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запускати під час входу"
+          }
+        }
+      }
+    },
+    "Lighter": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Світліше"
+          }
+        }
+      }
+    },
+    "Listening": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слухаю"
+          }
+        }
+      }
+    },
+    "Listening (hands-free)": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слухаю (без рук)"
+          }
+        }
+      }
+    },
+    "Listening…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слухаю…"
+          }
+        }
+      }
+    },
+    "Loading model": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження моделі"
+          }
+        }
+      }
+    },
+    "Loading recognizer…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завантаження розпізнавача…"
+          }
+        }
+      }
+    },
+    "Long dictations finish sooner": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Довгі диктування завершуються швидше"
+          }
+        }
+      }
+    },
+    "Microphone": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мікрофон"
+          }
+        }
+      }
+    },
+    "Model": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Модель"
+          }
+        }
+      }
+    },
+    "Needs Claude Code or Codex.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Потрібен Claude Code або Codex."
+          }
+        }
+      }
+    },
+    "New in Shepit": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нове в Shepit"
+          }
+        }
+      }
+    },
+    "Next": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Далі"
+          }
+        }
+      }
+    },
+    "Next dictation mode": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим наступного диктування"
+          }
+        }
+      }
+    },
+    "No AI agent found on this Mac, so Shepit inserts the text as heard. Install Claude Code or Codex and it shows up here.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На цьому Mac не знайдено ШІ-агента, тому Shepit вставляє текст як почув. Інсталюйте Claude Code або Codex, і він з’явиться тут."
+          }
+        }
+      }
+    },
+    "Not checked yet": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ще не перевіряли"
+          }
+        }
+      }
+    },
+    "Not installed": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не інстальовано"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "One per line: names, products and identifiers the recognizer gets wrong. Terms the polishing agent fixes are added here; the newest 30 also go to Whisper as a hint.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По одному в рядку: імена, назви продуктів та ідентифікатори, які розпізнавач сприймає хибно. Сюди додаються терміни, які виправляє агент шліфування; 30 найновіших також іде у Whisper як підказка."
+          }
+        }
+      }
+    },
+    "Only the phrases and what Shepit heard go to %@. Never audio.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До %@ надходять лише фрази й те, що почув Shepit. Звук не надсилається ніколи."
+          }
+        }
+      }
+    },
+    "Open Appearance": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити «Вигляд»"
+          }
+        }
+      }
+    },
+    "Open Doctor": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити Діагностику"
+          }
+        }
+      }
+    },
+    "Open Privacy settings": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити параметри приватності"
+          }
+        }
+      }
+    },
+    "Open Settings": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити параметри"
+          }
+        }
+      }
+    },
+    "Open System Settings": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити Системні параметри"
+          }
+        }
+      }
+    },
+    "Open folder": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити папку"
+          }
+        }
+      }
+    },
+    "Open release page": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити сторінку випуску"
+          }
+        }
+      }
+    },
+    "Outside AI apps. Dictionary terms are still fixed.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поза програмами з ШІ. Терміни зі словника все одно виправляються."
+          }
+        }
+      }
+    },
+    "Paste": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставити"
+          }
+        }
+      }
+    },
+    "Permissions": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дозволи"
+          }
+        }
+      }
+    },
+    "Permissions survive updates": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дозволи зберігаються після оновлень"
+          }
+        }
+      }
+    },
+    "Phrases · %lld of %lld": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фрази · %lld з %lld"
+          }
+        }
+      }
+    },
+    "Pick a look": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оберіть вигляд"
+          }
+        }
+      }
+    },
+    "Picked for the sounds that went wrong": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підібрано для звуків, які розпізналися з помилками"
+          }
+        }
+      }
+    },
+    "Picking sentences for you…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добираємо для вас речення…"
+          }
+        }
+      }
+    },
+    "Polish the text": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шліфування тексту"
+          }
+        }
+      }
+    },
+    "Polishing": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шліфування"
+          }
+        }
+      }
+    },
+    "Polishing reads these before every dictation. Edit anything.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Шліфування читає це перед кожним диктуванням. Можна редагувати будь-що."
+          }
+        }
+      }
+    },
+    "Position": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Положення"
+          }
+        }
+      }
+    },
+    "Prompt mode in AI apps from %lld words": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Prompt mode in AI apps from %lld word"
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Skip polishing for phrases up to %lld words"
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Prompt mode in AI apps from %lld words"
                 }
               }
             }
           }
         },
-        "uk" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Не шліфувати фрази до %lld слова"
+        "uk": {
+          "variations": {
+            "plural": {
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Режим «Промпт» у програмах з ШІ від %lld слів"
                 }
               },
-              "few" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Не шліфувати фрази до %lld слів"
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Режим «Промпт» у програмах з ШІ від %lld слів"
                 }
               },
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Не шліфувати фрази до %lld слів"
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Режим «Промпт» у програмах з ШІ від %lld слова"
                 }
               },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Не шліфувати фрази до %lld слова"
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Режим «Промпт» у програмах з ШІ від %lld слова"
                 }
               }
             }
@@ -1749,376 +1567,978 @@
         }
       }
     },
-    "Skip this version" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пропустити цю версію"
+    "Quit Shepit": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вийти з Shepit"
           }
         }
       }
     },
-    "Sounds recognizers often miss" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Звуки, які розпізнавачі часто пропускають"
+    "Read a few words aloud and Shepit writes notes on how you speak, so polishing fixes what the recognizer gets wrong. Run it again from Settings → Polishing.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитайте кілька слів уголос, і Shepit складе нотатки про вашу вимову, щоб шліфування виправляло те, що розпізнавач чує хибно. Повторіть у Параметри → Шліфування."
           }
         }
       }
     },
-    "Speech recognition runs on this Mac. The audio never leaves it." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнавання мовлення працює на цьому Mac. Звук його не залишає."
+    "Read a few words and phrases aloud. %@ compares them with what Shepit heard and writes notes that help polishing. About 3 minutes.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитайте вголос кілька слів і фраз. %@ порівняє їх із тим, що почув Shepit, і складе нотатки, які допоможуть шліфуванню. Близько 3 хвилин."
           }
         }
       }
     },
-    "Start" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Почати"
+    "Read at least three items, then try again.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитайте щонайменше три пункти й спробуйте ще раз."
           }
         }
       }
     },
-    "Start dictating" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Почати диктувати"
+    "Recognition": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнавання"
           }
         }
       }
     },
-    "Start hands-free dictation" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Почати диктування без рук"
+    "Recognition runs on this Mac with Whisper and Parakeet. Polishing uses the agent you pick.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнавання працює на цьому Mac через Whisper і Parakeet. Шліфування використовує обраного вами агента."
           }
         }
       }
     },
-    "Stop dictation" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Зупинити диктування"
+    "Recognition stays on this Mac. Polishing sends the recognized text, never the audio, to the agent you pick.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнавання лишається на цьому Mac. Шліфування надсилає агенту лише текст, не звук."
           }
         }
       }
     },
-    "System" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Система"
+    "Recognizer": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнавач"
           }
         }
       }
     },
-    "Terms" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Терміни"
+    "Recordings": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записи"
           }
         }
       }
     },
-    "The update did not install" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оновлення не інстальовано"
+    "Redo": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторити"
           }
         }
       }
     },
-    "The widget sits at the bottom of the screen. Drag it anywhere and it stays there. You can switch later in Settings." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Віджет розташований унизу екрана. Перетягніть його куди завгодно, і він залишиться там. Змінити можна пізніше в параметрах."
+    "Refresh": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оновити"
           }
         }
       }
     },
-    "The words show up in the widget while you speak; the finished text lands here." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Слова з’являються у віджеті, поки ви говорите, а готовий текст потрапляє сюди."
+    "Releases are now signed with one certificate, so macOS keeps Accessibility and Microphone across updates. Grant them once more after this one.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Випуски тепер підписані одним сертифікатом, тож macOS зберігає Універсальний доступ і Мікрофон після оновлень. Після цього оновлення надайте їх ще раз."
           }
         }
       }
     },
-    "This can take up to a minute." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Це може тривати до хвилини."
+    "Reset position": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скинути положення"
           }
         }
       }
     },
-    "Tip" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Порада"
+    "Restart Shepit": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезапустити Shepit"
           }
         }
       }
     },
-    "Transcribe" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнати"
+    "Review before pasting": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перегляд перед вставленням"
           }
         }
       }
     },
-    "Transcribing" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнавання"
+    "Review: Enter pastes, Esc cancels": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перегляд: Enter вставляє, Esc скасовує"
           }
         }
       }
     },
-    "Transcribing…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Розпізнавання…"
+    "Runs Parakeet next to the recognizer": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запускає Parakeet поруч із розпізнавачем"
           }
         }
       }
     },
-    "Try again" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Спробувати ще"
+    "Runs on this Mac. Models download on first use (0.6-1.6 GB).": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Працює на цьому Mac. Моделі завантажуються під час першого використання (0,6-1,6 ГБ)."
           }
         }
       }
     },
-    "Turn on Shepit in the list. Already on and still not allowed? Doctor can reset it." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Увімкніть Shepit у списку. Уже ввімкнено, але досі не дозволено? Діагностика може це скинути."
+    "Russian or Polish words no longer slip into your text. Settings → General can narrow recognition to one language.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Російські чи польські слова більше не потраплять у ваш текст. У Параметри → Загальні розпізнавання можна обмежити однією мовою."
           }
         }
       }
     },
-    "Undo" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Відмінити"
+    "Save": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зберегти"
           }
         }
       }
     },
-    "Up to date" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оновлень немає"
+    "Select All": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вибрати все"
           }
         }
       }
     },
-    "Update to %@…" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оновити до %@…"
+    "Settings": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Параметри"
           }
         }
       }
     },
-    "Updates" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оновлення"
+    "Settings…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Параметри…"
           }
         }
       }
     },
-    "Updating to %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Оновлення до %@"
+    "Shepit": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shepit"
           }
         }
       }
     },
-    "Uses your ChatGPT plan. %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Використовує ваш тариф ChatGPT. %@"
+    "Shepit %@ is out": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вийшов Shepit %@"
           }
         }
       }
     },
-    "Uses your Claude subscription. %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Використовує вашу підписку Claude. %@"
+    "Shepit Doctor": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Діагностика Shepit"
           }
         }
       }
     },
-    "Welcome tour" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Знайомство"
+    "Shepit History": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Історія Shepit"
           }
         }
       }
     },
-    "What changed" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Що змінилося"
+    "Shepit checks once a day and installs a new version in one click. Settings → About has the switch and a Check now button.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shepit перевіряє оновлення раз на день і інсталює нову версію одним кліком. Параметри → Про програму: перемикач і кнопка «Перевірити»."
           }
         }
       }
     },
-    "What's new in %@" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Що нового в %@"
+    "Shepit follows the macOS language. Settings → General → App language picks English or Ukrainian.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shepit дотримується мови macOS. Параметри → Загальні → Мова програми обирає англійську або українську."
           }
         }
       }
     },
-    "Widget style" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Стиль віджета"
+    "Shepit is up to date": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У вас найновіша версія Shepit"
           }
         }
       }
     },
-    "You have %@. Shepit downloads the new version from GitHub, checks that it is signed like this one, puts it in place and opens again." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "У вас %@. Shepit завантажить нову версію з GitHub, перевірить, що вона підписана так само, як ця, замінить поточну й запуститься знову."
+    "Shepit needs attention": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shepit потребує уваги"
           }
         }
       }
     },
-    "You have the latest version, %@." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "У вас остання версія, %@."
+    "Shepit types it into the app you are in, in Ukrainian or English.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shepit вводить текст у програму, у якій ви працюєте, українською або англійською."
           }
         }
       }
     },
-    "and read it aloud, or hold the button" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "і прочитайте вголос, або утримуйте кнопку"
+    "Show": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показати"
           }
         }
       }
     },
-    "and say a sentence." : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "і скажіть речення."
+    "Show again": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показати знову"
           }
         }
       }
     },
-    "hold to talk · click for hands-free" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "тримайте · клік: без рук"
+    "Show floating widget": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показувати плаваючий віджет"
           }
         }
       }
     },
-    "inserted" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "вставлено"
+    "Show the words while speaking": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показувати слова під час мовлення"
           }
         }
       }
     },
-    "not pasted" : {
-      "localizations" : {
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "не вставлено"
+    "Show widget": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показати віджет"
+          }
+        }
+      }
+    },
+    "Shows the text in a panel first: Enter pastes, Esc cancels. Hold Shift when you release the key to review just one dictation.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спершу показує текст у панелі: Enter вставляє, Esc скасовує. Утримуйте Shift, коли відпускаєте клавішу, щоб переглянути лише одне диктування."
+          }
+        }
+      }
+    },
+    "Skip": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пропустити"
+          }
+        }
+      }
+    },
+    "Skip polishing for phrases up to %lld words": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Skip polishing for phrases up to %lld word"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Skip polishing for phrases up to %lld words"
+                }
+              }
+            }
+          }
+        },
+        "uk": {
+          "variations": {
+            "plural": {
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Не шліфувати фрази до %lld слів"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Не шліфувати фрази до %lld слів"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Не шліфувати фрази до %lld слова"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Не шліфувати фрази до %lld слова"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Skip this version": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пропустити цю версію"
+          }
+        }
+      }
+    },
+    "Sounds recognizers often miss": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Звуки, які розпізнавачі часто пропускають"
+          }
+        }
+      }
+    },
+    "Speak instead of typing": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Говоріть замість друку"
+          }
+        }
+      }
+    },
+    "Speech recognition runs on this Mac. The audio never leaves it.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнавання мовлення працює на цьому Mac. Звук його не залишає."
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почати"
+          }
+        }
+      }
+    },
+    "Start dictating": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почати диктувати"
+          }
+        }
+      }
+    },
+    "Start hands-free dictation": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Почати диктування без рук"
+          }
+        }
+      }
+    },
+    "Stop dictation": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зупинити диктування"
+          }
+        }
+      }
+    },
+    "System": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Система"
+          }
+        }
+      }
+    },
+    "Teach Shepit your voice": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Навчіть Shepit свого голосу"
+          }
+        }
+      }
+    },
+    "Terms": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Терміни"
+          }
+        }
+      }
+    },
+    "The History window has a Clear History button. It deletes every dictation and recording after you confirm.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У вікні «Історія» є кнопка «Очистити історію». Після підтвердження вона видаляє всі диктування й записи."
+          }
+        }
+      }
+    },
+    "The update did not install": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оновлення не інстальовано"
+          }
+        }
+      }
+    },
+    "The widget shows what it hears as you talk. Dim words may still change.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Віджет показує, що чує, поки ви говорите. Тьмяні слова ще можуть змінитися."
+          }
+        }
+      }
+    },
+    "The widget sits at the bottom of the screen. Drag it anywhere and it stays there. You can switch later in Settings.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Віджет розташований унизу екрана. Перетягніть його куди завгодно, і він залишиться там. Змінити можна пізніше в параметрах."
+          }
+        }
+      }
+    },
+    "The words show up in the widget while you speak; the finished text lands here.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слова з’являються у віджеті, поки ви говорите, а готовий текст потрапляє сюди."
+          }
+        }
+      }
+    },
+    "This can take up to a minute.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Це може тривати до хвилини."
+          }
+        }
+      }
+    },
+    "Three widget styles": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Три стилі віджета"
+          }
+        }
+      }
+    },
+    "Tip": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Порада"
+          }
+        }
+      }
+    },
+    "To hear you while the key is held.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Щоб чути вас, поки утримується клавіша."
+          }
+        }
+      }
+    },
+    "To notice the key in any app and paste the text where your cursor is.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Щоб помічати клавішу в будь-якій програмі й вставляти текст там, де курсор."
+          }
+        }
+      }
+    },
+    "Transcribe": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнати"
+          }
+        }
+      }
+    },
+    "Transcribing": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнавання"
+          }
+        }
+      }
+    },
+    "Transcribing…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розпізнавання…"
+          }
+        }
+      }
+    },
+    "Try again": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спробувати ще"
+          }
+        }
+      }
+    },
+    "Try it": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спробуйте"
+          }
+        }
+      }
+    },
+    "Turn on Shepit in the list. Already on and still not allowed? Doctor can reset it.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Увімкніть Shepit у списку. Уже ввімкнено, але досі не дозволено? Діагностика може це скинути."
+          }
+        }
+      }
+    },
+    "Two permissions": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Два дозволи"
+          }
+        }
+      }
+    },
+    "Ukrainian and English only": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лише українська й англійська"
+          }
+        }
+      }
+    },
+    "Ukrainian interface": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Український інтерфейс"
+          }
+        }
+      }
+    },
+    "Undo": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відмінити"
+          }
+        }
+      }
+    },
+    "Up to date": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оновлень немає"
+          }
+        }
+      }
+    },
+    "Update to %@…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оновити до %@…"
+          }
+        }
+      }
+    },
+    "Updates": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оновлення"
+          }
+        }
+      }
+    },
+    "Updates from GitHub": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оновлення з GitHub"
+          }
+        }
+      }
+    },
+    "Updating to %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оновлення до %@"
+          }
+        }
+      }
+    },
+    "Uses your ChatGPT plan. %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Використовує ваш тариф ChatGPT. %@"
+          }
+        }
+      }
+    },
+    "Uses your Claude subscription. %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Використовує вашу підписку Claude. %@"
+          }
+        }
+      }
+    },
+    "Voice calibration": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Калібрування голосу"
+          }
+        }
+      }
+    },
+    "Welcome tour": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Знайомство"
+          }
+        }
+      }
+    },
+    "What changed": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Що змінилося"
+          }
+        }
+      }
+    },
+    "What's new in %@": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Що нового в %@"
+          }
+        }
+      }
+    },
+    "Whisper works through long dictations while you speak. A 46-second prompt is ready about 4 seconds after you let go, down from 10.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whisper обробляє довгі диктування, поки ви говорите. Промпт на 46 секунд готовий приблизно за 4 секунди після відпускання клавіші, а було 10."
+          }
+        }
+      }
+    },
+    "Widget style": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стиль віджета"
+          }
+        }
+      }
+    },
+    "Words while you speak": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слова під час мовлення"
+          }
+        }
+      }
+    },
+    "Words · %lld of %lld": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Слова · %lld з %lld"
+          }
+        }
+      }
+    },
+    "Writing your notes…": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Складаємо ваші нотатки…"
+          }
+        }
+      }
+    },
+    "You have %@. Shepit downloads the new version from GitHub, checks that it is signed like this one, puts it in place and opens again.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У вас %@. Shepit завантажить нову версію з GitHub, перевірить, що вона підписана так само, як ця, замінить поточну й запуститься знову."
+          }
+        }
+      }
+    },
+    "You have the latest version, %@.": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У вас остання версія, %@."
+          }
+        }
+      }
+    },
+    "Your speaker notes": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нотатки про мовця"
+          }
+        }
+      }
+    },
+    "hold to talk · click for hands-free": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "тримайте · клік: без рук"
+          }
+        }
+      }
+    },
+    "inserted": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "вставлено"
+          }
+        }
+      }
+    },
+    "not pasted": {
+      "localizations": {
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "не вставлено"
           }
         }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }
