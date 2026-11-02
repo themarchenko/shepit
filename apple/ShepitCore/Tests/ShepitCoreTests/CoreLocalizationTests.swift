@@ -22,14 +22,14 @@ final class CoreLocalizationTests: XCTestCase {
 
     private func inputs(
         accessibilityTrusted: Bool = true, accessibilityReset: AccessibilityResetState = .idle,
-        microphone: MicrophoneAccess = .granted, listenEventAccess: Bool = true,
+        microphone: MicrophoneAccess = .granted, microphoneReset: AccessibilityResetState = .idle, listenEventAccess: Bool = true,
         hotkey: HotkeyChoice = .rightOption, fnUsageType: Int? = 0, engine: EngineID = .parakeetV3,
         modelOnDisk: Bool = true, modelState: EngineLoadState = .loaded, polishing: PolishingProvider = .off,
         agentExecutable: String? = nil, agentTest: AgentTestState = .notRun,
         secureInputActive: Bool = false, secureInputHolder: String? = nil
     ) -> DoctorInputs {
         DoctorInputs(accessibilityTrusted: accessibilityTrusted, accessibilityReset: accessibilityReset,
-                     microphone: microphone, listenEventAccess: listenEventAccess, hotkey: hotkey,
+                     microphone: microphone, microphoneReset: microphoneReset, listenEventAccess: listenEventAccess, hotkey: hotkey,
                      fnUsageType: fnUsageType, engine: engine, modelOnDisk: modelOnDisk, modelState: modelState,
                      polishing: polishing, agentExecutable: agentExecutable, agentTest: agentTest,
                      secureInputActive: secureInputActive, secureInputHolder: secureInputHolder)
@@ -44,6 +44,7 @@ final class CoreLocalizationTests: XCTestCase {
             ("accessibility.done", inputs(accessibilityTrusted: false, accessibilityReset: .done)),
             ("accessibility.failed", inputs(accessibilityTrusted: false, accessibilityReset: .failed)),
             ("microphone.denied", inputs(microphone: .denied)),
+            ("microphone.resetting", inputs(microphone: .denied, microphoneReset: .running)),
             ("microphone.notDetermined", inputs(microphone: .notDetermined)),
             ("hotkey.fnOk", inputs(hotkey: .fn, fnUsageType: 0)),
             ("hotkey.fnProblem", inputs(hotkey: .fn, fnUsageType: 2)),
