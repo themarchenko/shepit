@@ -8,6 +8,7 @@ private func inputs(
     accessibilityTrusted: Bool = true,
     accessibilityReset: AccessibilityResetState = .idle,
     microphone: MicrophoneAccess = .granted,
+    microphoneReset: AccessibilityResetState = .idle,
     listenEventAccess: Bool = true,
     hotkey: HotkeyChoice = .rightOption,
     fnUsageType: Int? = 0,
@@ -21,7 +22,7 @@ private func inputs(
     secureInputHolder: String? = nil
 ) -> DoctorInputs {
     DoctorInputs(accessibilityTrusted: accessibilityTrusted, accessibilityReset: accessibilityReset,
-                 microphone: microphone, listenEventAccess: listenEventAccess, hotkey: hotkey,
+                 microphone: microphone, microphoneReset: microphoneReset, listenEventAccess: listenEventAccess, hotkey: hotkey,
                  fnUsageType: fnUsageType, engine: engine, modelOnDisk: modelOnDisk, modelState: modelState,
                  polishing: polishing, agentExecutable: agentExecutable, agentTest: agentTest,
                  secureInputActive: secureInputActive, secureInputHolder: secureInputHolder)
@@ -81,10 +82,26 @@ final class DoctorTests: XCTestCase {
         XCTAssertTrue(c.required)
     }
 
-    func testMicrophoneDeniedOpensSettings() {
+    func testMicrophoneDeniedOffersResetAndAsk() {
         let c = row(.microphone, inputs(microphone: .denied))
         XCTAssertEqual(c.status, .problem)
-        XCTAssertEqual(c.fix, .openMicrophoneSettings)
+        XCTAssertEqual(c.fix, .resetMicrophone)
+        XCTAssertEqual(c.fixTitle, "Reset and ask again")
+        XCTAssertEqual(c.detail, "Not allowed. If Shepit is already switched on in the list, macOS is holding the permission of an older build.")
+        XCTAssertEqual(c.steps, ["Click Reset and ask again, then allow the microphone."])
+        XCTAssertTrue(c.required)
+    }
+
+    func testMicrophoneResetFailureShowsManualSteps() {
+        let c = row(.microphone, inputs(microphone: .denied, microphoneReset: .failed))
+        XCTAssertEqual(c.status, .problem)
+        XCTAssertEqual(c.steps, ["In the list, select Shepit and remove it with the minus button.",
+                                 "Click Reset and ask again, then allow the microphone."])
+    }
+
+    func testMicrophoneResetRunningIsChecking() {
+        let c = row(.microphone, inputs(microphone: .denied, microphoneReset: .running))
+        XCTAssertEqual(c.status, .checking)
     }
 
     func testMicrophoneNotDeterminedRequests() {
@@ -96,9 +113,10 @@ final class DoctorTests: XCTestCase {
 
     // MARK: Input Monitoring
 
-    func testInputMonitoringMissingIsOnlyAWarning() {
+    func testInputMonitoringMissingIsOnlyInfo() {
         let c = row(.inputMonitoring, inputs(listenEventAccess: false))
-        XCTAssertEqual(c.status, .warning)
+        XCTAssertEqual(c.status, .info)
+        XCTAssertEqual(c.steps, ["If Shepit is not in the list, click + and add it from Applications."])
         XCTAssertEqual(c.fix, .openInputMonitoring)
         XCTAssertFalse(c.required)
         XCTAssertEqual(row(.inputMonitoring, inputs(listenEventAccess: true)).status, .ok)
@@ -250,6 +268,15 @@ final class DoctorTests: XCTestCase {
     func testSummaryCountsNonOkRows() {
         XCTAssertEqual(Doctor.summary(Doctor.evaluate(inputs())), "Everything Shepit needs is working.")
         let two = Doctor.evaluate(inputs(accessibilityTrusted: false, listenEventAccess: false))
+        // Fallback format: plain `swift test` has no compiled catalog, so the plural variants do not apply.
+        // The app shows "1 thing needs attention."; CoreLocalizationTests pins that through the catalog.
+        XCTAssertEqual(Doctor.summary(two), "1 things need attention.")
+    }
+
+    func testInputMonitoringOffAloneDoesNotCount() {
+        let rows = Doctor.evaluate(inputs(listenEventAccess: false))
+        XCTAssertEqual(Doctor.summary(rows), "Everything Shepit needs is working.")
+        let two = Doctor.evaluate(inputs(accessibilityTrusted: false, listenEventAccess: false, modelOnDisk: false, modelState: .idle))
         XCTAssertEqual(Doctor.summary(two), "2 things need attention.")
     }
 

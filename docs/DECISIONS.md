@@ -2,6 +2,13 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-02: Doctor permission rows (macOS)
+
+- Microphone gets the same stale-grant fix as Accessibility: `tccutil reset Microphone <bundle id>`, then Shepit asks again. Verified on this Mac: `Microphone` and `ListenEvent` exit 0 for a test bundle id and an unknown service exits 70, so a wrong service name fails loudly instead of doing nothing.
+- Input Monitoring is a new `info` status, not a warning: it is optional, so it is not counted in the summary. It is not escalated when the dictation key is silent because nothing reports a dead tap today. Adding that signal would be a separate change.
+- If the Microphone reset command fails, Doctor opens the Microphone list so the user is not left with a button that did nothing.
+- The Doctor window scrolls to the top on every open and sizes itself to its rows (420 pt up to the visible height minus 80 pt). Reproduced before the change with an offscreen render: the scroll offset survived closing and reopening, and the fixed 560 pt height hid rows.
+
 ## 2026-11-02: Ukrainian interface (macOS)
 
 - macOS only; Windows lags (`docs/spec/localization.md`). Every user-visible string has an English source and a Ukrainian value in a String Catalog. Supersedes "localised labels" in the allowed-languages Kept out list.

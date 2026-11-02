@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import ShepitCore
 
@@ -8,6 +9,10 @@ import ShepitCore
 final class DoctorModel: ObservableObject {
     @Published private(set) var checks: [DoctorCheck]
     @Published private(set) var summary: String
+    /// Bumped on every show() so the list jumps back to the first row instead of keeping an old scroll offset.
+    @Published private(set) var topToken = 0
+    /// Header plus rows as laid out by the view; the window sizes itself to this.
+    @Published var contentHeight: CGFloat = 0
 
     private struct Live {
         let settings: AppSettings
@@ -20,6 +25,7 @@ final class DoctorModel: ObservableObject {
 
     private let live: Live?
     private var resetState: AccessibilityResetState = .idle
+    private var microphoneResetState: AccessibilityResetState = .idle
     private var agentTest: AgentTestState = .notRun
     private var timer: Timer?
     private var generation = 0
@@ -42,6 +48,8 @@ final class DoctorModel: ObservableObject {
                     requestMicrophone: requestMicrophone, openSettings: openSettings)
         refresh()
     }
+
+    func scrollToTop() { topToken += 1 }
 
     func start() {
         guard live != nil, timer == nil else { return }
@@ -75,7 +83,8 @@ final class DoctorModel: ObservableObject {
         let secure = SystemProbe.secureInput()
         let base = DoctorInputs(
             accessibilityTrusted: SystemProbe.accessibilityTrusted, accessibilityReset: resetState,
-            microphone: AudioRecorder.microphoneAccess, listenEventAccess: SystemProbe.listenEventAccess,
+            microphone: AudioRecorder.microphoneAccess, microphoneReset: microphoneResetState,
+            listenEventAccess: SystemProbe.listenEventAccess,
             hotkey: settings.hotkey, fnUsageType: SystemProbe.fnUsageType(), engine: settings.engine,
             modelOnDisk: EngineFactory.modelsOnDisk(settings.engine), modelState: .idle,
             polishing: settings.polishing, agentExecutable: executable, agentTest: agentTest,
@@ -106,10 +115,22 @@ final class DoctorModel: ObservableObject {
             resetState = .running
             refresh()
             Task {
-                let ok = await AccessibilityReset.perform(bundleID: Bundle.main.bundleIdentifier)
+                let ok = await PermissionReset.perform(service: .accessibility, bundleID: Bundle.main.bundleIdentifier)
                 self.resetState = ok ? .done : .failed
                 // Asking again puts Shepit back in the list; the list opens either way so the manual steps apply.
                 openAccessibilitySettings()
+                self.refresh()
+            }
+        case .resetMicrophone:
+            guard microphoneResetState != .running else { return }
+            microphoneResetState = .running
+            refresh()
+            Task {
+                let ok = await PermissionReset.perform(service: .microphone, bundleID: Bundle.main.bundleIdentifier)
+                self.microphoneResetState = ok ? .done : .failed
+                // After a reset the status is notDetermined, so this shows the system prompt. If the reset
+                // failed the denied row stays and the step text still applies.
+                if ok { _ = await live.requestMicrophone() } else { openPrivacy("Privacy_Microphone") }
                 self.refresh()
             }
         case .requestMicrophone:
@@ -117,8 +138,6 @@ final class DoctorModel: ObservableObject {
                 _ = await live.requestMicrophone()
                 self.refresh()
             }
-        case .openMicrophoneSettings:
-            openPrivacy("Privacy_Microphone")
         case .openKeyboardSettings:
             if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
                 NSWorkspace.shared.open(url)
@@ -153,6 +172,17 @@ final class DoctorModel: ObservableObject {
     }
 }
 
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value += nextValue() }
+}
+
+private extension View {
+    func reportHeight() -> some View {
+        background(GeometryReader { Color.clear.preference(key: ContentHeightKey.self, value: $0.size.height) })
+    }
+}
+
 struct DoctorView: View {
     @ObservedObject var model: DoctorModel
 
@@ -167,15 +197,22 @@ struct DoctorView: View {
                 Spacer()
             }
             .padding(.horizontal, 22).padding(.top, 38).padding(.bottom, 14)
-            ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(model.checks) { row($0) }
+            .reportHeight()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(model.checks) { row($0) }
+                    }
+                    .padding(.horizontal, 22).padding(.bottom, 22)
+                    .id("doctor.top")
+                    .reportHeight()
                 }
-                .padding(.horizontal, 22).padding(.bottom, 22)
+                .onChange(of: model.topToken) { _, _ in proxy.scrollTo("doctor.top", anchor: .top) }
             }
         }
+        .onPreferenceChange(ContentHeightKey.self) { model.contentHeight = $0 }
         .foregroundStyle(WidgetPalette.text)
-        .frame(minWidth: 600, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity, alignment: .top)
+        .frame(minWidth: 600, maxWidth: .infinity, minHeight: 420, maxHeight: .infinity, alignment: .top)
         .background(Color.black.opacity(0.55))
         .environment(\.colorScheme, .dark)
     }
@@ -219,6 +256,7 @@ struct DoctorView: View {
         case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(WidgetPalette.ok).font(.system(size: 18))
         case .warning: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(WidgetPalette.amber).font(.system(size: 17))
         case .problem: Image(systemName: "xmark.octagon.fill").foregroundStyle(WidgetPalette.rec).font(.system(size: 18))
+        case .info: Image(systemName: "info.circle").foregroundStyle(WidgetPalette.text.opacity(0.5)).font(.system(size: 18))
         case .checking: ProgressView().controlSize(.small)
         }
     }
@@ -227,6 +265,8 @@ struct DoctorView: View {
 @MainActor
 final class DoctorWindowController: NSWindowController, NSWindowDelegate {
     private let model: DoctorModel
+    private var heightSink: AnyCancellable?
+    private static let minHeight: CGFloat = 420
 
     init(model: DoctorModel) {
         self.model = model
@@ -253,11 +293,35 @@ final class DoctorWindowController: NSWindowController, NSWindowDelegate {
         window.center()
         super.init(window: window)
         window.delegate = self
+        heightSink = model.$contentHeight.removeDuplicates().sink { [weak self] h in self?.fitToContent(contentHeight: h) }
     }
 
     required init?(coder: NSCoder) { fatalError("not supported") }
 
+    /// Fits the window to header plus rows, within the screen. The top-left corner stays put so the title does
+    /// not jump when a row appears or goes away.
+    private func fitToContent(contentHeight: CGFloat? = nil) {
+        // The published value changes after the sink runs, so the sink passes the new one in.
+        // The view reports its own height; the transparent title bar's safe area sits on top of it.
+        guard let window, (contentHeight ?? model.contentHeight) > 0 else { return }
+        let wanted = (contentHeight ?? model.contentHeight) + (window.contentView?.safeAreaInsets.top ?? 0)
+        let visible = (window.screen ?? NSScreen.main)?.visibleFrame.height ?? 900
+        let height = min(max(wanted, Self.minHeight), max(Self.minHeight, visible - 80))
+        guard abs(window.contentRect(forFrameRect: window.frame).height - height) > 0.5 else { return }
+        var frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 600, height: height))
+        frame.origin.x = window.frame.minX
+        frame.origin.y = window.frame.maxY - frame.height
+        // Top-left stays fixed only while the window still fits; otherwise slide it up so no row ends off screen.
+        if let area = (window.screen ?? NSScreen.main)?.visibleFrame, frame.minY < area.minY {
+            frame.origin.y = min(area.minY, area.maxY - frame.height)
+        }
+        frame.size.width = window.frame.width
+        window.setFrame(frame, display: true)
+    }
+
     func show() {
+        model.scrollToTop()
+        fitToContent()
         model.start()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)

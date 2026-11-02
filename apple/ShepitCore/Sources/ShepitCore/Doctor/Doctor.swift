@@ -1,13 +1,16 @@
 import Foundation
 
-public enum DoctorStatus: Equatable, Sendable { case ok, warning, problem, checking }
+public enum DoctorStatus: Equatable, Sendable { case ok, warning, problem, checking
+    /// Not a fault: optional, shown in gray, never counted in the summary.
+    case info
+}
 
 public enum DoctorCheckID: Equatable, Sendable {
     case accessibility, microphone, hotkey, model, agent, secureInput, inputMonitoring
 }
 
 public enum DoctorFix: Equatable, Sendable {
-    case resetAccessibility, requestMicrophone, openMicrophoneSettings, openKeyboardSettings
+    case resetAccessibility, resetMicrophone, requestMicrophone, openKeyboardSettings
     case downloadModel, openPolishingSettings, testAgent, openInputMonitoring
 }
 
@@ -47,6 +50,7 @@ public struct DoctorInputs: Equatable, Sendable {
     public var accessibilityTrusted: Bool
     public var accessibilityReset: AccessibilityResetState
     public var microphone: MicrophoneAccess
+    public var microphoneReset: AccessibilityResetState
     public var listenEventAccess: Bool
     public var hotkey: HotkeyChoice
     public var fnUsageType: Int?
@@ -60,13 +64,14 @@ public struct DoctorInputs: Equatable, Sendable {
     public var secureInputHolder: String?
 
     public init(accessibilityTrusted: Bool, accessibilityReset: AccessibilityResetState, microphone: MicrophoneAccess,
-                listenEventAccess: Bool, hotkey: HotkeyChoice, fnUsageType: Int?, engine: EngineID,
+                microphoneReset: AccessibilityResetState = .idle, listenEventAccess: Bool, hotkey: HotkeyChoice, fnUsageType: Int?, engine: EngineID,
                 modelOnDisk: Bool, modelState: EngineLoadState, polishing: PolishingProvider,
                 agentExecutable: String?, agentTest: AgentTestState, secureInputActive: Bool,
                 secureInputHolder: String?) {
         self.accessibilityTrusted = accessibilityTrusted
         self.accessibilityReset = accessibilityReset
         self.microphone = microphone
+        self.microphoneReset = microphoneReset
         self.listenEventAccess = listenEventAccess
         self.hotkey = hotkey
         self.fnUsageType = fnUsageType
@@ -105,7 +110,7 @@ public enum Doctor {
     }
 
     public static func summary(_ checks: [DoctorCheck]) -> String {
-        let n = checks.filter { $0.status != .ok }.count
+        let n = checks.filter { $0.status != .ok && $0.status != .info }.count
         if n == 0 { return L("Everything Shepit needs is working.") }
         return L("\(n) things need attention.")
     }
@@ -149,9 +154,18 @@ public enum Doctor {
         case .granted: break
         case .denied:
             c.status = .problem
-            c.detail = L("Not allowed. Switch Shepit on in Privacy & Security > Microphone.")
-            c.fix = .openMicrophoneSettings
-            c.fixTitle = L("Open Microphone settings")
+            // Same stale-grant trap as Accessibility: a grant made to an older build can sit switched on.
+            c.detail = L("Not allowed. If Shepit is already switched on in the list, macOS is holding the permission of an older build.")
+            c.fix = .resetMicrophone
+            c.fixTitle = L("Reset and ask again")
+            c.steps = [L("Click Reset and ask again, then allow the microphone.")]
+            switch i.microphoneReset {
+            case .running: c.status = .checking
+            case .failed:
+                c.steps = [L("In the list, select Shepit and remove it with the minus button."),
+                           L("Click Reset and ask again, then allow the microphone.")]
+            case .idle, .done: break
+            }
         case .notDetermined:
             c.status = .problem
             c.detail = L("Shepit has not asked for the microphone yet.")
@@ -252,8 +266,9 @@ public enum Doctor {
         var c = DoctorCheck(id: .inputMonitoring, title: L("Input Monitoring"), status: .ok,
                             detail: L("Allowed."), fix: nil, fixTitle: nil, steps: [], required: false)
         if !i.listenEventAccess {
-            c.status = .warning
+            c.status = .info
             c.detail = L("Shepit usually works without it. Allow it only if the dictation key does not respond.")
+            c.steps = [L("If Shepit is not in the list, click + and add it from Applications.")]
             c.fix = .openInputMonitoring
             c.fixTitle = L("Open Input Monitoring")
         }
