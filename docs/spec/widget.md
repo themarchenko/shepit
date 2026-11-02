@@ -47,7 +47,7 @@ Source: macOS/Shepit/Widget/WidgetController.swift:51-55.
 
 ## Review tip
 
-macOS only; Windows lags (no review panel). A one-time card that tells a user about review by Shift (dictation.md, step 9).
+macOS only; Windows lags (no review panel). Quoted copy in this file is the English source; Ukrainian lives in the String Catalogs (localization.md). A one-time card that tells a user about review by Shift (dictation.md, step 9).
 
 - Trigger: a dictation finishes (`done`) and `ReviewTip.shouldShow` is true: `reviewTipShown` is false, `reviewBeforePaste` is off, onboarding is completed, and the insert was not reviewed and not clipboard-only (`DictationSession.lastInsert`). The card appears when the session next goes `idle`, unless the What's new card is on screen.
 - The flag `reviewTipShown` is set when the card is shown, and also when any review starts, so people who use Shift first never see it. It is not shown before the first tour is completed, nor while the tour window is open (a replayed tour has its own Shift line).

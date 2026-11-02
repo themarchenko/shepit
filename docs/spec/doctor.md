@@ -28,6 +28,8 @@ While the window is open the checks are read again every second, so a row turns 
 
 The fix runs `/usr/bin/tccutil reset Accessibility <bundle id>` with the app's own bundle id, with no shell. The arguments are exactly `["reset", "Accessibility", id]`. If the id is missing, empty, starts with "-" or does not match `^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$`, nothing runs. The id is never dropped, because `tccutil reset Accessibility` without an id resets every app. After the command (success or failure) Shepit asks for Accessibility again and opens the Accessibility list. On failure the row shows manual steps (remove Shepit with the minus button, reset again, switch Shepit on).
 
+Quoted UI copy in this file is the English source; the Ukrainian text lives in the String Catalogs (localization.md).
+
 ## Entry points
 
 - Menu bar menu: "Doctor…" between History… and Settings…. When a required check is red, the menu bar icon is the orange warning triangle instead of the brand glyph.
