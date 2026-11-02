@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Doctor opens itself at most once per launch, so a user who closes it is not nagged.
     private var doctorAutoOpened = false
     private var tourWindow: TourWindowController?
+    private var calibrationWindow: CalibrationWindowController?
     private let whatsNew = WhatsNewController()
     /// Same card as What's New, but it never writes whatsNewSeen: the tip has its own flag.
     private let reviewTip = WhatsNewController()
@@ -87,6 +88,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 try? await Task.sleep(for: .seconds(2))
                 self.showWhatsNewIfUnseen()
+                try? await Task.sleep(for: .seconds(1.5))
+                self.offerCalibrationIfDue()
             }
         }
         session.$state.receive(on: RunLoop.main).sink { [weak self] state in
@@ -97,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     if self.reviewTip.isShown { self.reviewTip.dismiss() }
                 }
                 self.updateReviewTip(for: state)
+                self.calibrationWindow?.model.sessionChanged(state)
             }
         }.store(in: &cancellables)
         whatsNew.onClose = { [weak self] in
@@ -279,7 +283,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 showWhatsNew: { [weak self] in self?.showWhatsNew(force: true) },
                 showWelcomeTour: { [weak self] in self?.showWelcomeTour() },
                 showUpdate: { [weak self] in self?.showUpdate() },
-                showDoctor: { [weak self] in self?.showDoctor() })
+                showDoctor: { [weak self] in self?.showDoctor() },
+                showCalibration: { [weak self] in self?.showCalibration() })
             settingsWindow = SettingsWindowController(settings: settings, updates: updates, actions: actions)
         }
         settingsWindow?.show(tab: tab)
@@ -305,9 +310,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     self.showWhatsNewIfUnseen()
                 }
+                Task {
+                    try? await Task.sleep(for: .seconds(0.8))
+                    self.offerCalibrationIfDue()
+                }
             }
         }
         tourWindow?.show()
+    }
+
+    // MARK: Voice calibration
+
+    private func makeCalibrationAgent() -> CalibrationAgent? {
+        CalibrationAgents.make(provider: settings.polishing, claudeExecutable: settings.resolvedClaudeExecutable,
+                               claudeModel: settings.claudeModel.rawValue, codexExecutable: settings.resolvedCodexExecutable)
+    }
+
+    /// Opens the wizard once for someone whose speaker notes are still unset. The flag is set before it opens, so
+    /// closing the window or quitting during it never brings it back.
+    private func offerCalibrationIfDue() {
+        guard CalibrationOffer.shouldAutoOpen(
+            offered: settings.calibrationOffered, onboardingCompleted: settings.onboardingCompleted,
+            tourOpen: tourWindow != nil, doctorOpened: doctorAutoOpened,
+            requiredProblem: Doctor.requiredProblem(accessibilityTrusted: SystemProbe.accessibilityTrusted,
+                                                    microphone: AudioRecorder.microphoneAccess),
+            speakerNotes: settings.speakerNotes, agentAvailable: makeCalibrationAgent() != nil) else { return }
+        settings.calibrationOffered = true
+        showCalibration()
+    }
+
+    func showCalibration() {
+        if calibrationWindow == nil {
+            let session = self.session!
+            let model = CalibrationModel(
+                settings: settings,
+                setSink: { sink in session.captureSink = sink },
+                startRecording: {
+                    guard !session.state.isRecording, !session.state.isBusy, !session.state.isReviewing else { return }
+                    session.startRecording(handsFree: false)
+                },
+                stopRecording: { session.stopRecording(review: false) },
+                cancelRecording: { session.cancel() },
+                makeCoach: { [weak self] policy in
+                    CalibrationCoach(agent: self?.makeCalibrationAgent(), policy: policy)
+                })
+            let controller = CalibrationWindowController(model: model)
+            controller.onClose = { [weak self] in self?.calibrationWindow = nil }
+            calibrationWindow = controller
+        }
+        calibrationWindow?.show()
     }
 
     private func showWhatsNewIfUnseen() {

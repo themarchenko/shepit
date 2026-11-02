@@ -17,6 +17,8 @@ enum WhatsNew {
                  detail: "Finds what keeps Shepit from working, like a permission macOS still holds for an older build, and fixes it in a click. Open it from the menu bar icon or the widget menu."),
             Item(symbol: "globe", title: "Ukrainian and English only",
                  detail: "Russian or Polish words no longer slip into your text. Settings → General can narrow recognition to one language."),
+            Item(symbol: "person.wave.2", title: "Voice calibration",
+                 detail: "Read a few words aloud and Shepit writes notes on how you speak, so polishing fixes what the recognizer gets wrong. Run it again from Settings → Polishing."),
         ]),
         ("0.5.0", [
             Item(symbol: "text.cursor", title: "Review before pasting",

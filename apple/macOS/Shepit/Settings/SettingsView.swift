@@ -11,6 +11,7 @@ struct SettingsActions {
     var showWelcomeTour: () -> Void = {}
     var showUpdate: () -> Void = {}
     var showDoctor: () -> Void = {}
+    var showCalibration: () -> Void = {}
 }
 
 struct GeneralPane: View {
@@ -130,10 +131,12 @@ struct AppearancePane: View {
 
 struct PolishingPane: View {
     @ObservedObject var settings: AppSettings
+    var actions: SettingsActions
     @State private var speakerNotesText: String
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, actions: SettingsActions = SettingsActions()) {
         self.settings = settings
+        self.actions = actions
         _speakerNotesText = State(initialValue: settings.speakerNotes)
     }
 
@@ -171,7 +174,27 @@ struct PolishingPane: View {
                     .font(.caption).foregroundStyle(.secondary)
                 TextEditor(text: $speakerNotesText)
                     .frame(minHeight: 90)
+                    .overlay(alignment: .topLeading) {
+                        if speakerNotesText.isEmpty {
+                            Text("Empty. Use Build from my voice, or describe your accent and the words the recognizer gets wrong.")
+                                .font(.body).foregroundStyle(.tertiary)
+                                .padding(.horizontal, 5).padding(.top, 0)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .onChange(of: speakerNotesText) { _, new in settings.speakerNotes = new }
+                    // The wizard writes the notes while this pane is open; the text is replaced only when it
+                    // differs, so typing is not undone.
+                    .onReceive(settings.$speakerNotes) { notes in
+                        if notes != speakerNotesText { speakerNotesText = notes }
+                    }
+                HStack(spacing: 10) {
+                    Button("Build from my voice", action: actions.showCalibration)
+                        .disabled(settings.polishing == .off)
+                    if settings.polishing == .off {
+                        Text("Needs Claude Code or Codex.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .settingsForm()
@@ -343,7 +366,7 @@ struct SettingsRoot: View {
         switch nav.tab {
         case .general: GeneralPane(settings: settings, actions: actions)
         case .appearance: AppearancePane(settings: settings, actions: actions)
-        case .polishing: PolishingPane(settings: settings)
+        case .polishing: PolishingPane(settings: settings, actions: actions)
         case .dictionary: DictionaryPane(settings: settings)
         case .about: AboutPane(settings: settings, updates: updates, actions: actions)
         }
@@ -404,7 +427,7 @@ final class SettingsWindowController: NSWindowController {
             switch self {
             case .general: return 800
             case .appearance: return 540
-            case .polishing: return 660
+            case .polishing: return 760
             case .dictionary: return 460
             case .about: return 470
             }
