@@ -71,8 +71,9 @@ rediscover. A user-visible feature gets a `WhatsNew.releases` item for its versi
 
 ## 10. Text rules
 
-English only in code, comments, docs, commits and UI strings. No em dashes (use "-"). Plain
-words, no filler. Comments say why, not what.
+English only in code, comments, docs and commits. UI strings are written in English in the
+source; translations live only in the String Catalog (`Localizable.xcstrings`). No em dashes
+(use "-"). Plain words, no filler. Comments say why, not what.
 
 ## 11. No self-mutation of the rules
 

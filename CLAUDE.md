@@ -42,7 +42,8 @@ Run pnpm there as `corepack pnpm` (Node comes from nvm): a different global pnpm
 
 ## Conventions
 
-- English only in code, comments, docs, commits and UI strings.
+- English only in code, comments, docs and commits. UI strings are written in English in the source;
+  translations live only in the String Catalog (`Localizable.xcstrings`).
 - No em dashes in any text. Plain words, no filler.
 - Comments explain why, not what. Match the density of the file you are in.
 - `@MainActor` for UI and the session; actors for engines and agent workers.
