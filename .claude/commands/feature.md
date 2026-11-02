@@ -24,8 +24,10 @@ the run report (step 10) instead of guessing.
   wt="$(dirname "$repo")/${name}-worktrees/<branch>"
   git worktree add -b <branch> "$wt" main
   ```
-- If the task touches `windows/` and a `package.json` exists there, install frontend dependencies in
-  the worktree. Swift packages resolve on first build.
+- If the task touches `windows/` or `docs/spec/` and a `package.json` exists in `windows/app`, install
+  frontend dependencies in the worktree (`COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install
+  --frozen-lockfile`). A `docs/spec/` change makes the gate run the Windows UI checks too. Swift
+  packages resolve on first build.
 - Every later command runs inside `$wt`.
 
 ## 2. Audit, then plan
