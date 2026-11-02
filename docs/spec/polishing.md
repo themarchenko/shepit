@@ -21,16 +21,17 @@ Source: Settings/AppSettings.swift:34-64, 158-160.
 
 ## System prompt
 
-Golden: `shared/prompts/system-prompt.md`, the exact output of `systemPrompt(speakerNotes: defaultText)` plus a final newline. Source: Formatting/PromptBuilder.swift:5-51.
+Golden: `shared/prompts/system-prompt.md`, the exact output of `systemPrompt(speakerNotes: defaultText)` plus a final newline. Source: Formatting/PromptBuilder.swift:5-52.
 
-- Order: fixed instructions, then one section per built-in profile in `all` order with its Markdown line and style rules (:36-40), then the speaker section only if the notes are non-empty after trimming (:41-43), then the output section (:44-49).
+- Order: fixed instructions, then one section per built-in profile in `all` order with its Markdown line and style rules (:37-41), then the speaker section only if the notes are non-empty after trimming (:42-44), then the output section (:45-50).
 - Default speaker notes: Settings/AppSettings.swift:247-251.
 - The prompt names the platform once, in the first sentence (PromptBuilder.swift:7). The golden holds "macOS". The Rust builder takes the platform word as a parameter (`system_prompt`, windows/core/src/polish/prompt.rs:74); with "macOS" it equals the golden byte for byte, and the Windows app passes "Windows". Nothing else in the prompt differs.
-- The agent must return only a JSON object with `text`, `language` (`uk`, `en` or `mixed`) and `new_terms` (PromptBuilder.swift:48).
+- The agent must return only a JSON object with `text`, `language` (`uk`, `en` or `mixed`) and `new_terms` (PromptBuilder.swift:49).
+- The fixed instructions say the speaker never speaks Russian or Polish and that such words in the transcript are recognition errors, to be written as the Ukrainian or English words the speaker meant (PromptBuilder.swift:15). The line is in the golden, and the Windows builder carries it (windows/core/src/polish/prompt.rs). Why: the recognizers sometimes write Russian or Polish words for accented Ukrainian; see language.md.
 
 ## Message per dictation
 
-Source: Formatting/PromptBuilder.swift:54-81. Fixture: `shared/fixtures/prompt-message.json` (input: transcript, optional `language_hint`, mode, profile id, context keys, optional dictionary and `{raw, final}` examples; expected: the whole message string). The expected strings are Swift output; the context object is Foundation JSON, which writes `/` as `\/`, so a port builds it with its own escaper.
+Source: Formatting/PromptBuilder.swift:55-82. Fixture: `shared/fixtures/prompt-message.json` (input: transcript, optional `language_hint`, mode, profile id, context keys, optional dictionary and `{raw, final}` examples; expected: the whole message string). The expected strings are Swift output; the context object is Foundation JSON, which writes `/` as `\/`, so a port builds it with its own escaper.
 
 ```
 Context:
