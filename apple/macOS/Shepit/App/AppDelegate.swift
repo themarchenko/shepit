@@ -19,12 +19,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var historyWindow: HistoryWindowController?
     private var tourWindow: TourWindowController?
     private let whatsNew = WhatsNewController()
+    /// Same card as What's New, but it never writes whatsNewSeen: the tip has its own flag.
+    private let reviewTip = WhatsNewController()
+    /// Set when a dictation was pasted without review; the tip waits for the widget to go idle.
+    private var reviewTipPending = false
     private lazy var updates = UpdateChecker(settings: settings)
     private let updatePanel = UpdatePanelController()
     private var review: ReviewPanelController!
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // An accessory app never shows a menu bar, but key equivalents reach the key window through the main
+        // menu while Shepit is active, which is what makes Cmd-C/V/A/Z work in Settings fields and the tour.
+        NSApp.mainMenu = MainMenu.make()
         do {
             history = try HistoryStore(url: AppPaths.databaseURL)
         } catch {
@@ -73,7 +80,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         session.$state.receive(on: RunLoop.main).sink { [weak self] state in
             MainActor.assumeIsolated {
-                if state.isRecording || state.isReviewing, let self, self.whatsNew.isShown { self.whatsNew.dismiss() }
+                guard let self else { return }
+                if state.isRecording || state.isReviewing {
+                    if self.whatsNew.isShown { self.whatsNew.dismiss() }
+                    if self.reviewTip.isShown { self.reviewTip.dismiss() }
+                }
+                self.updateReviewTip(for: state)
             }
         }.store(in: &cancellables)
         whatsNew.onClose = { [weak self] in
@@ -285,11 +297,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showWhatsNew(force: false)
     }
 
+    private func updateReviewTip(for state: DictationSession.State) {
+        if state.isReviewing {
+            // Someone found review on their own, so the tip has nothing left to say.
+            if !settings.reviewTipShown { settings.reviewTipShown = true }
+            reviewTipPending = false
+        } else if case .done = state {
+            if let insert = session.lastInsert,
+               ReviewTip.shouldShow(tipShown: settings.reviewTipShown, reviewBeforePaste: settings.reviewBeforePaste,
+                                    onboardingCompleted: settings.onboardingCompleted, insert: insert) {
+                reviewTipPending = true
+            }
+        } else if case .idle = state, reviewTipPending {
+            reviewTipPending = false
+            // A replayed tour has its own Shift line; keep the flag for the next plain dictation.
+            if !whatsNew.isShown && !settings.reviewTipShown && tourWindow == nil { showReviewTip() }
+        }
+    }
+
+    private func showReviewTip() {
+        // Set first so a crash or a quit while the card is up cannot make it appear twice.
+        settings.reviewTipShown = true
+        let item = WhatsNew.Item(
+            symbol: "text.cursor", title: "Check the text before it is pasted",
+            detail: "Hold Shift as you let go of \(settings.hotkey.keyLabel) to see and edit the text first. Enter pastes, Esc cancels. Settings → General can do this for every dictation.")
+        reviewTip.show(heading: "Tip", version: nil, items: [item], secondaryTitle: "Open Settings",
+                       above: widget.restingFrame) { [weak self] in
+            self?.showSettings(tab: .general)
+        }
+    }
+
     private func showWhatsNew(force: Bool) {
         let release = force ? WhatsNew.releases.first : WhatsNew.unseen(after: settings.whatsNewSeen)
         guard let release else { return }
         if !settings.widgetVisible { settings.widgetVisible = true }
-        whatsNew.show(version: release.version, items: release.items, above: widget.panelFrame) { [weak self] in
+        whatsNew.show(heading: "New in Shepit", version: release.version, items: release.items,
+                      secondaryTitle: "Open Appearance", above: widget.panelFrame) { [weak self] in
             self?.showSettings(tab: .appearance)
         }
     }

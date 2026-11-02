@@ -23,6 +23,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
     private var fadeTask: Task<Void, Never>?
     private var shrinkTask: Task<Void, Never>?
     private var elapsedTimer: Timer?
+    private var hoverPoll: Timer?
     private var recordingStart: Date?
     private let margin: CGFloat = 8
 
@@ -53,12 +54,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
         host.onHoldEnded = { [weak self] in self?.session.stopRecording() }
         host.onDragEnded = { [weak self] in self?.dragEnded() }
         host.onRightClick = { [weak self] event in self?.showMenu(event) }
-        host.onHover = { [weak self] hovering in
-            guard let self else { return }
-            self.model.hovering = hovering
-            self.fitPanel()
-            self.updateOpacity()
-        }
+        host.onHover = { [weak self] hovering in self?.setHovering(hovering) }
 
         restorePosition()
         session.$state.receive(on: RunLoop.main).sink { [weak self] state in
@@ -155,6 +151,47 @@ final class WidgetController: NSObject, NSMenuDelegate {
         recordingStart = nil
     }
 
+    // MARK: Hover
+
+    private func setHovering(_ on: Bool) {
+        model.hovering = on
+        fitPanel()
+        updateOpacity()
+        if on { startHoverPoll() } else { stopHoverPoll() }
+    }
+
+    /// AppKit sends no mouse-exited event when the panel shrinks under a pointer that did not move, so the
+    /// flag is checked against the real pointer after every frame change and while hovering.
+    private func reconcileHover() {
+        // A hidden panel cannot be hovered; the empty frame turns the flag off instead of growing a panel nobody sees.
+        let frame = panel.isVisible ? panel.frame : .zero
+        guard let on = WidgetHover.change(hovering: model.hovering, panelFrame: frame,
+                                          pointer: NSEvent.mouseLocation) else { return }
+        setHovering(on)
+    }
+
+    private func startHoverPoll() {
+        guard hoverPoll == nil else { return }
+        hoverPoll = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] timer in
+            Task { @MainActor in
+                guard let self else { timer.invalidate(); return }
+                self.reconcileHover()
+            }
+        }
+    }
+
+    private func stopHoverPoll() {
+        hoverPoll?.invalidate()
+        hoverPoll = nil
+    }
+
+    /// Every panel frame change goes through here so the hover flag is rechecked afterwards. With `animate` the
+    /// frame read back may already be the target; the poll catches any remaining difference.
+    private func setPanelFrame(_ frame: NSRect, display: Bool = true, animate: Bool = false) {
+        panel.setFrame(frame, display: display, animate: animate)
+        reconcileHover()
+    }
+
     // MARK: Geometry
 
     /// Sizes the panel for the widget's next shape. SwiftUI springs the shape itself, so the panel grows at once
@@ -164,12 +201,12 @@ final class WidgetController: NSObject, NSMenuDelegate {
         let current = panel.frame.size
         let union = CGSize(width: max(current.width, target.width), height: max(current.height, target.height))
         shrinkTask?.cancel()
-        if union != current { panel.setFrame(frame(for: union), display: true) }
+        if union != current { setPanelFrame(frame(for: union)) }
         guard union != target else { return }
         shrinkTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(0.7))
             guard let self, !Task.isCancelled else { return }
-            self.panel.setFrame(self.frame(for: WidgetLayout.envelope(self.model)), display: true)
+            self.setPanelFrame(self.frame(for: WidgetLayout.envelope(self.model)))
         }
     }
 
@@ -177,7 +214,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
     func resetPosition() {
         anchor = Self.defaultAnchor()
         settings.widgetAnchor = nil
-        panel.setFrame(frame(for: panel.frame.size), display: true, animate: true)
+        setPanelFrame(frame(for: panel.frame.size), animate: true)
     }
 
     /// Where the widget is on screen, for cards that attach to it.
@@ -197,7 +234,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
         } else {
             anchor = Self.defaultAnchor()
         }
-        panel.setFrame(frame(for: WidgetLayout.envelope(model)), display: false)
+        setPanelFrame(frame(for: WidgetLayout.envelope(model)), display: false)
         if settings.widgetVisible { panel.orderFrontRegardless() }
     }
 
@@ -207,13 +244,13 @@ final class WidgetController: NSObject, NSMenuDelegate {
         if Self.screen(containing: anchor) == nil { anchor = Self.defaultAnchor() }
         let fitted = frame(for: dropped.size)
         anchor = CGPoint(x: fitted.midX, y: fitted.minY)
-        panel.setFrame(fitted, display: true, animate: true)
+        setPanelFrame(fitted, animate: true)
         settings.widgetAnchor = anchor
     }
 
     private func screensChanged() {
         if Self.screen(containing: anchor) == nil { anchor = Self.defaultAnchor() }
-        panel.setFrame(frame(for: panel.frame.size), display: true, animate: false)
+        setPanelFrame(frame(for: panel.frame.size))
     }
 
     /// The frame for `size` around the anchor, kept inside the anchor's display.

@@ -43,6 +43,8 @@ public final class DictationSession: ObservableObject {
     /// Mode requested for the next dictation; nil means the setting's default.
     @Published public var modeOverride: Mode?
     @Published public private(set) var lastRecord: DictationRecord?
+    /// Set just before `.done`; nil until something has been inserted.
+    public private(set) var lastInsert: InsertSummary?
 
     /// Called after the history is cleared so "Copy last result" cannot offer deleted text.
     public func forgetLastRecord() { lastRecord = nil }
@@ -247,7 +249,7 @@ public final class DictationSession: ObservableObject {
             state = .inserting
             let method = try await inserter.insert(result.text, context: context)
             save(template, sent: result.text, outcome: .inserted(method))
-            showDone(result.text, method)
+            showDone(result.text, method, reviewed: false)
         } catch is CancellationError {
             state = .idle
         } catch {
@@ -289,7 +291,7 @@ public final class DictationSession: ObservableObject {
         do {
             let method = try await inserter.insert(text, context: pending.context)
             save(pending.record, sent: text, outcome: .inserted(method))
-            showDone(text, method)
+            showDone(text, method, reviewed: true)
         } catch is CancellationError {
             // The only cancellable wait in insert comes after Cmd-V is posted, so the text was pasted.
             save(pending.record, sent: text, outcome: .inserted(.paste))
@@ -312,7 +314,8 @@ public final class DictationSession: ObservableObject {
         lastRecord = (try? history?.save(record)) ?? record
     }
 
-    private func showDone(_ text: String, _ method: InsertMethod) {
+    private func showDone(_ text: String, _ method: InsertMethod, reviewed: Bool) {
+        lastInsert = InsertSummary(reviewed: reviewed, method: method)
         let preview = String(text.prefix(60)).replacingOccurrences(of: "\n", with: " ")
         live.clear()
         state = .done(preview: method == .clipboardOnly ? "Copied (grant Accessibility to paste): \(preview)" : preview)

@@ -102,6 +102,7 @@ public final class AppSettings: ObservableObject {
     @Published public var glassOpacity: Double { didSet { defaults.set(glassOpacity, forKey: Keys.glassOpacity) } }
     @Published public var fadeWhenIdle: Bool { didSet { defaults.set(fadeWhenIdle, forKey: Keys.fadeWhenIdle) } }
     @Published public var onboardingCompleted: Bool { didSet { defaults.set(onboardingCompleted, forKey: Keys.onboardingCompleted) } }
+    @Published public var reviewTipShown: Bool { didSet { defaults.set(reviewTipShown, forKey: Keys.reviewTipShown) } }
     /// The newest "What's new" version the user has seen.
     @Published public var whatsNewSeen: String { didSet { defaults.set(whatsNewSeen, forKey: Keys.whatsNewSeen) } }
     @Published public var claudeModel: ClaudeModel { didSet { defaults.set(claudeModel.rawValue, forKey: Keys.claudeModel) } }
@@ -134,6 +135,7 @@ public final class AppSettings: ObservableObject {
         static let glassOpacity = "glassOpacity"
         static let fadeWhenIdle = "fadeWhenIdle"
         static let onboardingCompleted = "onboardingCompleted"
+        static let reviewTipShown = "reviewTipShown"
         static let whatsNewSeen = "whatsNewSeen"
         static let claudeModel = "claudeModel"
         static let claudeExecutable = "claudeExecutable"
@@ -166,6 +168,7 @@ public final class AppSettings: ObservableObject {
         glassOpacity = defaults.object(forKey: Keys.glassOpacity) as? Double ?? 0.7
         fadeWhenIdle = defaults.object(forKey: Keys.fadeWhenIdle) as? Bool ?? true
         onboardingCompleted = defaults.object(forKey: Keys.onboardingCompleted) as? Bool ?? false
+        reviewTipShown = defaults.object(forKey: Keys.reviewTipShown) as? Bool ?? false
         whatsNewSeen = defaults.string(forKey: Keys.whatsNewSeen) ?? ""
         claudeModel = ClaudeModel(rawValue: defaults.string(forKey: Keys.claudeModel) ?? "") ?? .haiku
         claudeExecutable = defaults.string(forKey: Keys.claudeExecutable) ?? ""
