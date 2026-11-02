@@ -1,0 +1,938 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ failed: %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Помилка %@: %@"
+          }
+        }
+      }
+    },
+    "%@ has secure input on, so Shepit cannot paste. Close or leave its password field." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Захищене введення ввімкнено (%@), тому Shepit не може вставити текст. Закрийте програму або вийдіть з поля пароля."
+          }
+        }
+      }
+    },
+    "%@ is downloaded and loads when needed." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завантажено: %@. Запускається за потреби."
+          }
+        }
+      }
+    },
+    "%@ is ready." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово: %@."
+          }
+        }
+      }
+    },
+    "%@ was not found on this Mac." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ не знайдено на цьому Mac."
+          }
+        }
+      }
+    },
+    "%lld things need attention." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld thing needs attention."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld things need attention."
+                }
+              }
+            }
+          }
+        },
+        "uk" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld пункт потребує уваги."
+                }
+              },
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld пункти потребують уваги."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld пунктів потребують уваги."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld пункту потребують уваги."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "A dash that springs into a pill. Words float above it." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Риска, що розкривається в пігулку. Слова спливають над нею."
+          }
+        }
+      }
+    },
+    "A password field is active; nothing was inserted" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Активне поле пароля, нічого не вставлено"
+          }
+        }
+      }
+    },
+    "A wide bar that reads like subtitles. Best for long prompts." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Широка смуга, як субтитри. Найкраще для довгих промптів."
+          }
+        }
+      }
+    },
+    "Accessibility" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Універсальний доступ"
+          }
+        }
+      }
+    },
+    "Allow" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дозволити"
+          }
+        }
+      }
+    },
+    "Allowed." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дозволено."
+          }
+        }
+      }
+    },
+    "Allowed. Shepit can paste into other apps." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дозволено. Shepit може вставляти текст в інші програми."
+          }
+        }
+      }
+    },
+    "Another app" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Інша програма"
+          }
+        }
+      }
+    },
+    "Caption bar" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смуга субтитрів"
+          }
+        }
+      }
+    },
+    "Clean" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чистовий"
+          }
+        }
+      }
+    },
+    "Click Reset and ask again, then switch Shepit on." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Натисніть «Скинути й запитати ще раз», потім увімкніть Shepit."
+          }
+        }
+      }
+    },
+    "Come back here. This row turns green by itself." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поверніться сюди. Цей рядок позеленіє сам."
+          }
+        }
+      }
+    },
+    "Copied, not pasted (open Doctor): %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скопійовано, не вставлено (відкрийте Діагностику): %@"
+          }
+        }
+      }
+    },
+    "Could not load: %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося завантажити: %@"
+          }
+        }
+      }
+    },
+    "Could not read the Fn setting. If Fn does nothing in Shepit, check Keyboard settings." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося прочитати параметр Fn. Якщо Fn нічого не робить у Shepit, перевірте параметри клавіатури."
+          }
+        }
+      }
+    },
+    "Dictation key" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Клавіша диктування"
+          }
+        }
+      }
+    },
+    "Download now" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завантажити зараз"
+          }
+        }
+      }
+    },
+    "English" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Англійська"
+          }
+        }
+      }
+    },
+    "Everything Shepit needs is working." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Усе, що потрібно Shepit, працює."
+          }
+        }
+      }
+    },
+    "Flow pill" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пігулка"
+          }
+        }
+      }
+    },
+    "Fn / Globe" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fn / Globe"
+          }
+        }
+      }
+    },
+    "Fn / Globe (needs \"Press Fn key to: Do Nothing\" in System Settings)" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fn / Globe (потрібно «Натискання клавіші Fn для: Нічого не робити» у Системних параметрах)"
+          }
+        }
+      }
+    },
+    "Found at %@." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Знайдено: %@."
+          }
+        }
+      }
+    },
+    "Found at %@. The test passed." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Знайдено: %@. Тест пройдено."
+          }
+        }
+      }
+    },
+    "GitHub answered with HTTP %@." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub відповів кодом HTTP %@."
+          }
+        }
+      }
+    },
+    "GitHub is rate limiting update checks. Try again in an hour." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub обмежує частоту перевірок оновлень. Спробуйте за годину."
+          }
+        }
+      }
+    },
+    "In Keyboard settings set \"Press Fn key to\" to \"Do Nothing\"." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У параметрах клавіатури вкажіть для «Натискання клавіші Fn для» значення «Нічого не робити»."
+          }
+        }
+      }
+    },
+    "In the list, select Shepit and remove it with the minus button." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У списку виберіть Shepit і видаліть його кнопкою «мінус»."
+          }
+        }
+      }
+    },
+    "Input format changed (%@ Hz vs %@ Hz), try again" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат звуку змінився (%@ Гц замість %@ Гц), спробуйте ще раз"
+          }
+        }
+      }
+    },
+    "Input Monitoring" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Моніторинг введення"
+          }
+        }
+      }
+    },
+    "Island" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Острів"
+          }
+        }
+      }
+    },
+    "Loading %@. The first time it downloads 0.6-1.6 GB." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завантаження %@. Першого разу це 0,6-1,6 ГБ."
+          }
+        }
+      }
+    },
+    "Microphone" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мікрофон"
+          }
+        }
+      }
+    },
+    "Microphone access was denied" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступ до мікрофона заборонено"
+          }
+        }
+      }
+    },
+    "Microphone: %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мікрофон: %@"
+          }
+        }
+      }
+    },
+    "No app is blocking pasting." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жодна програма не блокує вставлення."
+          }
+        }
+      }
+    },
+    "No audio input device" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Немає пристрою введення звуку"
+          }
+        }
+      }
+    },
+    "Not allowed. If Shepit is already switched on in the list, macOS is holding the permission of an older build." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не дозволено. Якщо Shepit уже ввімкнено в списку, macOS зберігає дозвіл старішої збірки."
+          }
+        }
+      }
+    },
+    "Not allowed. Switch Shepit on in Privacy & Security > Microphone." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не дозволено. Увімкніть Shepit у «Приватність і безпека» > «Мікрофон»."
+          }
+        }
+      }
+    },
+    "Not downloaded yet." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ще не завантажено."
+          }
+        }
+      }
+    },
+    "Nothing recognized" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нічого не розпізнано"
+          }
+        }
+      }
+    },
+    "Nothing to insert" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Немає тексту для вставлення"
+          }
+        }
+      }
+    },
+    "Off" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вимкнено"
+          }
+        }
+      }
+    },
+    "One shape that grows into a card with the text and steps." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Одна форма, що розростається в картку з текстом і кроками."
+          }
+        }
+      }
+    },
+    "Open Input Monitoring" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Відкрити «Моніторинг введення»"
+          }
+        }
+      }
+    },
+    "Open Keyboard settings" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Відкрити параметри клавіатури"
+          }
+        }
+      }
+    },
+    "Open Microphone settings" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Відкрити параметри мікрофона"
+          }
+        }
+      }
+    },
+    "Open Polishing settings" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Відкрити параметри шліфування"
+          }
+        }
+      }
+    },
+    "Prompt" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Промпт"
+          }
+        }
+      }
+    },
+    "Raw" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Як є"
+          }
+        }
+      }
+    },
+    "Recognizer failed to load: %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Розпізнавач не завантажився: %@"
+          }
+        }
+      }
+    },
+    "Recognizer is not loaded" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Розпізнавач не завантажено"
+          }
+        }
+      }
+    },
+    "Release %@ has no %@." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У випуску %@ немає %@."
+          }
+        }
+      }
+    },
+    "Release %@ points at a download that is not https." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Випуск %@ вказує на завантаження не через https."
+          }
+        }
+      }
+    },
+    "Reset and ask again" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скинути й запитати ще раз"
+          }
+        }
+      }
+    },
+    "Right Command" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правий Command"
+          }
+        }
+      }
+    },
+    "Right Command (⌘)" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правий Command (⌘)"
+          }
+        }
+      }
+    },
+    "Right Option" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правий Option"
+          }
+        }
+      }
+    },
+    "Right Option (⌥)" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Правий Option (⌥)"
+          }
+        }
+      }
+    },
+    "Secure input" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Захищене введення"
+          }
+        }
+      }
+    },
+    "Shepit has not asked for the microphone yet." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shepit ще не запитував доступ до мікрофона."
+          }
+        }
+      }
+    },
+    "Shepit is running from a temporary copy macOS made for it. Move Shepit to Applications, open it from there and update again." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shepit запущено з тимчасової копії, яку створила macOS. Перемістіть Shepit у «Програми», відкрийте його звідти й оновіть ще раз."
+          }
+        }
+      }
+    },
+    "Shepit usually works without it. Allow it only if the dictation key does not respond." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зазвичай Shepit працює й без цього. Дозвольте, лише якщо клавіша диктування не реагує."
+          }
+        }
+      }
+    },
+    "Speech model" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель мовлення"
+          }
+        }
+      }
+    },
+    "Switch Shepit on in the list." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Увімкніть Shepit у списку."
+          }
+        }
+      }
+    },
+    "System" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Як у системі"
+          }
+        }
+      }
+    },
+    "Test" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перевірити"
+          }
+        }
+      }
+    },
+    "The agent answered with something Shepit could not read." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shepit не зміг прочитати відповідь агента."
+          }
+        }
+      }
+    },
+    "The agent did not answer in time. Try again in a moment." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Агент не відповів вчасно. Спробуйте за хвилину."
+          }
+        }
+      }
+    },
+    "The agent is not running." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Агент не запущено."
+          }
+        }
+      }
+    },
+    "The agent is paused after repeated failures. Try again later." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Агент призупинено після повторних збоїв. Спробуйте пізніше."
+          }
+        }
+      }
+    },
+    "The agent reported an error. It may be signed out or out of quota." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Агент повідомив про помилку. Можливо, ви вийшли з облікового запису або вичерпано квоту."
+          }
+        }
+      }
+    },
+    "The agent stopped unexpectedly. Check that it is installed and signed in." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Агент несподівано зупинився. Перевірте, чи його інстальовано і чи ви ввійшли в обліковий запис."
+          }
+        }
+      }
+    },
+    "The agent test failed for an unknown reason." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перевірка агента не вдалася з невідомої причини."
+          }
+        }
+      }
+    },
+    "The download is not a newer Shepit (%@)." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завантажений файл не є новішою версією Shepit (%@)."
+          }
+        }
+      }
+    },
+    "The system also reacts to Fn (emoji picker, dictation or input source)." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Система також реагує на Fn (вибір емодзі, диктування або джерело введення)."
+          }
+        }
+      }
+    },
+    "The update was cancelled." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оновлення скасовано."
+          }
+        }
+      }
+    },
+    "This copy of Shepit is signed differently from the releases, so it cannot update itself. Download the release from GitHub instead." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цю копію Shepit підписано інакше, ніж випуски, тому вона не може оновитися сама. Натомість завантажте випуск із GitHub."
+          }
+        }
+      }
+    },
+    "Transcription failed: %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Розпізнавання не вдалося: %@"
+          }
+        }
+      }
+    },
+    "Ukrainian" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Українська"
+          }
+        }
+      }
+    },
+    "Ukrainian + English" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Українська + англійська"
+          }
+        }
+      }
+    },
+    "Uses %@. The Fn setting does not matter." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використовується %@. Параметр Fn не має значення."
+          }
+        }
+      }
+    },
+    "Uses Fn. The system leaves it to Shepit." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Використовується Fn. Система не перехоплює цю клавішу."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -4,6 +4,7 @@ options:
   deploymentTarget:
     macOS: "26.0"
   createIntermediateGroups: true
+  developmentLanguage: en
   generateEmptySchemes: false
 configFiles:
   Debug: Config/Signing.xcconfig
@@ -14,6 +15,9 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
     ENABLE_HARDENED_RUNTIME: "NO"
     MACOSX_DEPLOYMENT_TARGET: "26.0"
+    # String Catalogs: keys come from the source, translations live in Localizable.xcstrings only.
+    SWIFT_EMIT_LOC_STRINGS: "YES"
+    LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
 packages:
   ShepitCore:
     path: ../ShepitCore
@@ -33,6 +37,8 @@ targets:
         CFBundleName: Shepit
         CFBundleDisplayName: Shepit
         CFBundleIdentifier: com.themarchenko.shepit
+        # Keep in step with InterfaceLanguage.available in ShepitCore.
+        CFBundleLocalizations: [en, uk]
         CFBundleShortVersionString: "0.5.0"
         CFBundleVersion: "8"
         LSUIElement: true

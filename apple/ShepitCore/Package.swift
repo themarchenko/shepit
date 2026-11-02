@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ShepitCore",
+    defaultLocalization: "en",
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "ShepitCore", targets: ["ShepitCore"]),
@@ -20,6 +21,7 @@ let package = Package(
                 .product(name: "WhisperKit", package: "argmax-oss-swift"),
                 .product(name: "GRDB", package: "GRDB.swift"),
             ],
+            resources: [.process("Resources/Localizable.xcstrings")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(

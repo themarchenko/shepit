@@ -64,9 +64,9 @@ public enum SpeechError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .notLoaded: return "Recognizer is not loaded"
-        case .loadFailed(let s): return "Recognizer failed to load: \(s)"
-        case .transcriptionFailed(let s): return "Transcription failed: \(s)"
+        case .notLoaded: return L("Recognizer is not loaded")
+        case .loadFailed(let s): return L("Recognizer failed to load: \(s)")
+        case .transcriptionFailed(let s): return L("Transcription failed: \(s)")
         }
     }
 }

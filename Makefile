@@ -9,7 +9,7 @@ VENV := .build/venv
 # Release builds are re-signed with this identity before packing (CI passes it; see release.yml).
 SIGN_IDENTITY ?=
 
-.PHONY: generate build install package run test bench clean logs
+.PHONY: generate build install package run test bench clean logs strings
 
 generate:
 	xcodegen generate --spec $(MACOS)/project.yml
@@ -18,6 +18,9 @@ build: generate
 	@set -o pipefail; xcodebuild -project $(MACOS)/Shepit.xcodeproj -scheme Shepit -configuration Release \
 	  -derivedDataPath $(DERIVED) -skipPackagePluginValidation -skipMacroValidation build 2>&1 \
 	  | { grep -E 'error:|warning: .*Shepit/|BUILD (SUCCEEDED|FAILED)' || true; }
+	@for d in "$(APP)/Contents/Resources/uk.lproj" \
+	  "$(APP)/Contents/Resources/ShepitCore_ShepitCore.bundle/Contents/Resources/uk.lproj"; do \
+	  test -d "$$d" || { echo "error: missing $$d (String Catalogs not compiled into the app)"; exit 1; }; done
 	@echo "built $(APP)"
 
 install: build
@@ -40,6 +43,10 @@ endif
 $(VENV)/bin/dmgbuild:
 	python3 -m venv $(VENV)
 	$(VENV)/bin/pip install --quiet --disable-pip-version-check dmgbuild==1.6.5
+
+# Adds new keys to both String Catalogs and marks removed ones stale. Run after `make build`.
+strings:
+	apple/macOS/scripts/sync-strings.sh
 
 run:
 	open /Applications/Shepit.app

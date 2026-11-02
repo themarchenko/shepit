@@ -50,9 +50,9 @@ public enum LanguagePolicy: String, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .ukrainianEnglish: return "Ukrainian + English"
-        case .ukrainian: return "Ukrainian"
-        case .english: return "English"
+        case .ukrainianEnglish: return L("Ukrainian + English")
+        case .ukrainian: return L("Ukrainian")
+        case .english: return L("English")
         }
     }
 }

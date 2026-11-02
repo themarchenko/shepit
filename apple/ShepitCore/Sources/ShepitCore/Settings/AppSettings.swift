@@ -7,9 +7,18 @@ public enum HotkeyChoice: String, CaseIterable, Codable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .rightOption: return "Right Option (⌥)"
-        case .rightCommand: return "Right Command (⌘)"
-        case .fn: return "Fn / Globe (needs \"Press Fn key to: Do Nothing\" in System Settings)"
+        case .rightOption: return L("Right Option (⌥)")
+        case .rightCommand: return L("Right Command (⌘)")
+        case .fn: return L("Fn / Globe (needs \"Press Fn key to: Do Nothing\" in System Settings)")
+        }
+    }
+
+    /// The key's name without the explanation, for menus and sentences.
+    public var shortName: String {
+        switch self {
+        case .rightOption: return L("Right Option")
+        case .rightCommand: return L("Right Command")
+        case .fn: return L("Fn / Globe")
         }
     }
 
@@ -40,7 +49,7 @@ public enum PolishingProvider: String, CaseIterable, Codable, Sendable {
         switch self {
         case .claudeCode: return "Claude Code"
         case .codex: return "Codex"
-        case .off: return "Off"
+        case .off: return L("Off")
         }
     }
 
@@ -71,18 +80,69 @@ public enum WidgetStyle: String, CaseIterable, Codable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .flowPill: return "Flow pill"
-        case .captionBar: return "Caption bar"
-        case .island: return "Island"
+        case .flowPill: return L("Flow pill")
+        case .captionBar: return L("Caption bar")
+        case .island: return L("Island")
         }
     }
 
     public var blurb: String {
         switch self {
-        case .flowPill: return "A dash that springs into a pill. Words float above it."
-        case .captionBar: return "A wide bar that reads like subtitles. Best for long prompts."
-        case .island: return "One shape that grows into a card with the text and steps."
+        case .flowPill: return L("A dash that springs into a pill. Words float above it.")
+        case .captionBar: return L("A wide bar that reads like subtitles. Best for long prompts.")
+        case .island: return L("One shape that grows into a card with the text and steps.")
         }
+    }
+}
+
+/// The language of Shepit's own interface. The choice is stored as `AppleLanguages` in the app's defaults
+/// domain, so macOS picks the localization at the next launch. The running language never changes.
+public enum InterfaceLanguage: String, CaseIterable, Sendable {
+    case system
+    case english = "en"
+    case ukrainian = "uk"
+
+    /// Languages Shepit ships. Keep in step with CFBundleLocalizations in project.yml.
+    public static let available = ["en", "uk"]
+
+    static let defaultsKey = "AppleLanguages"
+
+    /// The language macOS would run Shepit in: the first system language Shepit ships, else English.
+    public static func target(system: [String]) -> String {
+        for tag in system {
+            let code = base(of: tag)
+            if available.contains(code) { return code }
+        }
+        return "en"
+    }
+
+    /// A restart helps only if the language that would load differs from the one running now.
+    public func needsRestart(running: String, system: [String]) -> Bool {
+        let wanted = self == .system ? InterfaceLanguage.target(system: system) : rawValue
+        return wanted != running
+    }
+
+    /// The user's system language list, read from the global domain (the app's own override is not in it).
+    public static func systemLanguages() -> [String] {
+        UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?[defaultsKey] as? [String] ?? []
+    }
+
+    /// Language names are shown in their own language, whichever language the interface is in.
+    public var displayName: String {
+        switch self {
+        case .system: return L("System")
+        case .english: return InterfaceLanguage.endonym("en")
+        case .ukrainian: return InterfaceLanguage.endonym("uk")
+        }
+    }
+
+    static func base(of tag: String) -> String {
+        String(tag.lowercased().prefix { $0 != "-" && $0 != "_" })
+    }
+
+    private static func endonym(_ code: String) -> String {
+        let name = Locale(identifier: code).localizedString(forLanguageCode: code) ?? code
+        return name.prefix(1).uppercased() + name.dropFirst()
     }
 }
 
@@ -126,6 +186,13 @@ public final class AppSettings: ObservableObject {
     /// A version the user chose to skip; scheduled checks stay quiet about it.
     @Published public var skippedUpdate: String { didSet { defaults.set(skippedUpdate, forKey: Keys.skippedUpdate) } }
     @Published public var lastUpdateCheck: Date { didSet { defaults.set(lastUpdateCheck, forKey: Keys.lastUpdateCheck) } }
+    /// Applies at the next launch. Writing it never changes the language of the running app.
+    @Published public var interfaceLanguage: InterfaceLanguage {
+        didSet {
+            if interfaceLanguage == .system { defaults.removeObject(forKey: InterfaceLanguage.defaultsKey) }
+            else { defaults.set([interfaceLanguage.rawValue], forKey: InterfaceLanguage.defaultsKey) }
+        }
+    }
 
     private enum Keys {
         static let engine = "engine"
@@ -159,7 +226,9 @@ public final class AppSettings: ObservableObject {
         static let legacyWidgetPositions = "widgetPositions"
     }
 
-    public init(defaults: UserDefaults = .standard) {
+    /// `domain` is where the app-language override lives; only that domain is read, so the system's own
+    /// language list never counts as a choice.
+    public init(defaults: UserDefaults = .standard, domain: String? = Bundle.main.bundleIdentifier) {
         self.defaults = defaults
         engine = EngineID(rawValue: defaults.string(forKey: Keys.engine) ?? "") ?? .parakeetV3
         hotkey = HotkeyChoice(rawValue: defaults.string(forKey: Keys.hotkey) ?? "") ?? .rightOption
@@ -188,6 +257,10 @@ public final class AppSettings: ObservableObject {
         checkForUpdates = defaults.object(forKey: Keys.checkForUpdates) as? Bool ?? true
         skippedUpdate = defaults.string(forKey: Keys.skippedUpdate) ?? ""
         lastUpdateCheck = defaults.object(forKey: Keys.lastUpdateCheck) as? Date ?? .distantPast
+        let stored = domain.flatMap { defaults.persistentDomain(forName: $0)?[InterfaceLanguage.defaultsKey] as? [String] }
+        let first = stored?.first.map(InterfaceLanguage.base(of:))
+        // A language Shepit does not ship counts as "System" and is left in place.
+        interfaceLanguage = first.flatMap { InterfaceLanguage.available.contains($0) ? InterfaceLanguage(rawValue: $0) : nil } ?? .system
         defaults.removeObject(forKey: Keys.legacyWidgetPositions)
     }
 
