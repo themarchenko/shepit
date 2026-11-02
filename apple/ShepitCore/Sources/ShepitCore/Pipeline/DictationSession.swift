@@ -72,6 +72,13 @@ public final class DictationSession: ObservableObject {
     private var resetTask: Task<Void, Never>?
     public var minimumSeconds: Double = 0.4
 
+    /// While set, a recording that starts is a calibration reading: the recognizer runs and the result goes
+    /// here, and nothing is formatted, inserted, learned or saved.
+    public var captureSink: ((CalibrationTake) -> Void)?
+    /// `captureSink` as it was when the press began. Fixed at press time so a wizard that closes mid-recording
+    /// cannot turn a calibration take into a paste, or the reverse.
+    var captureTarget: ((CalibrationTake) -> Void)?
+
     public init(recorder: AudioRecorder, engines: EngineManager, formatting: FormattingService,
                 inserter: PasteInserter, history: HistoryStore?, settings: AppSettings) {
         self.recorder = recorder
@@ -107,8 +114,7 @@ public final class DictationSession: ObservableObject {
         // 30 newest terms only. Recent dictations are not used as a prompt: Whisper followed their language
         // and wrote English speech in Ukrainian ("Okay, let's test this app" came out "Окей, давайте тестимемо
         // цю апп").
-        recognitionHints = TranscriptionHints(language: settings.language.hintLanguage,
-                                              vocabulary: Array(settings.dictionary.suffix(30)))
+        recognitionHints = currentHints()
         let engines = self.engines
         let engineID = settings.engine
         progressive.start(source: recorder, engine: { try? await engines.engine(for: engineID) },
@@ -120,7 +126,12 @@ public final class DictationSession: ObservableObject {
         } else {
             live.clear()
         }
+        captureTarget = captureSink
         Log.pipeline.notice("recording started for \(self.context.appName ?? "?", privacy: .public) (hands-free: \(handsFree, privacy: .public))")
+    }
+
+    private func currentHints() -> TranscriptionHints {
+        TranscriptionHints(language: settings.language.hintLanguage, vocabulary: Array(settings.dictionary.suffix(30)))
     }
 
     /// Keeps the current recording going without the key held (after a double tap).
@@ -132,7 +143,14 @@ public final class DictationSession: ObservableObject {
         guard case .recording = state else { return }
         reviewRequested = review
         live.stop()
-        let samples = recorder.stop()
+        finish(recorder.stop())
+    }
+
+    /// Internal so tests can drive it without a microphone. Routes the finished audio to a calibration sink or
+    /// to the dictation pipeline.
+    func finish(_ samples: [Float]) {
+        let target = captureTarget
+        captureTarget = nil
         let seconds = Double(samples.count) / 16_000
         guard seconds >= minimumSeconds else {
             Log.pipeline.debug("discarding \(seconds, format: .fixed(precision: 2)) s recording")
@@ -141,12 +159,17 @@ public final class DictationSession: ObservableObject {
             state = .idle
             return
         }
-        processTask = Task { await process(samples) }
+        if let target {
+            processTask = Task { await capture(samples, to: target) }
+        } else {
+            processTask = Task { await process(samples) }
+        }
     }
 
     public func cancel() {
         if pendingReview != nil { discardReview(); return }
         if case .recording = state { _ = recorder.stop() }
+        captureTarget = nil
         live.clear()
         progressive.cancel()
         processTask?.cancel()
@@ -251,6 +274,41 @@ public final class DictationSession: ObservableObject {
             let method = try await inserter.insert(result.text, context: context)
             save(template, sent: result.text, outcome: .inserted(method))
             showDone(result.text, method, reviewed: false)
+        } catch is CancellationError {
+            state = .idle
+        } catch {
+            fail(error.localizedDescription)
+        }
+    }
+
+    /// Calibration reading: recognition only. No recording file, context probe, formatting, learning, paste or
+    /// history row, because the text is read from a script and is not a dictation.
+    private func capture(_ samples: [Float], to sink: (CalibrationTake) -> Void) async {
+        live.clear()
+        progressive.cancel()
+        let engineID = settings.engine
+        guard SpeechPresence.speechSeconds(in: samples) >= 0.3 else {
+            sink(CalibrationTake(raw: "", cleaned: "", language: nil))
+            state = .idle
+            return
+        }
+        do {
+            let engine: SpeechEngine
+            if let current = await engines.currentID, current == engineID {
+                state = .transcribing
+                engine = try await engines.engine(for: engineID)
+            } else {
+                state = .loadingModel
+                engine = try await engines.engine(for: engineID)
+                state = .transcribing
+            }
+            let transcript = try await engine.transcribe(samples, hints: currentHints())
+            try Task.checkCancellation()
+            let cleaned = ScriptCleanup.finalTranscript(transcript).text
+            sink(CalibrationTake(raw: transcript.text,
+                                 cleaned: HallucinationFilter.isJunk(cleaned) ? "" : cleaned,
+                                 language: transcript.language))
+            state = .idle
         } catch is CancellationError {
             state = .idle
         } catch {

@@ -12,7 +12,7 @@ final class PromptGoldenTests: XCTestCase {
             throw FixtureError(description: "missing golden \(url.path)")
         }
         let golden = try Data(contentsOf: url)
-        let actual = Data((PromptBuilder.systemPrompt(speakerNotes: SpeakerNotes.defaultText) + "\n").utf8)
+        let actual = Data((PromptBuilder.systemPrompt(speakerNotes: SpeakerNotes.legacyDefault) + "\n").utf8)
         if actual != golden {
             let out = FileManager.default.temporaryDirectory.appendingPathComponent("system-prompt.actual.md")
             try actual.write(to: out)

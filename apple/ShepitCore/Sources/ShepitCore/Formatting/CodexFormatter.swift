@@ -294,11 +294,13 @@ enum CodexProtocol {
         return params
     }
 
-    static func turnStartParams(threadID: String, text: String, effort: String?) -> [String: Any] {
+    /// `schema` defaults to the formatter reply; the calibration agents pass their own.
+    static func turnStartParams(threadID: String, text: String, effort: String?,
+                                schema: [String: Any] = replySchema) -> [String: Any] {
         var params: [String: Any] = [
             "threadId": threadID,
             "input": [["type": "text", "text": text]],
-            "outputSchema": replySchema,
+            "outputSchema": schema,
         ]
         if let effort, !effort.isEmpty { params["effort"] = effort }
         return params
@@ -483,22 +485,29 @@ final class CodexAppServerProcess: @unchecked Sendable {
         try write(["method": "initialized", "params": [String: Any]()])
     }
 
-    /// Starts a thread and runs the warm-up turn, which opens the model connection and fills the prompt cache.
-    func startWarmThread(_ config: CodexConfig) async throws -> String {
+    /// Starts a thread without the warm-up turn, for one-shot callers that send their own first turn.
+    func startThread(_ config: CodexConfig) async throws -> String {
         let result = try await request("thread/start", CodexProtocol.threadStartParams(config))
         guard let threadID = CodexProtocol.threadID(fromStartResult: result.object) else {
             throw CodexError.rpc("thread/start returned no thread id")
         }
+        return threadID
+    }
+
+    /// Starts a thread and runs the warm-up turn, which opens the model connection and fills the prompt cache.
+    func startWarmThread(_ config: CodexConfig) async throws -> String {
+        let threadID = try await startThread(config)
         _ = try await runTurn(threadID: threadID, text: CodexProtocol.warmUpMessage, effort: config.reasoningEffort)
         return threadID
     }
 
     /// Sends one user turn and waits for `turn/completed`. Returns the final agent message.
-    func runTurn(threadID: String, text: String, effort: String?) async throws -> String {
+    func runTurn(threadID: String, text: String, effort: String?,
+                 schema: [String: Any] = CodexProtocol.replySchema) async throws -> String {
         let turn = ActiveTurn()
         lock.withLock { turns[threadID] = turn }
         defer { lock.withLock { if turns[threadID] === turn { turns[threadID] = nil } } }
-        let started = try await request("turn/start", CodexProtocol.turnStartParams(threadID: threadID, text: text, effort: effort))
+        let started = try await request("turn/start", CodexProtocol.turnStartParams(threadID: threadID, text: text, effort: effort, schema: schema))
         if let id = CodexProtocol.turnID(fromStartResult: started.object) {
             lock.withLock { if turn.collector.turnID == nil { turn.collector.turnID = id } }
         }
@@ -676,7 +685,7 @@ private final class CodexOneShot<Value>: @unchecked Sendable {
 }
 
 /// Runs `operation` and throws `CodexError.timeout` if it takes longer than `seconds`; the operation is cancelled.
-private func codexDeadline<T: Sendable>(_ seconds: TimeInterval,
+func codexDeadline<T: Sendable>(_ seconds: TimeInterval,
                                         _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask { try await operation() }

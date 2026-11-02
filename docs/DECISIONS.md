@@ -2,6 +2,17 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-02: voice calibration (macOS)
+
+- macOS only; Windows lags (`docs/spec/calibration.md`). A wizard records fixed words and phrases, one agent round picks 2 or 3 extra sentences aimed at what went wrong, a second writes speaker notes and suggests dictionary terms. The user edits and saves, or cancels.
+- Speaker notes now default to empty. The old sentence said nothing about the actual speaker, and the notes are only worth sending when they describe real errors. The golden is still built with the old sentence (`SpeakerNotes.legacyDefault`) and Windows keeps it, so the prompt contract did not move.
+- The old sentence counts as unset for the auto-open offer only. Nothing is migrated: stored notes are never rewritten, so a user who kept the sentence on purpose loses nothing. The offer is shown once (`calibrationOffered`) and Settings > Polishing reruns it.
+- Each agent round is a new process in a new temp directory, removed afterwards. The formatter workers are not reused: calibration would eat their turn count and failure pause, and its prompt and schemas differ. Cost: a cold start per round, accepted for a flow run rarely. Timeout 90 s, effort medium.
+- The request carries the cleaned text and `raw` only when it differs, so the agent sees the Russian-letter map's work without a doubled payload. No audio, history, dictionary, context or current notes.
+- The capture route is fixed when the key goes down. A window that closes mid-press cannot turn a reading into a paste, and a dictation cannot land in the wizard. Readings skip recording files, formatting, learning and history.
+- Replies are filtered before use: Russian and Polish letters, length and count caps, term shape, dedupe against the dictionary. A bad round 1 reply falls back to fixed sentences; a bad round 2 reply shows a retry.
+- Needs device check: a real reading with the hotkey and with the button, both agents, the auto-open after the tour and on a returning launch.
+
 ## 2026-11-02: allowed languages (macOS)
 
 - The Language setting is now an allowed set, `LanguagePolicy`: Ukrainian + English (default), Ukrainian, English. The speaker never uses Russian or Polish, so those are never allowed. The stored key stays `languageLock`; `auto`, empty and unknown values read as Ukrainian + English and are not written back. Windows lags (`docs/spec/language.md`).
