@@ -49,9 +49,12 @@ enum WhatsNew {
 }
 
 struct WhatsNewCard: View {
-    let version: String
+    let heading: String
+    /// Shown as a chip next to the heading; nil for cards that are not about a release.
+    let version: String?
     let items: [WhatsNew.Item]
-    var openAppearance: () -> Void
+    let secondaryTitle: String
+    var secondary: () -> Void
     var close: () -> Void
     @State private var shown = false
 
@@ -59,12 +62,14 @@ struct WhatsNewCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 ShepitMark().frame(width: 18, height: 18)
-                Text("New in Shepit").font(.system(size: 15, weight: .semibold))
-                Text(version)
-                    .font(.system(size: 11, weight: .medium))
-                    .padding(.horizontal, 7).padding(.vertical, 1)
-                    .background(Capsule().fill(Color.white.opacity(0.1)))
-                    .foregroundStyle(WidgetPalette.text.opacity(0.75))
+                Text(heading).font(.system(size: 15, weight: .semibold))
+                if let version {
+                    Text(version)
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(.horizontal, 7).padding(.vertical, 1)
+                        .background(Capsule().fill(Color.white.opacity(0.1)))
+                        .foregroundStyle(WidgetPalette.text.opacity(0.75))
+                }
             }
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
@@ -86,7 +91,7 @@ struct WhatsNewCard: View {
             }
             HStack {
                 Spacer()
-                Button("Open Appearance", action: openAppearance).buttonStyle(QuietButtonStyle())
+                Button(secondaryTitle, action: secondary).buttonStyle(QuietButtonStyle())
                 Button("Got it", action: close).buttonStyle(PrimaryButtonStyle())
             }
         }
@@ -102,17 +107,19 @@ struct WhatsNewCard: View {
     }
 }
 
-/// Shows the card once, above the widget, after an update that has an entry in `WhatsNew.releases`.
+/// Shows a card above the widget: the What's New card after an update, or a one-time tip.
 @MainActor
 final class WhatsNewController {
     private var panel: NSPanel?
     var onClose: () -> Void = {}
 
-    func show(version: String, items: [WhatsNew.Item], above widget: NSRect, openAppearance: @escaping () -> Void) {
+    func show(heading: String, version: String?, items: [WhatsNew.Item], secondaryTitle: String,
+              above widget: NSRect, secondary: @escaping () -> Void) {
         dismiss(notify: false)
-        let card = WhatsNewCard(version: version, items: items, openAppearance: { [weak self] in
+        let card = WhatsNewCard(heading: heading, version: version, items: items, secondaryTitle: secondaryTitle,
+                                secondary: { [weak self] in
             self?.dismiss()
-            openAppearance()
+            secondary()
         }, close: { [weak self] in self?.dismiss() })
             .padding(24)
         let hosting = NSHostingView(rootView: card)

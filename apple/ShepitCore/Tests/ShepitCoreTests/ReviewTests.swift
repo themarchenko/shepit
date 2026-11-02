@@ -205,6 +205,20 @@ final class DictationReviewTests: XCTestCase {
         XCTAssertEqual(all[0].status, "inserted")
         XCTAssertEqual(session.state, .idle)
     }
+
+    func testConfirmedReviewRecordsReviewedInsert() async throws {
+        session.beginReview(pending("formatted"))
+        session.confirmReview("edited")
+        await waitUntil { if case .done = self.session.state { return true } else { return false } }
+        XCTAssertEqual(session.lastInsert?.reviewed, true)
+        XCTAssertEqual(session.lastInsert?.method.rawValue, try rows()[0].insertMethod)
+    }
+
+    func testDiscardedReviewRecordsNoInsert() {
+        session.beginReview(pending("formatted"))
+        session.discardReview()
+        XCTAssertNil(session.lastInsert)
+    }
 }
 
 @MainActor

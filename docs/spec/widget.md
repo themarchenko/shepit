@@ -31,7 +31,7 @@ macOS only; Windows lags (no panel). Shown while the session is `reviewing` (dic
 - Placement: centred above the widget's resting frame (`WidgetController.restingFrame`, WidgetController.swift:188-192), 18 pt overlapping its top edge, clamped to the screen's visible frame (ReviewPanel.swift:249-257). It uses the resting frame, not the live one, so the card does not move when the widget shrinks after the last dictation, and it works while the widget is hidden.
 - The text area is 412 pt wide and grows with the text from 60 to 200 pt, then scrolls (:52-53, 113); the panel follows the height. Focus and the caret at the end are set when the panel opens.
 - Keys (:119-137): Enter pastes. Shift+Enter or Option+Enter inserts a newline. Esc discards. Return that commits input-method marked text (for example a dead-key or composed character) is not a confirm, and does not paste (needs device check). The text view does not change typed text: no smart quotes or dashes, no text replacement, no autocorrect.
-- Edit shortcuts: Shepit is an accessory app with no main menu and so no Edit menu, so Cmd+X, C, V, A and Z (Shift+Z redoes) would never reach the text view. `ReviewPanel.performKeyEquivalent` maps them (Command only, no Control or Option) to cut, copy, paste, select all, undo and redo and sends them down the responder chain (:28-48). On a non-Latin layout the key code stands in for the letter, so they are meant to work on a Ukrainian layout too (needs device check); Latin layouts such as Dvorak keep their own letters.
+- Edit shortcuts: Shepit is an accessory app that never shows a menu bar, but it sets a hidden main menu (`MainMenu.make()`, macOS/Shepit/App/MainMenu.swift) with an empty app item and an Edit menu (Undo, Redo, Cut, Copy, Paste, Select All; no Quit or Close). While Shepit is active, those key equivalents reach the key window, so Cmd+X, C, V, A, Z (Shift+Z redoes) work in Settings fields and the tour text box. The review panel keeps its own handler because Shepit is not active while the non-activating panel is key. `ReviewPanel.performKeyEquivalent` maps them (Command only, no Control or Option) to cut, copy, paste, select all, undo and redo and sends them down the responder chain (:28-48). On a non-Latin layout the key code stands in for the letter, so they are meant to work on a Ukrainian layout too (needs device check); Latin layouts such as Dvorak keep their own letters.
 - Esc also arrives from the global hotkey monitor, for when another app is key (hotkey.md); the session discards once.
 
 ## Pointer input
@@ -43,7 +43,17 @@ Source: macOS/Shepit/Widget/WidgetController.swift:51-55.
 - Press and hold: start recording on press, stop on release (not hands-free).
 - Drag ends: save the new position.
 - Right click: menu.
-- Hover: the idle shape grows (sizes below).
+- Hover: the idle shape grows (sizes below). `hovering` follows the real pointer, not only the AppKit enter and exit events: AppKit sends no exit when the panel shrinks under a still pointer. After every panel frame change, and every 0.25 s while hovering, the pointer is compared with the panel frame (`WidgetHover.change`, global screen coordinates, edges half-open) and the flag is corrected through the same path the events use. Windows: not checked, lags.
+
+## Review tip
+
+macOS only; Windows lags (no review panel). A one-time card that tells a user about review by Shift (dictation.md, step 9).
+
+- Trigger: a dictation finishes (`done`) and `ReviewTip.shouldShow` is true: `reviewTipShown` is false, `reviewBeforePaste` is off, onboarding is completed, and the insert was not reviewed and not clipboard-only (`DictationSession.lastInsert`). The card appears when the session next goes `idle`, unless the What's new card is on screen.
+- The flag `reviewTipShown` is set when the card is shown, and also when any review starts, so people who use Shift first never see it. It is not shown before the first tour is completed, nor while the tour window is open (a replayed tour has its own Shift line).
+- Card: the What's new card without a version chip. Heading "Tip", one item "Check the text before it is pasted", buttons "Open Settings" (General tab) and "Got it". It sits above the widget's resting frame, like the review panel, and never writes `whatsNewSeen`.
+- Dismissal: Got it, Open Settings, or the start of a recording or review.
+- The tour's "Try it" step has one line about Shift on release.
 
 ## Styles
 

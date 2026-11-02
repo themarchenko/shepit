@@ -121,6 +121,7 @@ Neither has been checked on a Windows PC yet.
 |---|---|
 | Hold Right Option, speak, release | Dictate |
 | Double tap Right Option | Dictate hands-free; tap once to stop |
+| Hold Shift as you release (macOS) | Check and edit the text before it is pasted |
 | Esc | Cancel |
 
 The key, language, recognizer, widget style and polishing agent are in Settings, from the menu bar

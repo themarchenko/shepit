@@ -2,6 +2,12 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-02: Widget hover, edit keys and the review tip
+
+- Stuck hover: AppKit sends no mouse-exited event when the widget panel shrinks under a pointer that does not move, so `hovering` stayed on. `hovering` is now reconciled against `NSEvent.mouseLocation` after every panel frame change and by a 0.25 s timer while hovering (`WidgetHover.change`). The poll runs only while hovering. Windows is unchecked and lags.
+- Edit keys: a hidden main menu with an Edit menu now exists (`MainMenu.make()`). This supersedes the "no main menu" bullet in the review entry below. Key equivalents reach the key window while Shepit is active, so Cmd+A/C/V/X/Z work in Settings fields and the tour box. The review panel keeps its handler, because Shepit is not active while the non-activating panel is key. No Cmd-Q or Cmd-W in the menu on purpose.
+- Review tip: after the first plain paste, a one-time card explains Shift on release. `reviewTipShown` is set when the card appears, or when any review starts. It is skipped before the first tour is completed, while the tour window is open (a replayed tour has its own Shift line), for clipboard-only inserts, and when review before paste is on. It shows at the next idle, above the widget's resting frame, and uses the What's new card with no version chip and no `whatsNewSeen` write. No WhatsNew item and no version bump.
+
 ## 2026-11-02: Review before pasting
 
 - macOS only. The `reviewBeforePaste` setting, or Shift held on the key event that stops the recording, sends the finished text to a panel instead of pasting it. Enter (or Paste) pastes the edited text, Esc discards. Windows lags: no panel, no new history rows (`docs/spec/dictation.md` step 9, `widget.md`, `history.md`). The Windows update card has the same focus tension: it is not focusable, so it has no Enter shortcut (entry of 2026-10-27, "Card window").

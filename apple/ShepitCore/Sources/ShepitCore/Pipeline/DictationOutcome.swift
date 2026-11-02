@@ -40,3 +40,21 @@ public struct OutcomeFields: Equatable, Sendable {
 public enum ReviewPolicy {
     public static func shouldReview(setting: Bool, shiftHeld: Bool) -> Bool { setting || shiftHeld }
 }
+
+/// What the last finished insert looked like, for the one-time review tip.
+public struct InsertSummary: Equatable, Sendable {
+    public let reviewed: Bool
+    public let method: InsertMethod
+    public init(reviewed: Bool, method: InsertMethod) {
+        self.reviewed = reviewed
+        self.method = method
+    }
+}
+
+public enum ReviewTip {
+    /// Clipboard-only inserts are skipped: the user has a permission problem to fix first.
+    public static func shouldShow(tipShown: Bool, reviewBeforePaste: Bool, onboardingCompleted: Bool,
+                                  insert: InsertSummary) -> Bool {
+        !tipShown && !reviewBeforePaste && onboardingCompleted && !insert.reviewed && insert.method != .clipboardOnly
+    }
+}

@@ -154,6 +154,10 @@ struct TourView: View {
             Text("The words show up in the widget while you speak; the finished text lands here.")
                 .font(.system(size: 12))
                 .foregroundStyle(WidgetPalette.text.opacity(0.55))
+            Text("Hold Shift as you let go of the key to check and edit the text before it is pasted.")
+                .font(.system(size: 12))
+                .foregroundStyle(WidgetPalette.text.opacity(0.55))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .onAppear { tryFocused = true }
     }
