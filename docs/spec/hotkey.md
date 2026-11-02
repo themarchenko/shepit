@@ -32,6 +32,7 @@ The user picks one key. Default Right Option (AppSettings.swift:157).
 | `fn` | 63 | Fn / Globe (`Fn`) | App/HotkeyMonitor.swift:62 |
 
 - Only the chosen modifier key counts. Other keys in the same event stream are ignored (HotkeyMonitor.swift:68).
+- Fn conflict (macOS only): when the chosen key is Fn and the system setting "Press Fn key to" is not "Do Nothing", macOS also reacts to the key. Doctor reports it as a problem (doctor.md).
 - Esc (key code 53) is a separate cancel key and is not part of the gesture (HotkeyMonitor.swift:83-85).
 - Changing the key replaces the recognizer, so a half-finished gesture is dropped (HotkeyMonitor.swift:26-29).
 - Platform-specific: the key codes, modifier flags and the global monitors (NSEvent, needs Accessibility) are macOS. A port maps the same three roles (push-to-talk key, Esc) to its own key ids; its default key is a Windows decision (see README, Platform-specific).

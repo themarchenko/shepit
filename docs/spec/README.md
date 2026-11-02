@@ -18,6 +18,7 @@ Platform mechanisms (key monitors, panels, installers) appear only where a rule 
 | [polishing.md](polishing.md) | Providers, system prompt, per-dictation message, agent limits, Windows agent runtime |
 | [widget.md](widget.md) | Phases, styles, sizes, live preview |
 | [settings.md](settings.md) | Every setting: key, default, values |
+| [doctor.md](doctor.md) | Doctor window (macOS only): checks, required rules, Accessibility reset, entry points |
 | [updates-install.md](updates-install.md) | Version order, update schedule, installer |
 
 ## Fixtures and golden
@@ -45,7 +46,7 @@ Test data lives in `shared/` (format in `shared/README.md`). The Swift runners a
 | `shared/audio/manifest.json` | dictation.md, Pipeline (recognition) | none (gap: Swift does not read it; Rust only, `windows/engine/tests/transcribe_fixture.rs`, ignored by default) |
 | `shared/prompts/system-prompt.md` (golden) | polishing.md, System prompt | `PromptGoldenTests` |
 
-Rules with no fixture (speech presence, agent limits, widget sizes, settings, update schedule) are described here and tested only in Swift or by hand. The update schedule is also encoded in Rust tests (`windows/core/src/update.rs`) that cite updates-install.md; there is no shared data file, because every fixture would need a Swift runner and so a refactor of the macOS updater.
+Rules with no fixture (speech presence, agent limits, widget sizes, settings, update schedule, Doctor) are described here and tested only in Swift or by hand. The update schedule is also encoded in Rust tests (`windows/core/src/update.rs`) that cite updates-install.md; there is no shared data file, because every fixture would need a Swift runner and so a refactor of the macOS updater.
 
 ## How to change behaviour
 
@@ -87,6 +88,7 @@ Paths below are relative to `apple/` where they point at code.
 | Recognizer vocabulary from the dictionary | macOS only: the last 30 entries go to Whisper. Parakeet takes no vocabulary on either platform and Windows has no Whisper (dictionary.md). |
 | Settings panes and the tour | macOS: General, Appearance, Polishing, Dictionary, About, and a 5-step tour with permissions and polishing. Windows (tasks 8 to 10): General, Appearance, Polishing, Dictionary, About and a 5-step tour (welcome, microphone, look, polish the text, try it). No language lock, What's new or launch at login yet. Updates: the About group, a tray item and a bottom right update card (updates-install.md). The microphone step explains Windows privacy settings and notes that apps running as administrator get the text copied, not pasted. |
 | Review before pasting | macOS only: the `reviewBeforePaste` setting or Shift at the stop gesture shows the text in a panel; Enter pastes, Esc discards, and the history gets `discarded` and `failed` rows (dictation.md, step 9; widget.md, Review panel; history.md). Windows lags: no panel and no such rows. The same tension exists for the update card: it is not focusable so the dictation target keeps focus, at the cost of an Enter shortcut (DECISIONS.md:47). |
+| Doctor | macOS only: the "Shepit Doctor" window with seven checks and an Accessibility reset (doctor.md). Windows lags: only the microphone test in General exists. |
 | Dictation key picker | Windows only: records the next key through the keyboard hook, from a fixed candidate list (hotkey.md, Windows). macOS offers three fixed choices. |
 | Tray | Windows: a left click opens Settings and a right click shows the menu. |
 | Text insertion, permissions, executable search paths, widget rendering | Per platform. |

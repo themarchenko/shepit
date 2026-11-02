@@ -10,10 +10,12 @@ struct SettingsActions {
     var showWhatsNew: () -> Void = {}
     var showWelcomeTour: () -> Void = {}
     var showUpdate: () -> Void = {}
+    var showDoctor: () -> Void = {}
 }
 
 struct GeneralPane: View {
     @ObservedObject var settings: AppSettings
+    var actions: SettingsActions = SettingsActions()
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var accessibilityTrusted = ContextProbe.isAccessibilityTrusted
     @State private var microphoneGranted = AudioRecorder.permissionGranted
@@ -63,11 +65,14 @@ struct GeneralPane: View {
                 permission("Microphone", granted: microphoneGranted) { openPrivacy("Privacy_Microphone") }
                 permission("Accessibility (needed to paste)", granted: accessibilityTrusted, open: openAccessibilitySettings)
                 if !accessibilityTrusted {
-                    Text(accessibilityStaleHint).font(.caption).foregroundStyle(.secondary)
+                    Text("Already on in the list? Doctor can reset it.").font(.caption).foregroundStyle(.secondary)
                 }
-                Button("Check again") {
-                    accessibilityTrusted = ContextProbe.isAccessibilityTrusted
-                    microphoneGranted = AudioRecorder.permissionGranted
+                HStack {
+                    Button("Check again") {
+                        accessibilityTrusted = ContextProbe.isAccessibilityTrusted
+                        microphoneGranted = AudioRecorder.permissionGranted
+                    }
+                    Button("Open Doctor", action: actions.showDoctor)
                 }
             }
         }
@@ -286,10 +291,6 @@ func openPrivacy(_ pane: String) {
     }
 }
 
-/// macOS keeps the Accessibility grant of the previous signature, so the switch can look on while
-/// the permission is not valid for this build. Removing the row is the only way to clear it.
-let accessibilityStaleHint = "Already on in the list? Select Shepit, remove it with the minus button, then turn it on again. macOS keeps the permission of the previous build."
-
 /// Asks for Accessibility first so Shepit is already in the list, then opens the list. Opening it
 /// without asking leaves Shepit out, and the user has to add it with the + button.
 @MainActor
@@ -342,7 +343,7 @@ struct SettingsRoot: View {
 
     @ViewBuilder private var pane: some View {
         switch nav.tab {
-        case .general: GeneralPane(settings: settings)
+        case .general: GeneralPane(settings: settings, actions: actions)
         case .appearance: AppearancePane(settings: settings, actions: actions)
         case .polishing: PolishingPane(settings: settings)
         case .dictionary: DictionaryPane(settings: settings)
@@ -403,7 +404,7 @@ final class SettingsWindowController: NSWindowController {
 
         var paneHeight: CGFloat {
             switch self {
-            case .general: return 740
+            case .general: return 800
             case .appearance: return 540
             case .polishing: return 660
             case .dictionary: return 460

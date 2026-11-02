@@ -6,6 +6,9 @@ import ShepitCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     var onOpenSettings: @MainActor () -> Void = {}
     var onOpenHistory: @MainActor () -> Void = {}
+    var onOpenDoctor: @MainActor () -> Void = {}
+    /// Asked when the icon is redrawn and when the menu opens; true marks the icon with a warning.
+    var doctorNeedsAttention: @MainActor () -> Bool = { false }
     var onQuit: @MainActor () -> Void = {}
     var onCheckForUpdates: @MainActor () -> Void = {}
     var updates: UpdateChecker?
@@ -27,7 +30,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         session.$state.receive(on: RunLoop.main).sink { [weak self] state in
             MainActor.assumeIsolated { self?.updateIcon(for: state) }
         }.store(in: &cancellables)
+        // A permission fixed in System Settings is noticed when the user comes back to the app.
+        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification).sink { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshIcon() }
+        }.store(in: &cancellables)
     }
+
+    func refreshIcon() { updateIcon(for: session.state) }
 
     /// At rest the menu bar shows the brand glyph; states that need attention keep their symbols.
     private func updateIcon(for state: DictationSession.State) {
@@ -35,6 +44,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         var color: NSColor? = nil
         switch state {
         case .idle, .done:
+            if doctorNeedsAttention(),
+               let warn = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Shepit needs attention") {
+                item.button?.image = warn.withSymbolConfiguration(.init(paletteColors: [.systemOrange]))
+                item.button?.image?.isTemplate = false
+                return
+            }
             let glyph = NSImage(named: "MenuBarIcon")
             glyph?.isTemplate = true
             glyph?.accessibilityDescription = "Shepit"
@@ -55,6 +70,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        // The icon is redrawn on state changes only, so a permission fixed in System Settings clears the marker here.
+        updateIcon(for: session.state)
         menu.removeAllItems()
         let status = NSMenuItem(title: statusText, action: nil, keyEquivalent: "")
         status.isEnabled = false
@@ -99,6 +116,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let historyItem = NSMenuItem(title: "History…", action: #selector(openHistory), keyEquivalent: "")
         historyItem.target = self
         menu.addItem(historyItem)
+        let doctorItem = NSMenuItem(title: "Doctor…", action: #selector(openDoctor), keyEquivalent: "")
+        doctorItem.target = self
+        menu.addItem(doctorItem)
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -136,6 +156,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
     @objc private func toggleWidget() { settings.widgetVisible.toggle() }
     @objc private func openHistory() { onOpenHistory() }
+    @objc private func openDoctor() { onOpenDoctor() }
     @objc private func openSettings() { onOpenSettings() }
     @objc private func checkForUpdates() { onCheckForUpdates() }
     @objc private func quit() { onQuit() }

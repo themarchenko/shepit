@@ -12,6 +12,10 @@ enum WhatsNew {
 
     /// Newest first.
     static let releases: [(version: String, items: [Item])] = [
+        ("0.6.0", [
+            Item(symbol: "stethoscope", title: "Doctor",
+                 detail: "Finds what keeps Shepit from working, like a permission macOS still holds for an older build, and fixes it in a click. Open it from the menu bar icon or the widget menu."),
+        ]),
         ("0.5.0", [
             Item(symbol: "text.cursor", title: "Review before pasting",
                  detail: "Hold Shift as you release the dictation key to check and edit the text first. Enter pastes, Esc cancels. Settings → General turns it on for every dictation."),
