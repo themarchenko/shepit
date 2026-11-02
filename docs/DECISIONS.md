@@ -2,6 +2,18 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-02: Doctor (macOS)
+
+- macOS only; Windows lags (`docs/spec/doctor.md`). Evaluation is pure in ShepitCore (`Doctor.evaluate`), probes are thin adapters, the window polls once a second so a row turns green by itself.
+- Accessibility reset runs `/usr/bin/tccutil reset Accessibility <own bundle id>` through `UpdateInstaller.run` (fixed argv, no shell), reused without editing `Update/**`. The id is validated and never dropped, because the command without an id resets every app. Reset or not, Shepit then asks again and opens the Accessibility list.
+- Required checks are Accessibility and Microphone only. They drive the menu bar marker and the launch auto-open. At launch Doctor replaces the system Accessibility prompt, after onboarding, never while the tour is open, once per launch. What's new may still show beside it.
+- A failed model load stays in the engine manager's `loading` slot, so dictations keep rethrowing the error until the engine changes. Doctor's "Download now" is an explicit `retry`. The dictation path is not changed; reported, not fixed.
+- "Agent works" is an on-demand Test button, never automatic, because each test is a real agent turn. Auto-open runs only at launch; a check that turns red later shows through the menu bar marker.
+- The agent test sends a fixed sample straight to the agent with no user context, the same exposure as warm-up. A failed test counts toward the two-failure pause. Claude's pause shows as an agent error.
+- The clipboard-only done caption now points to Doctor. `dictation.md` line 38 (recorder) is still wrong about the microphone check; known spec error, not touched here.
+- Fn setting values other than 0 are not named in the UI. The General pane grew to 800 pt for the extra Doctor button and caption.
+- Needs device check: tccutil without root from the app, the stale-signature case, `AppleFnUsageType` refresh, the Keyboard and Input Monitoring URLs, `CGPreflightListenEventAccess` on macOS 26, secure input holder name, offline "Download now", agent Test signed in and out.
+
 ## 2026-11-02: Widget hover, edit keys and the review tip
 
 - Stuck hover: AppKit sends no mouse-exited event when the widget panel shrinks under a pointer that does not move, so `hovering` stayed on. `hovering` is now reconciled against `NSEvent.mouseLocation` after every panel frame change and by a 0.25 s timer while hovering (`WidgetHover.change`). The poll runs only while hovering. Windows is unchecked and lags.

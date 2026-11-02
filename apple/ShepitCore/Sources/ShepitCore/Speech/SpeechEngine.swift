@@ -1,3 +1,4 @@
+import FluidAudio
 import Foundation
 
 public enum EngineID: String, CaseIterable, Codable, Sendable {
@@ -84,12 +85,32 @@ public extension SpeechEngine {
     }
 }
 
+public enum EngineLoadState: Equatable, Sendable {
+    case loaded
+    case loading
+    case failed(String)
+    case idle
+}
+
 public enum EngineFactory {
     public static func make(_ id: EngineID) -> SpeechEngine {
         switch id {
         case .parakeetV3: return ParakeetEngine(id: id, version: .v3)
         case .parakeetUltra: return ParakeetEngine(id: id, version: .ultra)
-        case .whisperTurbo: return WhisperKitEngine(id: id, model: "large-v3-v20240930_turbo")
+        case .whisperTurbo: return WhisperKitEngine(id: id, model: whisperModel)
+        }
+    }
+
+    static let whisperModel = "large-v3-v20240930_turbo"
+
+    /// Whether the model files are already on disk, so a load needs no download.
+    public static func modelsOnDisk(_ id: EngineID) -> Bool {
+        switch id {
+        case .parakeetV3: return AsrModels.modelsExist(at: AsrModels.defaultCacheDirectory(for: .v3), version: .v3)
+        case .parakeetUltra: return AsrModels.modelsExist(at: AsrModels.defaultCacheDirectory(for: .ultra), version: .ultra)
+        case .whisperTurbo:
+            let base = AppPaths.modelsDirectory.appendingPathComponent("whisperkit", isDirectory: true)
+            return WhisperKitEngine.modelFolderPresent(base: base, model: whisperModel)
         }
     }
 }
@@ -108,7 +129,28 @@ public actor EngineManager {
     private var previewLoading: Task<Void, Never>?
     private(set) public var keepsPreviewEngine = true
 
-    public init() {}
+    private let factory: @Sendable (EngineID) -> SpeechEngine
+    /// Why the last load of an engine failed. A failed load stays in `loading` (dictations rethrow it),
+    /// so this is what tells "failed" from "still loading".
+    private var loadErrors: [EngineID: String] = [:]
+
+    public init(factory: @escaping @Sendable (EngineID) -> SpeechEngine = { EngineFactory.make($0) }) {
+        self.factory = factory
+    }
+
+    public func loadState(of id: EngineID) async -> EngineLoadState {
+        if let active, currentID == id, await active.isLoaded { return .loaded }
+        if id == .parakeetV3, let preview, await preview.isLoaded { return .loaded }
+        if let message = loadErrors[id] { return .failed(message) }
+        if loading?.id == id { return .loading }
+        return .idle
+    }
+
+    /// Starts over after a failed load. Does nothing special while a load is healthy.
+    public func retry(_ id: EngineID) async {
+        if loadErrors[id] != nil, loading?.id == id { loading = nil }
+        await preload(id)
+    }
 
     public func engine(for id: EngineID) async throws -> SpeechEngine {
         if let active, currentID == id, await active.isLoaded { return active }
@@ -130,6 +172,7 @@ public actor EngineManager {
     public func unloadAll() async {
         loading?.task.cancel()
         loading = nil
+        loadErrors = [:]
         if let active { await active.unload() }
         active = nil
         currentID = nil
@@ -143,7 +186,7 @@ public actor EngineManager {
         if let preview, await preview.isLoaded { return preview }
         if previewLoading == nil, loading?.id != .parakeetV3 {
             previewLoading = Task {
-                let e = EngineFactory.make(.parakeetV3)
+                let e = factory(.parakeetV3)
                 do {
                     try await e.load()
                     await self.adoptPreview(e)
@@ -180,17 +223,31 @@ public actor EngineManager {
 
     private func startLoading(_ id: EngineID) {
         loading?.task.cancel()
+        loadErrors[id] = nil
+        let factory = self.factory
         let task = Task<SpeechEngine, Error> {
-            let e = EngineFactory.make(id)
+            let e = factory(id)
             Log.speech.notice("loading recognizer \(id.rawValue, privacy: .public)")
             let t0 = Date()
-            try await e.load()
+            do {
+                try await e.load()
+            } catch {
+                if !Task.isCancelled {
+                    let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+                    self.recordLoadError(message, id: id)
+                }
+                throw error
+            }
             try Task.checkCancellation()
             Log.speech.notice("recognizer \(id.rawValue, privacy: .public) ready in \(Date().timeIntervalSince(t0), format: .fixed(precision: 1)) s")
             await self.adopt(e, id: id)
             return e
         }
         loading = (id, task)
+    }
+
+    private func recordLoadError(_ message: String, id: EngineID) {
+        loadErrors[id] = message
     }
 
     private func adopt(_ e: SpeechEngine, id: EngineID) async {

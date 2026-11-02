@@ -14,6 +14,14 @@ public actor WhisperKitEngine: SpeechEngine {
 
     public var isLoaded: Bool { kit != nil }
 
+    /// WhisperKit keeps a model under `models/argmaxinc/whisperkit-coreml/openai_whisper-<model>`.
+    nonisolated static func modelFolderPresent(base: URL, model: String) -> Bool {
+        let folder = base.appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-\(model)", isDirectory: true)
+        return ["AudioEncoder", "TextDecoder", "MelSpectrogram"].allSatisfy {
+            FileManager.default.fileExists(atPath: folder.appendingPathComponent("\($0).mlmodelc").path)
+        }
+    }
+
     public func load() async throws {
         guard kit == nil else { return }
         let base = AppPaths.modelsDirectory.appendingPathComponent("whisperkit", isDirectory: true)

@@ -7,6 +7,7 @@ struct TourView: View {
     @ObservedObject var settings: AppSettings
     var requestMicrophone: () async -> Bool
     var bringToFront: () -> Void
+    var openDoctor: () -> Void
     var finish: () -> Void
 
     @State private var step = 0
@@ -103,11 +104,15 @@ struct TourView: View {
                 openAccessibilitySettings()
             }
             if openedAccessibility && !accessibility {
-                Text("In System Settings, turn on Shepit in the Accessibility list. If it is already on, select it, remove it with the minus button and click Open System Settings here again.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(WidgetPalette.text.opacity(0.55))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(.opacity)
+                HStack(alignment: .center, spacing: 8) {
+                    Text("Turn on Shepit in the list. Already on and still not allowed? Doctor can reset it.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(WidgetPalette.text.opacity(0.55))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button("Open Doctor", action: openDoctor).buttonStyle(QuietButtonStyle())
+                }
+                .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.2), value: openedAccessibility && !accessibility)
@@ -238,7 +243,7 @@ final class TourWindow: NSWindow {
 final class TourWindowController: NSWindowController, NSWindowDelegate {
     var onFinish: () -> Void = {}
 
-    init(settings: AppSettings, requestMicrophone: @escaping () async -> Bool) {
+    init(settings: AppSettings, requestMicrophone: @escaping () async -> Bool, openDoctor: @escaping () -> Void) {
         let window = TourWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 560),
                                 styleMask: [.borderless], backing: .buffered, defer: false)
         window.isOpaque = false
@@ -251,6 +256,7 @@ final class TourWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         let view = TourView(settings: settings, requestMicrophone: requestMicrophone,
                             bringToFront: { [weak self] in self?.bringToFront() },
+                            openDoctor: openDoctor,
                             finish: { [weak self] in self?.finish() })
             .padding(30)
         let hosting = NSHostingView(rootView: view)

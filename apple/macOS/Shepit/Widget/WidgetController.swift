@@ -12,6 +12,7 @@ import ShepitCore
 final class WidgetController: NSObject, NSMenuDelegate {
     var onOpenSettings: @MainActor () -> Void = {}
     var onOpenHistory: @MainActor () -> Void = {}
+    var onOpenDoctor: @MainActor () -> Void = {}
 
     private let panel: WidgetPanel
     private let host = WidgetHostView()
@@ -323,6 +324,9 @@ final class WidgetController: NSObject, NSMenuDelegate {
         let history = NSMenuItem(title: "History…", action: #selector(openHistory), keyEquivalent: "")
         history.target = self
         menu.addItem(history)
+        let doctor = NSMenuItem(title: "Doctor…", action: #selector(openDoctor), keyEquivalent: "")
+        doctor.target = self
+        menu.addItem(doctor)
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -348,6 +352,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openHistory() { onOpenHistory() }
+    @objc private func openDoctor() { onOpenDoctor() }
     @objc private func openSettings() { onOpenSettings() }
     @objc private func hideWidget() { settings.widgetVisible = false }
 }

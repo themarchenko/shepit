@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeys: HotkeyMonitor!
     private var settingsWindow: SettingsWindowController?
     private var historyWindow: HistoryWindowController?
+    private var doctorWindow: DoctorWindowController?
+    /// Doctor opens itself at most once per launch, so a user who closes it is not nagged.
+    private var doctorAutoOpened = false
     private var tourWindow: TourWindowController?
     private let whatsNew = WhatsNewController()
     /// Same card as What's New, but it never writes whatsNewSeen: the tip has its own flag.
@@ -45,6 +48,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = StatusItemController(session: session, settings: settings)
         statusItem.onOpenSettings = { [weak self] in self?.showSettings() }
         statusItem.onOpenHistory = { [weak self] in self?.showHistory() }
+        statusItem.onOpenDoctor = { [weak self] in self?.showDoctor() }
+        statusItem.doctorNeedsAttention = { [weak self] in
+            // The tour asks for these permissions itself.
+            guard self?.settings.onboardingCompleted == true else { return false }
+            return Doctor.requiredProblem(accessibilityTrusted: SystemProbe.accessibilityTrusted,
+                                   microphone: AudioRecorder.microphoneAccess)
+        }
         statusItem.onQuit = { NSApp.terminate(nil) }
         statusItem.onCheckForUpdates = { [weak self] in self?.checkForUpdates() }
         statusItem.updates = updates
@@ -54,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         widget = WidgetController(session: session, settings: settings)
         widget.onOpenSettings = { [weak self] in self?.showSettings() }
         widget.onOpenHistory = { [weak self] in self?.showHistory() }
+        widget.onOpenDoctor = { [weak self] in self?.showDoctor() }
         review = ReviewPanelController(session: session, widget: widget)
 
         hotkeys = HotkeyMonitor(choice: settings.hotkey)
@@ -234,8 +245,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             Log.audio.error("microphone permission not granted")
         }
-        if prompt, !ContextProbe.isAccessibilityTrusted {
-            ContextProbe.requestAccessibility()
+        // Doctor explains a missing permission and can clear a stale one, which the bare system prompt cannot.
+        if prompt, Doctor.shouldAutoOpen(onboardingCompleted: settings.onboardingCompleted, tourOpen: tourWindow != nil,
+                                         alreadyOpened: doctorAutoOpened,
+                                         accessibilityTrusted: ContextProbe.isAccessibilityTrusted,
+                                         microphone: AudioRecorder.microphoneAccess) {
+            doctorAutoOpened = true
+            showDoctor()
         }
         hotkeys.start()
         Log.ui.notice("microphone granted: \(mic, privacy: .public), accessibility trusted: \(ContextProbe.isAccessibilityTrusted, privacy: .public)")
@@ -262,7 +278,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 resetWidgetPosition: { [weak self] in self?.widget.resetPosition() },
                 showWhatsNew: { [weak self] in self?.showWhatsNew(force: true) },
                 showWelcomeTour: { [weak self] in self?.showWelcomeTour() },
-                showUpdate: { [weak self] in self?.showUpdate() })
+                showUpdate: { [weak self] in self?.showUpdate() },
+                showDoctor: { [weak self] in self?.showDoctor() })
             settingsWindow = SettingsWindowController(settings: settings, updates: updates, actions: actions)
         }
         settingsWindow?.show(tab: tab)
@@ -271,15 +288,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showWelcomeTour() {
         if tourWindow == nil {
             let recorder = self.recorder
-            tourWindow = TourWindowController(settings: settings) {
+            tourWindow = TourWindowController(settings: settings, requestMicrophone: {
                 let granted = await AudioRecorder.requestPermission()
                 if granted { recorder.prepare() }
                 return granted
-            }
+            }, openDoctor: { [weak self] in self?.showDoctor() })
             tourWindow?.onFinish = { [weak self] in
                 guard let self else { return }
                 let firstRun = !self.settings.onboardingCompleted
                 self.settings.onboardingCompleted = true
+                self.statusItem.refreshIcon()
                 self.tourWindow = nil
                 // A new user needs no release notes; someone who dictated before the tour existed gets them.
                 if firstRun, ((try? self.history?.recent(limit: 1)) ?? []).isEmpty {
@@ -349,6 +367,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         showUpdate()
         Task { await updates.check(userInitiated: true) }
+    }
+
+    func showDoctor() {
+        if doctorWindow == nil {
+            let recorder = self.recorder
+            let model = DoctorModel(
+                settings: settings, engines: engines, formatting: formatting, session: session,
+                requestMicrophone: {
+                    let granted = await AudioRecorder.requestPermission()
+                    if granted { recorder.prepare() }
+                    return granted
+                },
+                openSettings: { [weak self] tab in self?.showSettings(tab: tab) })
+            model.onChange = { [weak self] in self?.statusItem.refreshIcon() }
+            doctorWindow = DoctorWindowController(model: model)
+        }
+        doctorWindow?.show()
     }
 
     func showHistory() {

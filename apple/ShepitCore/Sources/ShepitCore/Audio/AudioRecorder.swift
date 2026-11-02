@@ -109,6 +109,10 @@ public final class AudioRecorder: ObservableObject, LiveAudioSource {
         AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     }
 
+    public static var microphoneAccess: MicrophoneAccess {
+        MicrophoneAccess(status: AVCaptureDevice.authorizationStatus(for: .audio))
+    }
+
     public static func requestPermission() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized: return true
@@ -217,6 +221,16 @@ public final class AudioRecorder: ObservableObject, LiveAudioSource {
             Log.audio.error("audio device changed during capture; the recording keeps what was captured so far")
         } else {
             Log.audio.notice("audio configuration changed, engine rebuilds before the next capture")
+        }
+    }
+}
+
+extension MicrophoneAccess {
+    init(status: AVAuthorizationStatus) {
+        switch status {
+        case .authorized: self = .granted
+        case .notDetermined: self = .notDetermined
+        default: self = .denied
         }
     }
 }

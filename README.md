@@ -83,6 +83,10 @@ so the permissions stay granted across updates. Coming from 0.2.x, grant Accessi
 Shepit is on in the list but nothing gets pasted, remove it with the minus button, click Open Privacy
 settings in Shepit's Settings and turn it on again.
 
+Open Doctor from the menu bar icon, the widget menu or Settings > General to see what is missing. If
+Accessibility is stuck, Doctor can reset it and ask again. It also checks the microphone, the Fn key
+setting, the speech model, the polishing agent and secure input.
+
 If Accessibility shows Shepit as on but Shepit says it is missing, macOS is holding the permission of
 a previous build, for example a dev build or 0.2.x. Select Shepit in the list, remove it with the minus
 button and turn it on again. To clear it from Terminal, run this and reopen Shepit:
