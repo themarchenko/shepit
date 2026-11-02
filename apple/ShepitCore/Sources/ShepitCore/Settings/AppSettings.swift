@@ -103,6 +103,8 @@ public final class AppSettings: ObservableObject {
     @Published public var fadeWhenIdle: Bool { didSet { defaults.set(fadeWhenIdle, forKey: Keys.fadeWhenIdle) } }
     @Published public var onboardingCompleted: Bool { didSet { defaults.set(onboardingCompleted, forKey: Keys.onboardingCompleted) } }
     @Published public var reviewTipShown: Bool { didSet { defaults.set(reviewTipShown, forKey: Keys.reviewTipShown) } }
+    /// Set when the voice calibration wizard has been opened on its own once; it never opens itself again.
+    @Published public var calibrationOffered: Bool { didSet { defaults.set(calibrationOffered, forKey: Keys.calibrationOffered) } }
     /// The newest "What's new" version the user has seen.
     @Published public var whatsNewSeen: String { didSet { defaults.set(whatsNewSeen, forKey: Keys.whatsNewSeen) } }
     @Published public var claudeModel: ClaudeModel { didSet { defaults.set(claudeModel.rawValue, forKey: Keys.claudeModel) } }
@@ -136,6 +138,7 @@ public final class AppSettings: ObservableObject {
         static let fadeWhenIdle = "fadeWhenIdle"
         static let onboardingCompleted = "onboardingCompleted"
         static let reviewTipShown = "reviewTipShown"
+        static let calibrationOffered = "calibrationOffered"
         static let whatsNewSeen = "whatsNewSeen"
         static let claudeModel = "claudeModel"
         static let claudeExecutable = "claudeExecutable"
@@ -169,6 +172,7 @@ public final class AppSettings: ObservableObject {
         fadeWhenIdle = defaults.object(forKey: Keys.fadeWhenIdle) as? Bool ?? true
         onboardingCompleted = defaults.object(forKey: Keys.onboardingCompleted) as? Bool ?? false
         reviewTipShown = defaults.object(forKey: Keys.reviewTipShown) as? Bool ?? false
+        calibrationOffered = defaults.object(forKey: Keys.calibrationOffered) as? Bool ?? false
         whatsNewSeen = defaults.string(forKey: Keys.whatsNewSeen) ?? ""
         claudeModel = ClaudeModel(rawValue: defaults.string(forKey: Keys.claudeModel) ?? "") ?? .haiku
         claudeExecutable = defaults.string(forKey: Keys.claudeExecutable) ?? ""
@@ -250,9 +254,18 @@ public enum AppPaths {
     }
 }
 
-/// Default text for the speaker section of the formatter prompt (editable in Settings).
+/// Text for the speaker section of the formatter prompt (editable in Settings).
 public enum SpeakerNotes {
-    public static let defaultText = """
+    /// Empty: the voice calibration writes notes from what the speaker actually sounds like.
+    public static let defaultText = ""
+
+    /// The default before 0.6.0. The prompt golden and Windows still use it; a stored copy counts as unset.
+    public static let legacyDefault = """
     Native Ukrainian speaker who also dictates in English and mixes English technical terms into Ukrainian sentences.
     """
+
+    public static func isUnset(_ notes: String) -> Bool {
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty || trimmed == legacyDefault.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

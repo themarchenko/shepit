@@ -161,7 +161,7 @@ struct Smoke {
             let work = FileManager.default.temporaryDirectory.appendingPathComponent("shepit-smoke-codex-\(getpid())", isDirectory: true)
             try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
             let config = CodexConfig(executable: exe, model: model ?? CodexConfig.defaultModel, reasoningEffort: effort,
-                                     systemPrompt: PromptBuilder.systemPrompt(speakerNotes: SpeakerNotes.defaultText), workDirectory: work)
+                                     systemPrompt: PromptBuilder.systemPrompt(speakerNotes: SpeakerNotes.legacyDefault), workDirectory: work)
             let c = CodexFormatter(config: config)
             let t0 = Date()
             await c.warmUp()
@@ -175,7 +175,7 @@ struct Smoke {
             }
             let work = FileManager.default.temporaryDirectory.appendingPathComponent("shepit-smoke-\(getpid())", isDirectory: true)
             try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-            let config = ClaudeWorkerConfig(executable: exe, model: model ?? "haiku", systemPrompt: PromptBuilder.systemPrompt(speakerNotes: SpeakerNotes.defaultText), workDirectory: work)
+            let config = ClaudeWorkerConfig(executable: exe, model: model ?? "haiku", systemPrompt: PromptBuilder.systemPrompt(speakerNotes: SpeakerNotes.legacyDefault), workDirectory: work)
             let w = ClaudeCodeWorker(config: config)
             let t0 = Date()
             await w.warmUp()
