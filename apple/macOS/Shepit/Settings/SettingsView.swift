@@ -59,6 +59,13 @@ struct GeneralPane: View {
                         }
                     }
                 Toggle("Show floating widget", isOn: $settings.widgetVisible)
+                Picker("App language", selection: $settings.interfaceLanguage) {
+                    ForEach(InterfaceLanguage.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                }
+                Text("Applies after Shepit restarts.").font(.caption).foregroundStyle(.secondary)
+                if settings.interfaceLanguage.needsRestart(running: AppLanguage.running, system: InterfaceLanguage.systemLanguages()) {
+                    Button("Restart Shepit") { UpdateInstaller.relaunch(Bundle.main.bundleURL) }
+                }
             }
             Section("Permissions") {
                 permission("Microphone", granted: microphoneGranted) { openPrivacy("Privacy_Microphone") }
@@ -78,7 +85,7 @@ struct GeneralPane: View {
         .settingsForm()
     }
 
-    private func permission(_ name: String, granted: Bool, open: @escaping () -> Void) -> some View {
+    private func permission(_ name: LocalizedStringKey, granted: Bool, open: @escaping () -> Void) -> some View {
         HStack {
             Label(name, systemImage: granted ? "checkmark.circle.fill" : "xmark.circle")
                 .foregroundStyle(granted ? WidgetPalette.ok : WidgetPalette.amber)
@@ -254,7 +261,7 @@ struct AboutPane: View {
                 HStack(spacing: 16) {
                     Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 64, height: 64)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Shepit \(version)").font(.system(size: 16, weight: .semibold))
+                        Text(verbatim: "Shepit \(version)").font(.system(size: 16, weight: .semibold))
                         Text("Recognition runs on this Mac with Whisper and Parakeet. Polishing uses the agent you pick.")
                             .font(.system(size: 12)).foregroundStyle(.secondary)
                     }
@@ -290,19 +297,19 @@ struct AboutPane: View {
 
     private var updateStatus: String {
         switch updates.state {
-        case .checking: return "Checking GitHub…"
-        case .available(let release): return "Shepit \(release.version) is out"
-        case .downloading(let release, let fraction): return "Downloading \(release.version): \(Int(fraction * 100))%"
-        case .installing(let release): return "Installing \(release.version)…"
-        case .failed: return "Last check failed"
-        case .idle, .upToDate: return "Up to date"
+        case .checking: return String(localized: "Checking GitHub…")
+        case .available(let release): return String(localized: "Shepit \(release.version) is out")
+        case .downloading(let release, let fraction): return String(localized: "Downloading \(release.version): \(Int(fraction * 100))%")
+        case .installing(let release): return String(localized: "Installing \(release.version)…")
+        case .failed: return String(localized: "Last check failed")
+        case .idle, .upToDate: return String(localized: "Up to date")
         }
     }
 
     private var updateDetail: String {
         if case .failed(let message, _) = updates.state { return message }
-        guard settings.lastUpdateCheck > .distantPast else { return "Not checked yet" }
-        return "Checked " + settings.lastUpdateCheck.formatted(.relative(presentation: .named))
+        guard settings.lastUpdateCheck > .distantPast else { return String(localized: "Not checked yet") }
+        return String(localized: "Checked \(settings.lastUpdateCheck.formatted(.relative(presentation: .named)))")
     }
 }
 
@@ -382,7 +389,7 @@ struct SettingsRoot: View {
                 Text(tab.title).font(.system(size: 11, weight: selected ? .semibold : .regular))
             }
             .foregroundStyle(WidgetPalette.text.opacity(selected ? 1 : 0.55))
-            .frame(width: 80, height: 50)
+            .frame(width: 88, height: 50)
             .background {
                 if selected {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -405,11 +412,11 @@ final class SettingsWindowController: NSWindowController {
 
         var title: String {
             switch self {
-            case .general: return "General"
-            case .appearance: return "Appearance"
-            case .polishing: return "Polishing"
-            case .dictionary: return "Dictionary"
-            case .about: return "About"
+            case .general: return String(localized: "General")
+            case .appearance: return String(localized: "Appearance")
+            case .polishing: return String(localized: "Polishing")
+            case .dictionary: return String(localized: "Dictionary")
+            case .about: return String(localized: "About")
             }
         }
 
@@ -441,7 +448,7 @@ final class SettingsWindowController: NSWindowController {
     init(settings: AppSettings, updates: UpdateChecker, actions: SettingsActions) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 600),
                               styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = "Settings"
+        window.title = String(localized: "Settings")
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false

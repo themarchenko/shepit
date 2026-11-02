@@ -108,7 +108,7 @@ struct ProviderList: View {
                         if provider != .off {
                             HStack(spacing: 5) {
                                 Circle().fill(available ? WidgetPalette.ok : Color.white.opacity(0.25)).frame(width: 7, height: 7)
-                                Text(available ? "Found" : "Not installed")
+                                Text(available ? LocalizedStringKey("Found") : LocalizedStringKey("Not installed"))
                             }
                             .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
@@ -138,13 +138,13 @@ struct ProviderList: View {
     private func detail(_ provider: PolishingProvider, available: Bool) -> String {
         switch provider {
         case .claudeCode:
-            return available ? "Uses your Claude subscription. \(found[.claudeCode] ?? "")"
-                : "Install Claude Code from claude.ai/code, then run claude once to sign in."
+            return available ? String(localized: "Uses your Claude subscription. \(found[.claudeCode] ?? "")")
+                : String(localized: "Install Claude Code from claude.ai/code, then run claude once to sign in.")
         case .codex:
-            return available ? "Uses your ChatGPT plan. \(found[.codex] ?? "")"
-                : "Install with npm i -g @openai/codex, then run codex once to sign in."
+            return available ? String(localized: "Uses your ChatGPT plan. \(found[.codex] ?? "")")
+                : String(localized: "Install with npm i -g @openai/codex, then run codex once to sign in.")
         case .off:
-            return "Insert what you said. Spacing, capitals and dictionary terms are still fixed."
+            return String(localized: "Insert what you said. Spacing, capitals and dictionary terms are still fixed.")
         }
     }
 }
@@ -166,5 +166,39 @@ struct QuietButtonStyle: ButtonStyle {
             .font(.system(size: 13))
             .foregroundStyle(WidgetPalette.text.opacity(configuration.isPressed ? 0.5 : 0.7))
             .padding(.horizontal, 10).padding(.vertical, 6)
+    }
+}
+
+/// A sentence with one key cap in it. The sentence is a single catalog key so a translation can put the key
+/// anywhere: build it as `String(localized: "Hold \(KeyCapLine.slot) and speak")`, and the view splits on the
+/// slot and draws the key cap there.
+struct KeyCapLine: View {
+    /// Object replacement character: never appears in a translation, survives String interpolation.
+    static let slot = "\u{FFFC}"
+
+    let sentence: String
+    let key: String
+    var font: Font = .system(size: 12)
+    var color: Color = WidgetPalette.text.opacity(0.6)
+    var spacing: CGFloat = 5
+
+    var body: some View {
+        let parts = sentence.components(separatedBy: Self.slot)
+        let head = parts.first?.trimmingCharacters(in: .whitespaces) ?? ""
+        let tail = parts.dropFirst().joined(separator: Self.slot).trimmingCharacters(in: .whitespaces)
+        // Punctuation right after the key belongs to it, so it gets no gap.
+        let tailHugsKey = tail.first.map { ",.;:!?)".contains($0) } ?? false
+        HStack(spacing: spacing) {
+            if !head.isEmpty { Text(verbatim: head) }
+            HStack(spacing: tailHugsKey ? 1 : spacing) {
+                KeyCap(label: key)
+                if !tail.isEmpty { Text(verbatim: tail) }
+            }
+        }
+        .font(font)
+        .foregroundStyle(color)
+        // VoiceOver reads the whole sentence instead of three fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: sentence.replacingOccurrences(of: Self.slot, with: key)))
     }
 }

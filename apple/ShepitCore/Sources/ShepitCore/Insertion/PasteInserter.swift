@@ -16,8 +16,8 @@ public enum InsertError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .secureInput: return "A password field is active; nothing was inserted"
-        case .empty: return "Nothing to insert"
+        case .secureInput: return L("A password field is active; nothing was inserted")
+        case .empty: return L("Nothing to insert")
         }
     }
 }

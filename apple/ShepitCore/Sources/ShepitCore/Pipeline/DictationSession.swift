@@ -105,7 +105,7 @@ public final class DictationSession: ObservableObject {
         do {
             try recorder.start()
         } catch {
-            fail("Microphone: \(error.localizedDescription)")
+            fail(L("Microphone: \(error.localizedDescription)"))
             return
         }
         recordingStart = Date()
@@ -206,7 +206,7 @@ public final class DictationSession: ObservableObject {
         let speechSeconds = SpeechPresence.speechSeconds(in: samples)
         guard speechSeconds >= 0.3 else {
             Log.pipeline.notice("no speech in \(audioSeconds, format: .fixed(precision: 1)) s of audio, skipping recognition")
-            fail("Nothing recognized")
+            fail(L("Nothing recognized"))
             return
         }
         do {
@@ -232,7 +232,7 @@ public final class DictationSession: ObservableObject {
             sttMs = Int(Date().timeIntervalSince(t0) * 1000)
             try Task.checkCancellation()
             guard !transcript.isEmpty, !HallucinationFilter.isJunk(transcript.text) else {
-                fail("Nothing recognized")
+                fail(L("Nothing recognized"))
                 return
             }
             Log.pipeline.notice("stt \(sttMs, privacy: .public) ms: \(String(transcript.text.prefix(80)), privacy: .private)")
@@ -377,7 +377,7 @@ public final class DictationSession: ObservableObject {
         lastInsert = InsertSummary(reviewed: reviewed, method: method)
         let preview = String(text.prefix(60)).replacingOccurrences(of: "\n", with: " ")
         live.clear()
-        state = .done(preview: method == .clipboardOnly ? "Copied, not pasted (open Doctor): \(preview)" : preview)
+        state = .done(preview: method == .clipboardOnly ? L("Copied, not pasted (open Doctor): \(preview)") : preview)
         scheduleReset(after: 2.5)
     }
 

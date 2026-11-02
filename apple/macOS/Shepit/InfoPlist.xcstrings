@@ -1,0 +1,22 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSMicrophoneUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shepit records your voice while the dictation key is held."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shepit записує ваш голос, поки утримується клавіша диктування."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

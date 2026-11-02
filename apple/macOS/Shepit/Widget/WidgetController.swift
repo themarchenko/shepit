@@ -292,7 +292,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
 
     private func showMenu(_ event: NSEvent) {
         let menu = NSMenu()
-        let header = NSMenuItem(title: "Next dictation mode", action: nil, keyEquivalent: "")
+        let header = NSMenuItem(title: String(localized: "Next dictation mode"), action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         let current = session.modeOverride ?? settings.defaultMode
@@ -304,7 +304,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
             menu.addItem(mi)
         }
         menu.addItem(.separator())
-        let langHeader = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
+        let langHeader = NSMenuItem(title: String(localized: "Language"), action: nil, keyEquivalent: "")
         langHeader.isEnabled = false
         menu.addItem(langHeader)
         for policy in LanguagePolicy.allCases {
@@ -316,21 +316,21 @@ final class WidgetController: NSObject, NSMenuDelegate {
         }
         menu.addItem(.separator())
         if let last = session.lastRecord {
-            let copy = NSMenuItem(title: "Copy last result", action: #selector(copyLast), keyEquivalent: "")
+            let copy = NSMenuItem(title: String(localized: "Copy last result"), action: #selector(copyLast), keyEquivalent: "")
             copy.target = self
             copy.toolTip = last.displayText
             menu.addItem(copy)
         }
-        let history = NSMenuItem(title: "History…", action: #selector(openHistory), keyEquivalent: "")
+        let history = NSMenuItem(title: String(localized: "History…"), action: #selector(openHistory), keyEquivalent: "")
         history.target = self
         menu.addItem(history)
-        let doctor = NSMenuItem(title: "Doctor…", action: #selector(openDoctor), keyEquivalent: "")
+        let doctor = NSMenuItem(title: String(localized: "Doctor…"), action: #selector(openDoctor), keyEquivalent: "")
         doctor.target = self
         menu.addItem(doctor)
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: "")
+        let settingsItem = NSMenuItem(title: String(localized: "Settings…"), action: #selector(openSettings), keyEquivalent: "")
         settingsItem.target = self
         menu.addItem(settingsItem)
-        let hide = NSMenuItem(title: "Hide widget", action: #selector(hideWidget), keyEquivalent: "")
+        let hide = NSMenuItem(title: String(localized: "Hide widget"), action: #selector(hideWidget), keyEquivalent: "")
         hide.target = self
         menu.addItem(hide)
         NSMenu.popUpContextMenu(menu, with: event, for: host)

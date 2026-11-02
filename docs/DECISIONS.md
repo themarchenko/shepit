@@ -2,6 +2,18 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-02: Ukrainian interface (macOS)
+
+- macOS only; Windows lags (`docs/spec/localization.md`). Every user-visible string has an English source and a Ukrainian value in a String Catalog. Supersedes "localised labels" in the allowed-languages Kept out list.
+- Core strings (Doctor text, display names, error texts) use a package catalog read through `L()`, not text passed in from the app. Doctor text is built in pure functions that tests assert on, and the app links the package as a local SwiftPM dependency, so Xcode embeds the resource bundle. `make build` checks that both `uk.lproj` folders are in the app.
+- Language rule: the package follows the main bundle's first preferred localization, and only if the package ships it. Tests and `shepit-smoke` have no Ukrainian main bundle, so they get English.
+- Override: `AppleLanguages` in the app's defaults domain is the single source, read from `persistentDomain(forName:)` (the standard domain would merge in the global list). Nothing is added to `settings.json`, and System Settings > Language & Region > Applications stays in agreement. Restart reuses `UpdateInstaller.relaunch`.
+- Tests route: plain `swift test` copies the package catalog uncompiled, so `Bundle.module` has no `uk`. The tests compile it with `xcstringstool` into a temporary bundle and set `CoreLocalization.overrideBundle`. The app build compiles the catalogs itself. `--build-system swiftbuild` would compile it, but it changes the build for everything else, so it was not used.
+- `CodexError` and `WorkerError` texts stay English. Their only consumer is the formatter fallback `note` (FormattingService.swift:47), which only shepit-smoke and logs read; no view shows it. Wrap them if that changes. Logs may carry a localized failure text (DictationSession.swift:387).
+- `KeyCapLine` is the only pattern for a sentence around a key cap: one key with a placeholder, so word order is the translator's.
+- Counts that are not quantities (Hz, HTTP code) are interpolated as `String`: with locale `uk` an `Int` gets a grouping space.
+- What's New 0.6.0 got a "Ukrainian interface" item.
+
 ## 2026-11-02: voice calibration (macOS)
 
 - macOS only; Windows lags (`docs/spec/calibration.md`). A wizard records fixed words and phrases, one agent round picks 2 or 3 extra sentences aimed at what went wrong, a second writes speaker notes and suggests dictionary terms. The user edits and saves, or cancels.
@@ -21,7 +33,7 @@ Short log of choices that are not obvious from the code. Newest first.
 - The Russian-only letter map (ы, э, ъ, ё; ъ maps to U+02BC, the Ukrainian apostrophe letter, as the preview already did) now applies to the final text of every engine, in the session, and to the live preview always. The old gate "only when the pass language is uk" is gone, since Russian is never allowed. History `rawText` stores the mapped text.
 - Progressive Whisper pieces adopt a language only if the policy allows it.
 - The system prompt tells the agent that Russian or Polish words are recognition errors. It sits in the shared golden, so the Windows prompt builder got the same line.
-- Kept out: Whisper Polish letters when the detected language is Ukrainian, Parakeet Polish letters under English only, speaker notes, localised labels.
+- Kept out: Whisper Polish letters when the detected language is Ukrainian, Parakeet Polish letters under English only, speaker notes, localised labels (superseded by "Ukrainian interface", above).
 - Needs device check: real Ukrainian dictation on both engines, the uk/en probe on a Latin-detected clip in the app (never run on a real model with a Latin first pass), a clip that used to come out Russian, Polish letters on Parakeet, the widget Language menu, an upgrade from a stored `auto`, polishing a Russian word.
 
 ## 2026-11-02: Doctor (macOS)

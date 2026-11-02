@@ -31,11 +31,12 @@ struct UpdateCard: View {
 
     private var title: String {
         switch updates.state {
-        case .idle, .checking: return "Checking for updates"
-        case .upToDate: return "Shepit is up to date"
-        case .available(let release): return "Shepit \(release.version) is out"
-        case .downloading(let release, _), .installing(let release): return "Updating to \(release.version)"
-        case .failed(_, let release): return release == nil ? "Could not check for updates" : "The update did not install"
+        case .idle, .checking: return String(localized: "Checking for updates")
+        case .upToDate: return String(localized: "Shepit is up to date")
+        case .available(let release): return String(localized: "Shepit \(release.version) is out")
+        case .downloading(let release, _), .installing(let release): return String(localized: "Updating to \(release.version)")
+        case .failed(_, let release):
+            return release == nil ? String(localized: "Could not check for updates") : String(localized: "The update did not install")
         }
     }
 
@@ -68,14 +69,14 @@ struct UpdateCard: View {
 
         case .downloading(let release, let fraction):
             ProgressView(value: fraction).progressViewStyle(.linear).tint(WidgetPalette.text)
-            detail(downloadText(release, fraction))
+            detailText(downloadText(release, fraction))
 
         case .installing:
             ProgressView().progressViewStyle(.linear).tint(WidgetPalette.text)
             detail("Checking the signature and putting the new version in place. Shepit reopens on its own.")
 
         case .failed(let message, let release):
-            detail(message)
+            detailText(message)
             buttons {
                 Spacer()
                 Button("Close", action: close).buttonStyle(QuietButtonStyle())
@@ -89,13 +90,22 @@ struct UpdateCard: View {
     }
 
     private func downloadText(_ release: AppRelease, _ fraction: Double) -> String {
-        guard release.diskImageSize > 0 else { return "Downloading… \(Int(fraction * 100))%" }
+        guard release.diskImageSize > 0 else { return String(localized: "Downloading… \(Int(fraction * 100))%") }
         let total = Double(release.diskImageSize) / 1_000_000
-        return String(format: "Downloading… %.0f of %.0f MB", total * fraction, total)
+        return String(localized: "Downloading… \(Int((total * fraction).rounded())) of \(Int(total.rounded())) MB")
     }
 
-    private func detail(_ text: String) -> some View {
-        Text(text)
+    private func detail(_ text: LocalizedStringKey) -> some View {
+        detailStyle(Text(text))
+    }
+
+    /// For text that is already a finished String (the download line, an error from the core).
+    private func detailText(_ text: String) -> some View {
+        detailStyle(Text(verbatim: text))
+    }
+
+    private func detailStyle(_ text: Text) -> some View {
+        text
             .font(.system(size: 12.5))
             .foregroundStyle(WidgetPalette.text.opacity(0.65))
             .fixedSize(horizontal: false, vertical: true)

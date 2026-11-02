@@ -18,6 +18,7 @@ Platform mechanisms (key monitors, panels, installers) appear only where a rule 
 | [polishing.md](polishing.md) | Providers, system prompt, per-dictation message, agent limits, Windows agent runtime |
 | [widget.md](widget.md) | Phases, styles, sizes, live preview |
 | [settings.md](settings.md) | Every setting: key, default, values |
+| [localization.md](localization.md) | Interface language (macOS only): follow-system rule, the App language override, catalogs, key caps, plurals, glossary |
 | [calibration.md](calibration.md) | Voice calibration wizard (macOS only): reading lists, agent rounds, reply filters, auto-open, privacy, capture path |
 | [doctor.md](doctor.md) | Doctor window (macOS only): checks, required rules, Accessibility reset, entry points |
 | [updates-install.md](updates-install.md) | Version order, update schedule, installer |

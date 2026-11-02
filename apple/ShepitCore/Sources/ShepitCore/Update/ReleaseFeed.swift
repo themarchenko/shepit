@@ -49,10 +49,10 @@ public enum ReleaseFeed {
 
         public var errorDescription: String? {
             switch self {
-            case .http(403), .http(429): return "GitHub is rate limiting update checks. Try again in an hour."
-            case .http(let code): return "GitHub answered with HTTP \(code)."
-            case .noDiskImage(let version): return "Release \(version) has no \(ReleaseFeed.diskImageName)."
-            case .insecureDiskImage(let version): return "Release \(version) points at a download that is not https."
+            case .http(403), .http(429): return L("GitHub is rate limiting update checks. Try again in an hour.")
+            case .http(let code): return L("GitHub answered with HTTP \(String(code)).")
+            case .noDiskImage(let version): return L("Release \(version) has no \(ReleaseFeed.diskImageName).")
+            case .insecureDiskImage(let version): return L("Release \(version) points at a download that is not https.")
             }
         }
     }

@@ -18,10 +18,10 @@ final class WidgetModel: ObservableObject {
 
         var label: String {
             switch self {
-            case .loading: return "Loading model"
-            case .transcribing: return "Transcribing"
-            case .formatting: return "Formatting"
-            case .inserting: return "Inserting"
+            case .loading: return String(localized: "Loading model")
+            case .transcribing: return String(localized: "Transcribing")
+            case .formatting: return String(localized: "Formatting")
+            case .inserting: return String(localized: "Inserting")
             }
         }
 

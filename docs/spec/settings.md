@@ -13,6 +13,7 @@ Source: `apple/ShepitCore/Sources/ShepitCore/Settings/AppSettings.swift`. Keys a
 | `defaultMode` | id | `clean` | `clean`, `prompt`, `raw` | :169 |
 | `fastPathMaxWords` | int | 8 | 0 and up | :171 |
 | `promptModeMinWords` | int | 40 | | :172 |
+| `AppleLanguages` | string list | absent (follow macOS) | `["en"]` or `["uk"]`, written to the app's own defaults domain, not to `settings.json`. macOS only; Windows lags (localization.md) | Settings/AppSettings.swift:100-127, 192 |
 | `languageLock` | string | `uk+en` | `uk+en` (Ukrainian and English), `uk`, `en`. Any other stored value, including the old `auto` and codes, reads as `uk+en` and is not rewritten. macOS only; Windows lags (language.md) | Speech/LanguagePolicy.swift:6-9; Settings/AppSettings.swift:114, 179 |
 | `livePreview` | bool | true | | :174 |
 | `reviewBeforePaste` | bool | false | macOS only; Windows lags (dictation.md, step 9). On: every dictation waits for Enter. Off: only a dictation stopped with Shift held does | :117, 146, 178 |
@@ -49,6 +50,7 @@ Notes:
 - Speaker notes go into the system prompt (polishing.md).
 - `reviewBeforePaste` (macOS only): the General pane has the toggle "Review before pasting" under the prompt-mode stepper, with a caption about Enter, Esc and Shift (macOS/Shepit/Settings/SettingsView.swift:40-42). The pane height grew to 740 pt to fit it (:406). Shift held on the key event that stops a recording asks for a review of that one dictation whatever the setting (hotkey.md).
 - Permissions group (macOS only): Microphone and Accessibility rows, a caption "Already on in the list? Doctor can reset it." while Accessibility is not trusted, and the buttons "Check again" and "Open Doctor" (doctor.md). The General pane height is 800 pt.
+- System group, General pane (macOS only): "Show floating widget", then "App language" (System, English, Ukrainian) with the caption "Applies after Shepit restarts." and, when the choice differs from the running language, a "Restart Shepit" button (localization.md). The tab buttons are 88 pt wide so the longest Ukrainian tab title (About) fits; the Polishing pane height is 760 pt (SettingsView.swift:392, 435-437).
 - `reviewTipShown` (macOS only): not a visible setting. Deleting the key shows the tip again after the next plain paste.
 - Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are fields of the one `settings.json` file (windows/core/src/settings.rs, 19 known keys), with the same key names. Every write, including the updater's own `lastUpdateCheck`, goes through the settings store under one lock, so the About switch and the updater cannot overwrite each other. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.
 - Windows panes: General (dictation key, default mode, prompt-mode word limit, recognizer status, show widget, microphone test),

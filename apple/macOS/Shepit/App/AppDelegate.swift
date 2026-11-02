@@ -2,6 +2,12 @@ import AppKit
 import Combine
 import ShepitCore
 
+/// The language this process started in. Settings compares it with the AppleLanguages choice to decide whether a
+/// restart is pending, so it is read once at launch, before any choice can change it.
+enum AppLanguage {
+    static let running = Bundle.main.preferredLocalizations.first ?? "en"
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings.shared
@@ -37,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // An accessory app never shows a menu bar, but key equivalents reach the key window through the main
         // menu while Shepit is active, which is what makes Cmd-C/V/A/Z work in Settings fields and the tour.
+        _ = AppLanguage.running
         NSApp.mainMenu = MainMenu.make()
         do {
             history = try HistoryStore(url: AppPaths.databaseURL)
@@ -404,9 +411,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Set first so a crash or a quit while the card is up cannot make it appear twice.
         settings.reviewTipShown = true
         let item = WhatsNew.Item(
-            symbol: "text.cursor", title: "Check the text before it is pasted",
-            detail: "Hold Shift as you let go of \(settings.hotkey.keyLabel) to see and edit the text first. Enter pastes, Esc cancels. Settings → General can do this for every dictation.")
-        reviewTip.show(heading: "Tip", version: nil, items: [item], secondaryTitle: "Open Settings",
+            symbol: "text.cursor", title: String(localized: "Check the text before it is pasted"),
+            detail: String(localized: "Hold Shift as you let go of \(settings.hotkey.keyLabel) to see and edit the text first. Enter pastes, Esc cancels. Settings → General can do this for every dictation."))
+        reviewTip.show(heading: String(localized: "Tip"), version: nil, items: [item],
+                       secondaryTitle: String(localized: "Open Settings"),
                        above: widget.restingFrame) { [weak self] in
             self?.showSettings(tab: .general)
         }
@@ -416,8 +424,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let release = force ? WhatsNew.releases.first : WhatsNew.unseen(after: settings.whatsNewSeen)
         guard let release else { return }
         if !settings.widgetVisible { settings.widgetVisible = true }
-        whatsNew.show(heading: "New in Shepit", version: release.version, items: release.items,
-                      secondaryTitle: "Open Appearance", above: widget.panelFrame) { [weak self] in
+        whatsNew.show(heading: String(localized: "New in Shepit"), version: release.version, items: release.items,
+                      secondaryTitle: String(localized: "Open Appearance"), above: widget.panelFrame) { [weak self] in
             self?.showSettings(tab: .appearance)
         }
     }

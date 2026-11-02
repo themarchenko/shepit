@@ -25,15 +25,15 @@ public enum UpdateInstaller {
         public var errorDescription: String? {
             switch self {
             case .translocated:
-                return "Shepit is running from a temporary copy macOS made for it. Move Shepit to Applications, open it from there and update again."
+                return L("Shepit is running from a temporary copy macOS made for it. Move Shepit to Applications, open it from there and update again.")
             case .notAnUpdate(let detail):
-                return "The download is not a newer Shepit (\(detail))."
+                return L("The download is not a newer Shepit (\(detail)).")
             case .signatureMismatch:
-                return "This copy of Shepit is signed differently from the releases, so it cannot update itself. Download the release from GitHub instead."
+                return L("This copy of Shepit is signed differently from the releases, so it cannot update itself. Download the release from GitHub instead.")
             case .cancelled:
-                return "The update was cancelled."
+                return L("The update was cancelled.")
             case .tool(let name, let output):
-                return "\(name) failed: \(output)"
+                return L("\(name) failed: \(output)")
             }
         }
     }

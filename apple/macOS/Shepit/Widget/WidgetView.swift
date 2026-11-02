@@ -194,13 +194,8 @@ struct FlowPillView: View {
             }
             ZStack {
                 if model.showsHover {
-                    HStack(spacing: 4) {
-                        Text("Hold")
-                        KeyCap(label: model.keyLabel)
-                        Text("to talk · click for hands-free")
-                    }
-                    .font(.system(size: 12))
-                    .foregroundStyle(WidgetPalette.text.opacity(0.82))
+                    KeyCapLine(sentence: String(localized: "Hold \(KeyCapLine.slot) to talk · click for hands-free"),
+                               key: model.keyLabel, font: .system(size: 12), color: WidgetPalette.text.opacity(0.82), spacing: 4)
                     .fixedSize()
                     .transition(.opacity)
                 }
@@ -255,7 +250,7 @@ struct CaptionBarView: View {
         ZStack {
             if model.isIdle {
                 HStack(spacing: 8) {
-                    Text("Shepit")
+                    Text(verbatim: "Shepit")
                     KeyCap(label: model.keyLabel)
                     if model.hovering { Text("hold to talk · click for hands-free").transition(.opacity) }
                 }
@@ -350,7 +345,7 @@ struct IslandView: View {
             }
             Spacer(minLength: 0)
             if let stage = model.stage {
-                StepBar(step: stage.step, labels: ["Transcribe", "Format", "Insert"], height: 22)
+                StepBar(step: stage.step, labels: [String(localized: "Transcribe"), String(localized: "Format"), String(localized: "Insert")], height: 22)
                     .padding(.horizontal, 14)
                     .padding(.bottom, 12)
                     .transition(.opacity)
@@ -378,9 +373,9 @@ struct IslandView: View {
             case .idle:
                 Spacer(minLength: 0)
                 if model.hovering {
-                    Text("Hold").foregroundStyle(WidgetPalette.text.opacity(0.8))
-                    KeyCap(label: model.keyLabel)
-                    Text("· click for hands-free").foregroundStyle(WidgetPalette.text.opacity(0.8))
+                    KeyCapLine(sentence: String(localized: "Hold \(KeyCapLine.slot) · click for hands-free"),
+                               key: model.keyLabel, font: .system(size: 12.5), color: WidgetPalette.text.opacity(0.8), spacing: 8)
+                    .fixedSize()
                 } else {
                     Image(systemName: "mic.fill").font(.system(size: 10)).foregroundStyle(WidgetPalette.text.opacity(0.8))
                     KeyCap(label: model.keyLabel)
@@ -388,7 +383,7 @@ struct IslandView: View {
                 Spacer(minLength: 0)
             case .listening(let handsFree):
                 Circle().fill(WidgetPalette.rec).frame(width: 7, height: 7)
-                Text(handsFree ? "Hands-free" : "Listening").foregroundStyle(WidgetPalette.text.opacity(0.8))
+                Text(handsFree ? LocalizedStringKey("Hands-free") : LocalizedStringKey("Listening")).foregroundStyle(WidgetPalette.text.opacity(0.8))
                 Spacer(minLength: 0)
                 if handsFree { Image(systemName: "lock.fill").font(.system(size: 9)).foregroundStyle(WidgetPalette.text.opacity(0.8)) }
                 LevelBars(model: model, count: 9, mirrored: false, maxHeight: 16, width: 2.5, spacing: 2)
@@ -398,7 +393,7 @@ struct IslandView: View {
                 Spacer(minLength: 0)
             case .done:
                 Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(WidgetPalette.ok)
-                Text(model.target.map { "Inserted into \($0)" } ?? "Inserted").foregroundStyle(WidgetPalette.text.opacity(0.8))
+                Text(model.target.map { String(localized: "Inserted into \($0)") } ?? String(localized: "Inserted")).foregroundStyle(WidgetPalette.text.opacity(0.8))
                 Spacer(minLength: 0)
             case .failed(let message):
                 Image(systemName: "exclamationmark").font(.system(size: 12, weight: .bold)).foregroundStyle(WidgetPalette.amber)

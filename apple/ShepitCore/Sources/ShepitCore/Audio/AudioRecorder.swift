@@ -8,10 +8,10 @@ public enum AudioError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .noInput: return "No audio input device"
-        case .permissionDenied: return "Microphone access was denied"
+        case .noInput: return L("No audio input device")
+        case .permissionDenied: return L("Microphone access was denied")
         case .formatMismatch(let tap, let hardware):
-            return "Input format changed (\(Int(tap)) Hz vs \(Int(hardware)) Hz), try again"
+            return L("Input format changed (\(String(Int(tap))) Hz vs \(String(Int(hardware))) Hz), try again")
         }
     }
 }

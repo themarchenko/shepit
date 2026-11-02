@@ -7,9 +7,9 @@ public enum Mode: String, CaseIterable, Codable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .clean: return "Clean"
-        case .prompt: return "Prompt"
-        case .raw: return "Raw"
+        case .clean: return L("Clean")
+        case .prompt: return L("Prompt")
+        case .raw: return L("Raw")
         }
     }
 }
