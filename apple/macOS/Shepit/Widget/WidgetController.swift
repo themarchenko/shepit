@@ -307,11 +307,11 @@ final class WidgetController: NSObject, NSMenuDelegate {
         let langHeader = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
         langHeader.isEnabled = false
         menu.addItem(langHeader)
-        for (title, value) in [("Auto", "auto"), ("Українська", "uk"), ("English", "en")] {
-            let mi = NSMenuItem(title: title, action: #selector(pickLanguage(_:)), keyEquivalent: "")
+        for policy in LanguagePolicy.allCases {
+            let mi = NSMenuItem(title: policy.displayName, action: #selector(pickLanguage(_:)), keyEquivalent: "")
             mi.target = self
-            mi.representedObject = value
-            mi.state = settings.languageLock == value ? .on : .off
+            mi.representedObject = policy.rawValue
+            mi.state = settings.language == policy ? .on : .off
             menu.addItem(mi)
         }
         menu.addItem(.separator())
@@ -342,7 +342,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func pickLanguage(_ sender: NSMenuItem) {
-        if let value = sender.representedObject as? String { settings.languageLock = value }
+        if let raw = sender.representedObject as? String, let policy = LanguagePolicy(rawValue: raw) { settings.language = policy }
     }
 
     @objc private func copyLast() {

@@ -107,7 +107,7 @@ public final class DictationSession: ObservableObject {
         // 30 newest terms only. Recent dictations are not used as a prompt: Whisper followed their language
         // and wrote English speech in Ukrainian ("Okay, let's test this app" came out "Окей, давайте тестимемо
         // цю апп").
-        recognitionHints = TranscriptionHints(language: settings.languageLock == "auto" ? nil : settings.languageLock,
+        recognitionHints = TranscriptionHints(language: settings.language.hintLanguage,
                                               vocabulary: Array(settings.dictionary.suffix(30)))
         let engines = self.engines
         let engineID = settings.engine
@@ -115,7 +115,7 @@ public final class DictationSession: ObservableObject {
                           hints: recognitionHints)
         if settings.livePreview {
             live.start(source: recorder, engine: { await engines.previewEngine() },
-                       hints: TranscriptionHints(language: settings.languageLock == "auto" ? nil : settings.languageLock),
+                       hints: TranscriptionHints(language: settings.language.hintLanguage),
                        head: { [progressive] in progressive.head }, dictionary: settings.dictionary)
         } else {
             live.clear()
@@ -197,14 +197,15 @@ public final class DictationSession: ObservableObject {
                 state = .transcribing
             }
             let t0 = Date()
-            let transcript: Transcript
+            let chosen: Transcript
             let usedEngine: EngineID
             if let early = await progressive.complete(samples) {
-                (transcript, usedEngine) = early
+                (chosen, usedEngine) = early
             } else {
-                transcript = try await engine.transcribe(samples, hints: recognitionHints)
+                chosen = try await engine.transcribe(samples, hints: recognitionHints)
                 usedEngine = engine.id
             }
+            let transcript = ScriptCleanup.finalTranscript(chosen)
             sttMs = Int(Date().timeIntervalSince(t0) * 1000)
             try Task.checkCancellation()
             guard !transcript.isEmpty, !HallucinationFilter.isJunk(transcript.text) else {
@@ -219,7 +220,7 @@ public final class DictationSession: ObservableObject {
             let mode = ModeResolver.resolve(requested: requested, profile: profile,
                                             wordCount: ModeResolver.wordCount(transcript.text),
                                             promptModeMinWords: settings.promptModeMinWords)
-            let languageHint = settings.languageLock == "auto" ? transcript.language : settings.languageLock
+            let languageHint = settings.language.formatterHint(reported: transcript.language)
             // The context was captured at record start; a password field focused since then must not reach the agent either.
             if ContextProbe.isSecureInputActive { context.secureInput = true }
             let request = FormatRequest(transcript: transcript.text, languageHint: languageHint, mode: mode,

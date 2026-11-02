@@ -8,7 +8,7 @@
 //
 // --audio accepts files and directories (every .wav inside, sorted). With several --engine values each
 // file is transcribed by every engine and the results are printed side by side; formatting is skipped.
-// --lang uk|en locks the language, --vocab "a, b" passes dictionary terms to the recognizer.
+// --lang uk|en|uk+en sets the allowed languages (default uk+en), --vocab "a, b" passes dictionary terms to the recognizer.
 // --live plays each file in real time through the live preview (Parakeet) and prints every update.
 // --progressive plays each file in real time through Whisper's piecewise transcription and compares the
 // wait after release with transcribing the whole file at once.
@@ -53,7 +53,13 @@ struct Smoke {
                     exit(2)
                 }
                 engineIDs.append(id)
-            case "--lang": hints.language = args.removeFirst()
+            case "--lang":
+                let raw = args.removeFirst()
+                guard let policy = LanguagePolicy(rawValue: raw) else {
+                    print("unknown language \(raw); known: \(LanguagePolicy.allCases.map(\.rawValue).joined(separator: ", "))")
+                    exit(2)
+                }
+                hints.language = policy.hintLanguage
             case "--vocab":
                 hints.vocabulary = args.removeFirst().split(separator: ",")
                     .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -94,7 +100,7 @@ struct Smoke {
             return
         }
         guard !files.isEmpty || !texts.isEmpty else {
-            print("usage: shepit-smoke (--audio FILE_OR_DIR | --text TRANSCRIPT)... [--engine ID]... [--lang uk|en] [--vocab \"a, b\"] [--profile ID] [--mode clean|prompt|raw] [--model haiku|sonnet|SLUG] [--codex] [--effort low|medium] [--no-claude] [--live] [--progressive] [--dict-pad N] [--before TEXT]")
+            print("usage: shepit-smoke (--audio FILE_OR_DIR | --text TRANSCRIPT)... [--engine ID]... [--lang uk|en|uk+en] [--vocab \"a, b\"] [--profile ID] [--mode clean|prompt|raw] [--model haiku|sonnet|SLUG] [--codex] [--effort low|medium] [--no-claude] [--live] [--progressive] [--dict-pad N] [--before TEXT]")
             exit(2)
         }
 
@@ -110,7 +116,7 @@ struct Smoke {
                     var total = 0.0
                     for url in files {
                         let samples = try AudioFile.loadSamples16k(url)
-                        let transcript = try await engine.transcribe(samples, hints: hints)
+                        let transcript = ScriptCleanup.finalTranscript(try await engine.transcribe(samples, hints: hints))
                         total += transcript.processingSeconds
                         results[url.lastPathComponent, default: [:]][id] = transcript
                         if engineIDs.count == 1 {
