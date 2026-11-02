@@ -15,6 +15,8 @@ enum WhatsNew {
         ("0.6.0", [
             Item(symbol: "stethoscope", title: "Doctor",
                  detail: "Finds what keeps Shepit from working, like a permission macOS still holds for an older build, and fixes it in a click. Open it from the menu bar icon or the widget menu."),
+            Item(symbol: "globe", title: "Ukrainian and English only",
+                 detail: "Russian or Polish words no longer slip into your text. Settings → General can narrow recognition to one language."),
         ]),
         ("0.5.0", [
             Item(symbol: "text.cursor", title: "Review before pasting",
