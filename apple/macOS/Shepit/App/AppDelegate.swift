@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let whatsNew = WhatsNewController()
     private lazy var updates = UpdateChecker(settings: settings)
     private let updatePanel = UpdatePanelController()
+    private var review: ReviewPanelController!
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -46,10 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         widget = WidgetController(session: session, settings: settings)
         widget.onOpenSettings = { [weak self] in self?.showSettings() }
         widget.onOpenHistory = { [weak self] in self?.showHistory() }
+        review = ReviewPanelController(session: session, widget: widget)
 
         hotkeys = HotkeyMonitor(choice: settings.hotkey)
-        hotkeys.onPressBegan = { [weak self] in self?.hotkeyPressBegan() }
-        hotkeys.onPressEnded = { [weak self] in self?.session.stopRecording() }
+        hotkeys.onPressBegan = { [weak self] shift in self?.hotkeyPressBegan(shift: shift) }
+        hotkeys.onPressEnded = { [weak self] shift in self?.session.stopRecording(review: shift) }
         hotkeys.onShortTap = { [weak self] in self?.hotkeyShortTap() }
         hotkeys.onDoubleTap = { [weak self] in self?.session.continueHandsFree() }
         hotkeys.onEscape = { [weak self] in self?.escapePressed() }
@@ -71,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         session.$state.receive(on: RunLoop.main).sink { [weak self] state in
             MainActor.assumeIsolated {
-                if state.isRecording, let self, self.whatsNew.isShown { self.whatsNew.dismiss() }
+                if state.isRecording || state.isReviewing, let self, self.whatsNew.isShown { self.whatsNew.dismiss() }
             }
         }.store(in: &cancellables)
         whatsNew.onClose = { [weak self] in
@@ -94,16 +96,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeys.stop()
+        // A quit during review still writes the history row, so the text is recoverable.
+        session.discardReview()
         let polisher = self.polisher
         Task { await Self.shutdown(polisher) }
     }
 
     // MARK: Hotkey semantics
 
-    private func hotkeyPressBegan() {
+    private func hotkeyPressBegan(shift: Bool) {
         switch session.state {
         case .recording(handsFree: true):
-            session.stopRecording()
+            session.stopRecording(review: shift)
         case .recording(handsFree: false):
             break
         default:
@@ -119,7 +123,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func escapePressed() {
-        if session.state.isRecording || session.state.isBusy { session.cancel() }
+        if session.state.isReviewing {
+            session.discardReview()
+        } else if session.state.isRecording || session.state.isBusy {
+            session.cancel()
+        }
     }
 
     // MARK: Setup

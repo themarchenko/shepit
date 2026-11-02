@@ -40,6 +40,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             glyph?.accessibilityDescription = "Shepit"
             item.button?.image = glyph
             return
+        case .reviewing: name = "text.cursor"
         case .recording: name = "record.circle.fill"; color = .systemRed
         case .loadingModel, .transcribing, .formatting, .inserting: name = "ellipsis.circle"
         case .failed: name = "exclamationmark.circle"; color = .systemOrange
@@ -116,6 +117,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         switch session.state {
         case .idle: return "Idle · hold \(settings.hotkey.displayName.components(separatedBy: " (").first ?? "key") to dictate"
         case .recording(let handsFree): return handsFree ? "Listening (hands-free)" : "Listening"
+        case .reviewing: return "Review: Enter pastes, Esc cancels"
         case .loadingModel: return "Loading recognizer…"
         case .transcribing: return "Transcribing…"
         case .formatting: return "Formatting…"

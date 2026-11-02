@@ -113,6 +113,8 @@ public final class AppSettings: ObservableObject {
     @Published public var languageLock: String { didSet { defaults.set(languageLock, forKey: Keys.languageLock) } }
     /// Show the words while speaking (Parakeet runs alongside the selected recognizer).
     @Published public var livePreview: Bool { didSet { defaults.set(livePreview, forKey: Keys.livePreview) } }
+    /// Show the formatted text in an editable panel before it is pasted.
+    @Published public var reviewBeforePaste: Bool { didSet { defaults.set(reviewBeforePaste, forKey: Keys.reviewBeforePaste) } }
     @Published public var dictionary: [String] { didSet { defaults.set(dictionary, forKey: Keys.dictionary) } }
     /// Free text about the speaker that goes into the formatter's system prompt: accent, typical recognizer confusions, habits.
     @Published public var speakerNotes: String { didSet { defaults.set(speakerNotes, forKey: Keys.speakerNotes) } }
@@ -141,6 +143,7 @@ public final class AppSettings: ObservableObject {
         static let promptModeMinWords = "promptModeMinWords"
         static let languageLock = "languageLock"
         static let livePreview = "livePreview"
+        static let reviewBeforePaste = "reviewBeforePaste"
         static let dictionary = "dictionary"
         static let speakerNotes = "speakerNotes"
         static let widgetAnchor = "widgetAnchor"
@@ -172,6 +175,7 @@ public final class AppSettings: ObservableObject {
         promptModeMinWords = defaults.object(forKey: Keys.promptModeMinWords) as? Int ?? 40
         languageLock = defaults.string(forKey: Keys.languageLock) ?? "auto"
         livePreview = defaults.object(forKey: Keys.livePreview) as? Bool ?? true
+        reviewBeforePaste = defaults.object(forKey: Keys.reviewBeforePaste) as? Bool ?? false
         dictionary = defaults.stringArray(forKey: Keys.dictionary) ?? []
         speakerNotes = defaults.string(forKey: Keys.speakerNotes) ?? SpeakerNotes.defaultText
         checkForUpdates = defaults.object(forKey: Keys.checkForUpdates) as? Bool ?? true

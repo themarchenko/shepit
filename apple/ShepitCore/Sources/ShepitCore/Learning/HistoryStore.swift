@@ -50,6 +50,9 @@ public struct DictationRecord: Codable, FetchableRecord, MutablePersistableRecor
         self.audioFile = audioFile
     }
 
+    /// What the user ended up with: the edited text if there is one, else the formatted text.
+    public var displayText: String { finalText ?? formattedText }
+
     public mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
     }

@@ -12,6 +12,10 @@ enum WhatsNew {
 
     /// Newest first.
     static let releases: [(version: String, items: [Item])] = [
+        ("0.5.0", [
+            Item(symbol: "text.cursor", title: "Review before pasting",
+                 detail: "Hold Shift as you release the dictation key to check and edit the text first. Enter pastes, Esc cancels. Settings → General turns it on for every dictation."),
+        ]),
         ("0.4.1", [
             Item(symbol: "trash", title: "Clear history",
                  detail: "The History window has a Clear History button. It deletes every dictation and recording after you confirm."),
