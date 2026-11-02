@@ -34,15 +34,18 @@ struct HistoryView: View {
                         Text(r.appName ?? r.bundleID ?? "?").font(.caption).bold()
                         Text("\(r.profile) · \(r.mode) · \(r.formatterSource)").font(.caption).foregroundStyle(.secondary)
                         Text("stt \(r.sttMs) ms · llm \(r.llmMs) ms").font(.caption).foregroundStyle(.secondary)
+                        if r.status == "discarded" || r.status == "failed" {
+                            Text("not pasted").font(.caption).foregroundStyle(WidgetPalette.amber)
+                        }
                         Spacer()
                         Button {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(r.formattedText, forType: .string)
+                            NSPasteboard.general.setString(r.displayText, forType: .string)
                         } label: { Image(systemName: "doc.on.doc") }
                         .buttonStyle(.borderless)
                     }
                     Text(r.rawText).font(.callout).foregroundStyle(.secondary).lineLimit(3)
-                    Text(r.formattedText).font(.body).textSelection(.enabled)
+                    Text(r.displayText).font(.body).textSelection(.enabled)
                 }
                 .padding(.vertical, 4)
             }

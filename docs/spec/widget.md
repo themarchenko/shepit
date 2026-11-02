@@ -4,11 +4,12 @@ Paths are relative to `apple/` (`macOS/Shepit/Widget` for the widget, `ShepitCor
 
 ## Phases
 
-Source: macOS/Shepit/Widget/WidgetModel.swift:8-30; macOS/Shepit/Widget/WidgetController.swift:109-131.
+Source: macOS/Shepit/Widget/WidgetModel.swift:8-30; macOS/Shepit/Widget/WidgetController.swift:109-135.
 
 | Session state | Widget phase |
 |---|---|
 | idle | `idle` |
+| reviewing(text) | `idle` (macOS only; the review panel below carries the state) |
 | recording(hands_free) | `listening(hands_free)`, elapsed timer starts |
 | loading_model | `processing(loading)` |
 | transcribing | `processing(transcribing)` |
@@ -22,11 +23,23 @@ Source: macOS/Shepit/Widget/WidgetModel.swift:8-30; macOS/Shepit/Widget/WidgetCo
 - The level meter keeps the last 32 microphone levels (:34, 67-70).
 - The caption chip names the app the text goes to (WidgetModel.swift:37-38; Pipeline/DictationSession.swift:62).
 
+## Review panel
+
+macOS only; Windows lags (no panel). Shown while the session is `reviewing` (dictation.md, step 9), closed in any other state. Source: macOS/Shepit/Review/ReviewPanel.swift.
+
+- A borderless, non-activating panel at status-bar level that can become key (:8-46), so the user types into it while the app being dictated into stays frontmost. It is 440 pt wide with a glass card: header "Review before pasting" with a chip naming the target app (the app captured at record start, then the frontmost app: `ReviewPanelController` listens to `NSWorkspace.didActivateApplicationNotification` while the panel is open, ignores Shepit itself, and updates `ReviewEditor.target`; the observer is removed on close), the editable text, the hint "Enter pastes · Shift+Enter new line · Esc cancels", and Cancel and Paste buttons (:147-180).
+- Placement: centred above the widget's resting frame (`WidgetController.restingFrame`, WidgetController.swift:188-192), 18 pt overlapping its top edge, clamped to the screen's visible frame (ReviewPanel.swift:249-257). It uses the resting frame, not the live one, so the card does not move when the widget shrinks after the last dictation, and it works while the widget is hidden.
+- The text area is 412 pt wide and grows with the text from 60 to 200 pt, then scrolls (:52-53, 113); the panel follows the height. Focus and the caret at the end are set when the panel opens.
+- Keys (:119-137): Enter pastes. Shift+Enter or Option+Enter inserts a newline. Esc discards. Return that commits input-method marked text (for example a dead-key or composed character) is not a confirm, and does not paste (needs device check). The text view does not change typed text: no smart quotes or dashes, no text replacement, no autocorrect.
+- Edit shortcuts: Shepit is an accessory app with no main menu and so no Edit menu, so Cmd+X, C, V, A and Z (Shift+Z redoes) would never reach the text view. `ReviewPanel.performKeyEquivalent` maps them (Command only, no Control or Option) to cut, copy, paste, select all, undo and redo and sends them down the responder chain (:28-48). On a non-Latin layout the key code stands in for the letter, so they are meant to work on a Ukrainian layout too (needs device check); Latin layouts such as Dvorak keep their own letters.
+- Esc also arrives from the global hotkey monitor, for when another app is key (hotkey.md); the session discards once.
+
 ## Pointer input
 
 Source: macOS/Shepit/Widget/WidgetController.swift:51-55.
 
-- Click: toggle hands-free (DictationSession.swift:130-137).
+- Click: toggle hands-free (DictationSession.swift:155-162). Ignored while reviewing.
+- Right-click menu "Copy last result" copies `displayText` of the last record: the pasted text if the user edited it, else the formatted text (WidgetController.swift:281-284, 308-311). After a discarded or failed review it is the text that was not pasted (history.md).
 - Press and hold: start recording on press, stop on release (not hands-free).
 - Drag ends: save the new position.
 - Right click: menu.

@@ -37,6 +37,9 @@ struct GeneralPane: View {
                 .pickerStyle(.segmented)
                 Stepper("Prompt mode in AI apps from \(settings.promptModeMinWords) words",
                         value: $settings.promptModeMinWords, in: 10...200, step: 5)
+                Toggle("Review before pasting", isOn: $settings.reviewBeforePaste)
+                Text("Shows the text in a panel first: Enter pastes, Esc cancels. Hold Shift when you release the key to review just one dictation.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Recognition") {
                 Picker("Recognizer", selection: $settings.engine) {
@@ -400,7 +403,7 @@ final class SettingsWindowController: NSWindowController {
 
         var paneHeight: CGFloat {
             switch self {
-            case .general: return 600
+            case .general: return 740
             case .appearance: return 540
             case .polishing: return 660
             case .dictionary: return 460

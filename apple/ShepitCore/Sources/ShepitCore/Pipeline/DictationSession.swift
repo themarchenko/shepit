@@ -1,5 +1,11 @@
 import Foundation
 
+/// A finished dictation waiting for Enter or Esc. The history row is written when the review ends.
+struct PendingReview {
+    var context: TargetContext
+    var record: DictationRecord
+}
+
 /// The dictation state machine: record, transcribe, format, insert, log.
 @MainActor
 public final class DictationSession: ObservableObject {
@@ -12,6 +18,13 @@ public final class DictationSession: ObservableObject {
         case inserting
         case done(preview: String)
         case failed(message: String)
+        /// The formatted text waits in the review panel; nothing is pasted until the user confirms.
+        case reviewing(text: String)
+
+        public var isReviewing: Bool {
+            if case .reviewing = self { return true }
+            return false
+        }
 
         public var isRecording: Bool {
             if case .recording = self { return true }
@@ -45,6 +58,12 @@ public final class DictationSession: ObservableObject {
     private let history: HistoryStore?
     private let settings: AppSettings
 
+    /// Non-nil exactly while the state is `.reviewing`, and consumed by whichever of confirm or discard
+    /// comes first, so a row is written once.
+    private(set) var pendingReview: PendingReview?
+    /// Shift was held on the stop gesture of the current recording.
+    private var reviewRequested = false
+
     private var context = TargetContext()
     private var recordingStart: Date?
     private var processTask: Task<Void, Never>?
@@ -72,6 +91,7 @@ public final class DictationSession: ObservableObject {
         default: return
         }
         resetTask?.cancel()
+        reviewRequested = false
         context = ContextProbe.capture()
         do {
             try recorder.start()
@@ -106,8 +126,9 @@ public final class DictationSession: ObservableObject {
         if case .recording = state { state = .recording(handsFree: true) }
     }
 
-    public func stopRecording() {
+    public func stopRecording(review: Bool = false) {
         guard case .recording = state else { return }
+        reviewRequested = review
         live.stop()
         let samples = recorder.stop()
         let seconds = Double(samples.count) / 16_000
@@ -122,6 +143,7 @@ public final class DictationSession: ObservableObject {
     }
 
     public func cancel() {
+        if pendingReview != nil { discardReview(); return }
         if case .recording = state { _ = recorder.stop() }
         live.clear()
         progressive.cancel()
@@ -211,25 +233,90 @@ public final class DictationSession: ObservableObject {
                 Log.pipeline.notice("dictionary learned \(learned.joined(separator: ", "), privacy: .private)")
             }
 
-            state = .inserting
-            let method = try await inserter.insert(result.text, context: context)
-            let record = DictationRecord(
+            // insertMethod and status are filled in by `save` once the outcome is known.
+            let template = DictationRecord(
                 bundleID: context.bundleID, appName: context.appName, windowTitle: context.windowTitle,
                 profile: profile.id, mode: mode.rawValue, engine: usedEngine.rawValue,
                 rawText: transcript.text, formattedText: result.text, language: result.language ?? transcript.language,
                 audioSeconds: audioSeconds, sttMs: sttMs, llmMs: llmMs, formatterSource: result.source.rawValue,
-                insertMethod: method.rawValue, status: method == .clipboardOnly ? "clipboard" : "inserted",
-                audioFile: audioFile)
-            lastRecord = (try? history?.save(record)) ?? record
-            let preview = String(result.text.prefix(60)).replacingOccurrences(of: "\n", with: " ")
-            live.clear()
-            state = .done(preview: method == .clipboardOnly ? "Copied (grant Accessibility to paste): \(preview)" : preview)
-            scheduleReset(after: 2.5)
+                insertMethod: "", status: "", audioFile: audioFile)
+            if ReviewPolicy.shouldReview(setting: settings.reviewBeforePaste, shiftHeld: reviewRequested) {
+                beginReview(PendingReview(context: context, record: template))
+                return
+            }
+            state = .inserting
+            let method = try await inserter.insert(result.text, context: context)
+            save(template, sent: result.text, outcome: .inserted(method))
+            showDone(result.text, method)
         } catch is CancellationError {
             state = .idle
         } catch {
             fail(error.localizedDescription)
         }
+    }
+
+    // MARK: Review
+
+    /// Internal so tests can enter review without running the recognizer.
+    func beginReview(_ review: PendingReview) {
+        pendingReview = review
+        live.clear()
+        state = .reviewing(text: review.record.formattedText)
+    }
+
+    /// Enter in the review panel: paste `text`, which may differ from the formatted text.
+    public func confirmReview(_ text: String) {
+        guard let pending = pendingReview else { return }
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            discardReview()
+            return
+        }
+        pendingReview = nil
+        state = .inserting
+        // Assigned before the insert runs, so a cancel() during the paste wait reaches this task.
+        processTask = Task { await insertReviewed(text, pending) }
+    }
+
+    /// Esc in the review panel, or a quit while it is open. Writes the discarded row once.
+    public func discardReview() {
+        guard let pending = pendingReview else { return }
+        pendingReview = nil
+        save(pending.record, sent: pending.record.formattedText, outcome: .discarded)
+        state = .idle
+    }
+
+    private func insertReviewed(_ text: String, _ pending: PendingReview) async {
+        do {
+            let method = try await inserter.insert(text, context: pending.context)
+            save(pending.record, sent: text, outcome: .inserted(method))
+            showDone(text, method)
+        } catch is CancellationError {
+            // The only cancellable wait in insert comes after Cmd-V is posted, so the text was pasted.
+            save(pending.record, sent: text, outcome: .inserted(.paste))
+            state = .idle
+        } catch InsertError.secureInput {
+            // Text dictated toward a password field is never persisted, same as the non-review path.
+            fail(InsertError.secureInput.localizedDescription)
+        } catch {
+            save(pending.record, sent: text, outcome: .failed)
+            fail(error.localizedDescription)
+        }
+    }
+
+    private func save(_ template: DictationRecord, sent: String, outcome: DictationOutcome) {
+        var record = template
+        let fields = OutcomeFields(formattedText: record.formattedText, sentText: sent, outcome: outcome)
+        record.finalText = fields.finalText
+        record.insertMethod = fields.insertMethod
+        record.status = fields.status
+        lastRecord = (try? history?.save(record)) ?? record
+    }
+
+    private func showDone(_ text: String, _ method: InsertMethod) {
+        let preview = String(text.prefix(60)).replacingOccurrences(of: "\n", with: " ")
+        live.clear()
+        state = .done(preview: method == .clipboardOnly ? "Copied (grant Accessibility to paste): \(preview)" : preview)
+        scheduleReset(after: 2.5)
     }
 
     private func fail(_ message: String) {

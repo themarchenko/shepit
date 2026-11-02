@@ -2,6 +2,24 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-02: Review before pasting
+
+- macOS only. The `reviewBeforePaste` setting, or Shift held on the key event that stops the recording, sends the finished text to a panel instead of pasting it. Enter (or Paste) pastes the edited text, Esc discards. Windows lags: no panel, no new history rows (`docs/spec/dictation.md` step 9, `widget.md`, `history.md`). The Windows update card has the same focus tension: it is not focusable, so it has no Enter shortcut (entry of 2026-10-27, "Card window").
+- One history row, written when the review ends, from a template built before the review. No partial row and no `updateFinalText`, so a failed save cannot leave a row without an id. Cost: `createdAt` is the time formatting finished.
+- Statuses `discarded` and `failed`, both with `insertMethod` `none`. `finalText` is set only when the pasted text differs from `formattedText` (exact compare, a trailing space counts); a discarded row never has it, a failed row keeps the edit. A refusal because of secure input (a password field) writes no row at all, so text dictated toward a password field is never persisted, as without a review; "failed" rows exist only for other insert errors. History and "Copy last result" show `finalText ?? formattedText`, with an amber "not pasted" label for those two statuses, so text from a discarded or failed review is still one click away.
+- Empty or whitespace-only text on Enter counts as Esc, not a "Nothing to insert" failure. Esc after an edit drops the edit.
+- Esc from the panel and from the global or local key monitor both end in `discardReview`, which consumes the pending review once. A quit during the review writes the discarded row. Hotkey gestures and the widget click are ignored while reviewing. No timeout.
+- Cancel during the wait after Enter records `inserted`: the paste shortcut is already sent, and the only cancellable wait in the insert comes after it.
+- The panel is a non-activating panel that can become key, so the target app stays frontmost while the user types. On Enter it is taken off screen and the session waits 80 ms before pasting, so the previous app is key when the shortcut goes out. The 80 ms is a guess: needs device check.
+- Target drift, confirmed by the user before merge: the paste goes to the frontmost app after the panel closes, not to the app captured at record start. The target is not compared at Enter. To keep the destination visible, the panel's chip follows the frontmost app while the panel is open (`didActivateApplicationNotification`, own app ignored).
+- The app has no main menu, so key equivalents never reach the text view. The panel handles Cmd+X/C/V/A/Z and Shift+Z itself, by character and by key code (Ukrainian layout).
+- The panel keeps the default `sharingType`, so it shows in screen sharing and recordings, like the widget and its live preview.
+- Dictionary terms are learned before the review, so a discarded dictation still teaches the local dictionary. Accepted.
+- Return that commits input-method marked text must not paste, so the editor is an `NSTextView` handling `insertNewline:`, not SwiftUI key handling. Shift+Enter and Option+Enter insert a newline. Typed text is not changed behind the user: smart quotes and dashes, text replacement and autocorrect are off.
+- The widget shows `idle` while reviewing, so its phases and layout are unchanged. The panel sits above the widget's resting frame (not the live frame), 60 to 200 pt of text area, and does not move when the widget shrinks. The General settings pane grew to 740 pt.
+- Shift is taken by this feature. A future prompt-mode modifier (PLAN.md:159) must not be Shift. Shift is read from the event, not from `HotkeyGesture`, so `shared/fixtures/hotkey-gestures.json` is unchanged.
+- Not done: learning terms from edits, a "Fix last" action, a Windows port.
+
 ## 2026-10-29: macOS Clear history
 
 - The History window gets "Clear History…" with a confirmation, as on Windows. It deletes every row and every regular file in the recordings folder (subdirectories stay); `secure_delete` is on for the connection and `VACUUM` runs after the delete, so the text does not stay in free pages.

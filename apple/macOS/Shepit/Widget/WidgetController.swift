@@ -110,6 +110,10 @@ final class WidgetController: NSObject, NSMenuDelegate {
         case .idle:
             model.phase = .idle
             stopElapsed()
+        case .reviewing:
+            // The review card carries the state; the widget rests until the review ends.
+            model.phase = .idle
+            stopElapsed()
         case .recording(let handsFree):
             model.target = session.targetAppName
             model.phase = .listening(handsFree: handsFree)
@@ -178,6 +182,14 @@ final class WidgetController: NSObject, NSMenuDelegate {
 
     /// Where the widget is on screen, for cards that attach to it.
     var panelFrame: NSRect { panel.frame }
+
+    /// The frame the widget has when idle, valid even while it is hidden. The review card anchors to this so it
+    /// does not move when the widget shrinks after the last dictation.
+    var restingFrame: NSRect {
+        let resting = WidgetModel()
+        resting.style = model.style
+        return frame(for: WidgetLayout.envelope(resting))
+    }
 
     private func restorePosition() {
         if let saved = settings.widgetAnchor, Self.screen(containing: saved) != nil {
@@ -268,7 +280,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
         if let last = session.lastRecord {
             let copy = NSMenuItem(title: "Copy last result", action: #selector(copyLast), keyEquivalent: "")
             copy.target = self
-            copy.toolTip = last.formattedText
+            copy.toolTip = last.displayText
             menu.addItem(copy)
         }
         let history = NSMenuItem(title: "History…", action: #selector(openHistory), keyEquivalent: "")
@@ -293,7 +305,7 @@ final class WidgetController: NSObject, NSMenuDelegate {
     }
 
     @objc private func copyLast() {
-        guard let text = session.lastRecord?.formattedText else { return }
+        guard let text = session.lastRecord?.displayText else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }

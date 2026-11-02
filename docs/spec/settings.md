@@ -15,6 +15,7 @@ Source: `apple/ShepitCore/Sources/ShepitCore/Settings/AppSettings.swift`. Keys a
 | `promptModeMinWords` | int | 40 | | :172 |
 | `languageLock` | string | `auto` | `auto` or a language code | :173 |
 | `livePreview` | bool | true | | :174 |
+| `reviewBeforePaste` | bool | false | macOS only; Windows lags (dictation.md, step 9). On: every dictation waits for Enter. Off: only a dictation stopped with Shift held does | :117, 146, 178 |
 | `dictionary` | [string] | empty | at most 300 learned entries | :175; Learning/DictionaryCorrector.swift:227 |
 | `speakerNotes` | string | one sentence, `SpeakerNotes.defaultText` | free text | :176, 247-251 |
 | `widgetStyle` | id | `flowPill` | `flowPill`, `captionBar`, `island` | :162 |
@@ -44,6 +45,7 @@ Notes:
   parsed, defaults are used, and the first write copies the bad file to `settings.json.bak` once before it
   replaces it.
 - Speaker notes go into the system prompt (polishing.md).
+- `reviewBeforePaste` (macOS only): the General pane has the toggle "Review before pasting" under the prompt-mode stepper, with a caption about Enter, Esc and Shift (macOS/Shepit/Settings/SettingsView.swift:40-42). The pane height grew to 740 pt to fit it (:406). Shift held on the key event that stops a recording asks for a review of that one dictation whatever the setting (hotkey.md).
 - Windows storage of the update keys: `checkForUpdates`, `skippedUpdate` and `lastUpdateCheck` are fields of the one `settings.json` file (windows/core/src/settings.rs, 19 known keys), with the same key names. Every write, including the updater's own `lastUpdateCheck`, goes through the settings store under one lock, so the About switch and the updater cannot overwrite each other. `lastUpdateCheck` is Unix seconds there (a date on macOS). A missing file, invalid JSON or a wrong type falls back to the default for that key; keys the app does not know are kept when it writes the file. Platform-specific.
 - Windows panes: General (dictation key, default mode, prompt-mode word limit, recognizer status, show widget, microphone test),
   Appearance (style, glass, fade when idle, reset position), Polishing (provider, Claude model, executable paths, speaker notes),

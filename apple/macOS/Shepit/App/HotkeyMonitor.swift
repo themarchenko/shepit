@@ -4,8 +4,9 @@ import ShepitCore
 /// Watches the dictation modifier key system-wide. Needs Accessibility (and possibly Input Monitoring) to see events in other apps.
 @MainActor
 final class HotkeyMonitor {
-    var onPressBegan: @MainActor () -> Void = {}
-    var onPressEnded: @MainActor () -> Void = {}
+    /// The Bool is whether Shift was held on the key event; it asks for a review of this one dictation.
+    var onPressBegan: @MainActor (_ shiftHeld: Bool) -> Void = { _ in }
+    var onPressEnded: @MainActor (_ shiftHeld: Bool) -> Void = { _ in }
     var onShortTap: @MainActor () -> Void = {}
     var onDoubleTap: @MainActor () -> Void = {}
     var onEscape: @MainActor () -> Void = {}
@@ -67,14 +68,15 @@ final class HotkeyMonitor {
         let spec = keySpec
         guard event.keyCode == spec.code else { return }
         let isDown = event.modifierFlags.contains(spec.flag)
+        let shift = event.modifierFlags.contains(.shift)
         let output = isDown ? gesture.keyDown() : gesture.keyUp()
         if case .none = output {} else {
-            Log.ui.notice("hotkey \(String(describing: output), privacy: .public)")
+            Log.ui.notice("hotkey \(String(describing: output), privacy: .public) shift=\(shift, privacy: .public)")
         }
         switch output {
         case .none: break
-        case .pressBegan: onPressBegan()
-        case .pressEnded: onPressEnded()
+        case .pressBegan: onPressBegan(shift)
+        case .pressEnded: onPressEnded(shift)
         case .shortTap: onShortTap()
         case .doubleTap: onDoubleTap()
         }
