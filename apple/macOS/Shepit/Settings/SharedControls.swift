@@ -184,17 +184,21 @@ struct KeyCapLine: View {
 
     var body: some View {
         let parts = sentence.components(separatedBy: Self.slot)
+        let head = parts.first?.trimmingCharacters(in: .whitespaces) ?? ""
+        let tail = parts.dropFirst().joined(separator: Self.slot).trimmingCharacters(in: .whitespaces)
+        // Punctuation right after the key belongs to it, so it gets no gap.
+        let tailHugsKey = tail.first.map { ",.;:!?)".contains($0) } ?? false
         HStack(spacing: spacing) {
-            if let first = parts.first, !first.trimmingCharacters(in: .whitespaces).isEmpty {
-                Text(verbatim: first.trimmingCharacters(in: .whitespaces))
-            }
-            KeyCap(label: key)
-            if parts.count > 1 {
-                let rest = parts.dropFirst().joined(separator: Self.slot).trimmingCharacters(in: .whitespaces)
-                if !rest.isEmpty { Text(verbatim: rest) }
+            if !head.isEmpty { Text(verbatim: head) }
+            HStack(spacing: tailHugsKey ? 1 : spacing) {
+                KeyCap(label: key)
+                if !tail.isEmpty { Text(verbatim: tail) }
             }
         }
         .font(font)
         .foregroundStyle(color)
+        // VoiceOver reads the whole sentence instead of three fragments.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: sentence.replacingOccurrences(of: Self.slot, with: key)))
     }
 }

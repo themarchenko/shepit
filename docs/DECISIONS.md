@@ -9,7 +9,7 @@ Short log of choices that are not obvious from the code. Newest first.
 - Language rule: the package follows the main bundle's first preferred localization, and only if the package ships it. Tests and `shepit-smoke` have no Ukrainian main bundle, so they get English.
 - Override: `AppleLanguages` in the app's defaults domain is the single source, read from `persistentDomain(forName:)` (the standard domain would merge in the global list). Nothing is added to `settings.json`, and System Settings > Language & Region > Applications stays in agreement. Restart reuses `UpdateInstaller.relaunch`.
 - Tests route: plain `swift test` copies the package catalog uncompiled, so `Bundle.module` has no `uk`. The tests compile it with `xcstringstool` into a temporary bundle and set `CoreLocalization.overrideBundle`. The app build compiles the catalogs itself. `--build-system swiftbuild` would compile it, but it changes the build for everything else, so it was not used.
-- `CodexError` and `WorkerError` texts stay English. Logs may carry a localized failure text (DictationSession.swift:387); they are not shown to the user.
+- `CodexError` and `WorkerError` texts stay English. Their only consumer is the formatter fallback `note` (FormattingService.swift:47), which only shepit-smoke and logs read; no view shows it. Wrap them if that changes. Logs may carry a localized failure text (DictationSession.swift:387).
 - `KeyCapLine` is the only pattern for a sentence around a key cap: one key with a placeholder, so word order is the translator's.
 - Counts that are not quantities (Hz, HTTP code) are interpolated as `String`: with locale `uk` an `Int` gets a grouping space.
 - What's New 0.6.0 got a "Ukrainian interface" item.
