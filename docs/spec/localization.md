@@ -10,7 +10,7 @@ macOS only. Windows lags: its UI stays English until a port reads this file. Eve
 
 ## Override
 
-- General > System > "App language": System, English, Ukrainian. Labels for the two languages are their own names in their own language (endonyms from `Locale`), the same in every interface language. System is localized ("Як у системі").
+- General > System > "App language": System, English, Ukrainian. Labels for the two languages are their own names in their own language (endonyms from `Locale`), the same in every interface language. The System label is localized.
 - The setting is not stored in `settings.json`. It is the `AppleLanguages` key of the app's own defaults domain (the bundle id), the same place System Settings > Language & Region > Applications writes. System removes the key, English writes `["en"]`, Ukrainian `["uk"]`. The two UIs therefore always agree.
 - Reading uses `persistentDomain(forName:)` of the app domain, not `UserDefaults.standard`, because the latter merges the global list in and would make a system value look like an override. A first entry that is not shipped (for example `de`) reads as System and is never written back (AppSettings.swift:260).
 - Caption "Applies after Shepit restarts." A "Restart Shepit" button shows when the language the app is running in differs from the language it would start in (`InterfaceLanguage.needsRestart(running:system:)`). It relaunches through the updater's relaunch (`UpdateInstaller.relaunch`).
@@ -31,23 +31,8 @@ A sentence with a key cap in it ("Hold [Right Option] to talk") is one catalog k
 
 Every count that shows a noun is a plural key. English has one and other, Ukrainian one, few, many and other. Counts that are not quantities (Hz, HTTP codes) are interpolated as text so the locale adds no grouping space.
 
-## Glossary (for a port)
+## Wording (for a port)
 
-| English | Ukrainian |
-|---|---|
-| dictation / dictate / dictation key | диктування / диктувати / клавіша диктування |
-| hands-free | без рук |
-| polishing / polish / polishing agent | шліфування / шліфувати / агент шліфування |
-| recognizer / recognition / speech model | розпізнавач / розпізнавання / модель мовлення |
-| speaker notes / About the speaker | нотатки про мовця / Про мовця |
-| voice calibration | калібрування голосу |
-| Doctor | Діагностика |
-| widget | віджет |
-| paste / Review before pasting | вставити / Перегляд перед вставленням |
-| Settings / tabs | Параметри / Загальні, Вигляд, Шліфування, Словник, Про програму |
-| System Settings / Privacy & Security / Accessibility / Microphone / Input Monitoring / Keyboard | Системні параметри / Приватність і безпека / Універсальний доступ / Мікрофон / Моніторинг введення / Клавіатура |
-| Clean / Prompt / Raw | Чистовий / Промпт / Як є |
-| Flow pill / Caption bar / Island | Пігулка / Смуга субтитрів / Острів |
-| What's new / Welcome tour / History / Dictionary | Що нового / Знайомство / Історія / Словник |
+The two catalogs are the single source of the Ukrainian wording: `apple/macOS/Shepit/Localizable.xcstrings` and `apple/ShepitCore/Sources/ShepitCore/Resources/Localizable.xcstrings`. A port copies terms from there and does not retranslate. These concepts are fixed terms and must read the same everywhere: dictation (and the dictation key), hands-free, polishing (and the polishing agent), recognizer (recognition, speech model), speaker notes, voice calibration, Doctor, widget, "Review before pasting", Settings and its tab names, the System Settings pane names (Privacy & Security, Accessibility, Microphone, Input Monitoring, Keyboard), the mode names (Clean, Prompt, Raw), the widget style names (Flow pill, Caption bar, Island), the screen names (What's new, Welcome tour, History, Dictionary) and the "System" choice label.
 
-Rules: apostrophe U+2019, quotes «», no em dashes, short wording in fixed-width spots. Banned stems: налаштуван, диктовк, полірув. Product names (Shepit, Claude Code, Codex, Parakeet, Whisper) stay Latin.
+Rules: typographic apostrophe U+2019, guillemet quotes, no em dashes, short wording in fixed-width spots. `LocalizationCatalogTests` rejects the stems of the non-preferred Ukrainian words for settings, dictation (noun) and polishing; see the test for the list. Product names (Shepit, Claude Code, Codex, Parakeet, Whisper) stay Latin.
