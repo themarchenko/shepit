@@ -4,7 +4,9 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore` unless they start wi
 
 ## When a row is written
 
-A row is written only after the text reached the target: the insert returned Pasted or ClipboardOnly (Pipeline/DictationSession.swift:209-217). Failures, Esc, an empty or junk transcript, the speech gate and a refused insert write no row. Nothing is logged from a row and no row is sent to an agent.
+A row is written only after the text reached the target: the insert returned Pasted or ClipboardOnly (Pipeline/DictationSession.swift:247-250, `save`, 303-310). Failures, Esc, an empty or junk transcript, the speech gate and a refused insert write no row.
+
+macOS only, Windows lags: the optional review before pasting (dictation.md, step 9) writes exactly one row when the review ends, with the formatting time as `createdAt`. A confirmed review that pasted is an ordinary `inserted` or `clipboard` row. Esc, an empty text or a quit during the review writes a `discarded` row. A confirmed review whose insert failed for any reason except a password field writes a `failed` row that keeps the edited text. A refusal because of secure input (a password field) writes no row, as in a dictation without review: text dictated toward a password field is never persisted. These two rows exist so the text is not lost: it shows in the window and in "Copy last result" (below). The insert error of a dictation with no review writes no row. Nothing is logged from a row and no row is sent to an agent.
 
 ## Schema
 
@@ -20,14 +22,14 @@ Table `dictations`, columns in this order (Learning/HistoryStore.swift:69-95; Wi
 | `profile`, `mode` | TEXT NOT NULL | Resolved profile id and mode id (profiles-modes.md) |
 | `engine` | TEXT NOT NULL | Recognizer id. Windows: `parakeet-v3` (windows/core/src/dictation.rs:263) |
 | `rawText`, `formattedText` | TEXT NOT NULL | Transcript and the inserted text |
-| `finalText` | TEXT | Always NULL. macOS has `updateFinalText` but no caller (Learning/HistoryStore.swift:112), so nothing reads the field after the paste |
+| `finalText` | TEXT | The text that was pasted, only when it differs from `formattedText` (exact string compare, so a trailing space counts); else NULL. Always NULL on Windows and for `discarded` rows. A `failed` row keeps the edited text. macOS review only (Pipeline/DictationOutcome.swift:18-36). `updateFinalText` still has no caller (Learning/HistoryStore.swift:119) |
 | `language` | TEXT | The format result's language, else NULL |
 | `audioSeconds` | DOUBLE NOT NULL | Samples / 16 000 |
 | `sttMs` | INTEGER NOT NULL | Time around `transcribe` only (DictationSession.swift:171-180) |
 | `llmMs` | INTEGER NOT NULL | Formatting latency; 0 when no agent ran |
 | `formatterSource` | TEXT NOT NULL | `claude`, `codex`, `passthrough`, `fastPath` or `fallback` (Formatting/Formatter.swift:25-31) |
-| `insertMethod` | TEXT NOT NULL | `paste` or `clipboardOnly` (Insertion/PasteInserter.swift:6-10) |
-| `status` | TEXT NOT NULL | `inserted` for paste, `clipboard` for clipboard only (DictationSession.swift:215) |
+| `insertMethod` | TEXT NOT NULL | `paste` or `clipboardOnly` (Insertion/PasteInserter.swift:6-10). macOS review: `none` for a `discarded` or `failed` row (DictationOutcome.swift:29, 34) |
+| `status` | TEXT NOT NULL | `inserted` for paste, `clipboard` for clipboard only (DictationOutcome.swift:25). macOS review: also `discarded` and `failed` (:30, 35). Windows writes only the first two |
 | `audioFile` | TEXT | Name of the recording file, NULL when none was kept |
 
 Text context (text before the caret, selection) is never stored: there is no column for it. Windows ids: `insert_method_id` and `status_id` (windows/core/src/history.rs:108-122). `PRAGMA user_version` is 2 on Windows. Opening a file made by the other platform is not a goal.
@@ -47,7 +49,7 @@ Mirrors apple/macOS/Shepit/History/HistoryView.swift. The bar shows the row coun
 
 - Title "Shepit History", 760 x 520, minimum 620 x 420 (:50, 110-114; Windows windows/app/src-tauri/src/ui.rs:21-24).
 - Opened from the status item or tray, "History…".
-- Each row: time, app (name, else app id, else "?"), `profile · mode · source`, `stt N ms · llm N ms`, a copy button for `formattedText`, the raw text in at most 3 lines, and the formatted text, selectable (:30-47).
+- Each row: time, app (name, else app id, else "?"), `profile · mode · source`, `stt N ms · llm N ms`, a copy button, the raw text in at most 3 lines, and the result text, selectable (:30-50). The copy button and the text show `displayText`: `finalText` when there is one, else `formattedText` (Learning/HistoryStore.swift:54). macOS only: a row with status `discarded` or `failed` also shows an amber "not pasted" label (:37-39); Windows rows are never of that kind.
 - A count line "N dictations" (:19).
 
 ## Windows

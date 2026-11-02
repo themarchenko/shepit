@@ -38,22 +38,24 @@ The user picks one key. Default Right Option (AppSettings.swift:157).
 
 ## What each gesture does
 
-The app maps gesture outputs to the session (App/AppDelegate.swift:50-55, 103-123).
+The app maps gesture outputs to the session (App/AppDelegate.swift:52-57, 107-131).
 
 | Output | Action |
 |---|---|
-| `press_began` | Session hands-free recording: stop it (:105-106). Session recording not hands-free: nothing (:107-108). Any other state: start recording, not hands-free (:109-110). |
-| `press_ended` | Stop recording (:52). |
-| `short_tap` | If recording and not hands-free: cancel the recording (:116-118). Otherwise nothing. A hands-free recording stopped by `press_began` is already stopped by then. |
-| `double_tap` | Make the current recording hands-free (:54; DictationSession.swift:101-103). |
-| Esc | If recording or busy (loading model, transcribing, formatting, inserting): cancel (:121-123). |
+| `press_began` | Session hands-free recording: stop it (:109-110). Session recording not hands-free: nothing (:111-112). Any other state: start recording, not hands-free (:113-114); while `reviewing` this is ignored by the session (DictationSession.swift:89-92). |
+| `press_ended` | Stop recording (:54). |
+| `short_tap` | If recording and not hands-free: cancel the recording (:119-123). Otherwise nothing. A hands-free recording stopped by `press_began` is already stopped by then. |
+| `double_tap` | Make the current recording hands-free (:56; DictationSession.swift:125-127). |
+| Esc | If reviewing: discard the review, once (:126-127; dictation.md, step 9). Else if recording or busy (loading model, transcribing, formatting, inserting): cancel (:128-129). |
+
+Review before pasting (macOS only; Windows lags): `press_began` and `press_ended` also carry whether Shift was held on that key event (App/HotkeyMonitor.swift:7-9, 71, 78-79). Shift on the event that stops the recording asks for a review of that one dictation: the key-up of a push-to-talk hold, or the key-down that stops hands-free (AppDelegate.swift:54, 110; DictationSession.swift:129-131). Shift on the start event does nothing, and Shift is not part of `HotkeyGesture`, so the fixture is unchanged. No unit test covers the Shift path from the key event to the review (the monitor and AppDelegate have no test target): needs device check. A future prompt-mode modifier (PLAN.md:159) must not be Shift (DECISIONS.md, 2026-11-02).
 
 Consequences the port must keep:
 
 - Hold the key longer than 0.25 s: push-to-talk. Recording starts on key down, so a short tap first records and is then cancelled.
 - Tap twice within 0.45 s: hands-free. The first tap starts and cancels a recording, the second starts a new one that `double_tap` makes hands-free. A tap while hands-free recording stops it.
-- `startRecording` is ignored unless the state is idle, done or failed (DictationSession.swift:67-70).
-- Cancel stops the recorder, clears the live preview, cancels processing and returns to idle without inserting anything (DictationSession.swift:120-127).
+- `startRecording` is ignored unless the state is idle, done or failed (DictationSession.swift:89-92), so hotkey gestures do nothing while a review is open.
+- Cancel stops the recorder, clears the live preview, cancels processing and returns to idle without inserting anything (DictationSession.swift:145-153).
 
 ## Windows
 

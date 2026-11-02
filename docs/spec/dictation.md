@@ -6,18 +6,19 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore`. One dictation: reco
 
 | State | Meaning | Source |
 |---|---|---|
-| `idle` | Nothing happening. | Pipeline/DictationSession.swift:7 |
-| `recording(hands_free)` | Microphone open. | :8 |
-| `loading_model` | The selected recognizer is not the loaded one. | :9, 163-170 |
-| `transcribing` | | :10 |
-| `formatting` | Mode and profile resolved, polishing running or local cleanup. | :11, 188 |
-| `inserting` | | :12, 208 |
-| `done(preview)` | Result inserted. | :13, 220 |
-| `failed(message)` | | :14, 233 |
+| `idle` | Nothing happening. | Pipeline/DictationSession.swift:13 |
+| `recording(hands_free)` | Microphone open. | :14 |
+| `loading_model` | The selected recognizer is not the loaded one. | :15, 193 |
+| `transcribing` | | :16, 190 |
+| `formatting` | Mode and profile resolved, polishing running or local cleanup. | :17, 214 |
+| `inserting` | | :18, 247, 275 |
+| `done(preview)` | Result inserted. | :19, 315 |
+| `failed(message)` | | :20, 326 |
+| `reviewing(text)` | macOS only. The formatted text waits in the review panel; nothing is pasted yet (below). | :22, 264 |
 
-- "Recording" means `recording`. "Busy" means loading_model, transcribing, formatting or inserting (:16-26).
-- Start is accepted only from idle, done and failed (:67-70). Start cancels a pending reset (:71).
-- `toggleHandsFree` (widget click): hands-free recording stops; non-hands-free recording becomes hands-free; idle, done and failed start a hands-free recording; busy states ignore it (:129-136).
+- "Recording" means `recording`. "Busy" means loading_model, transcribing, formatting or inserting (:29-38). `reviewing` is neither: it is not recording and not busy.
+- Start is accepted only from idle, done and failed (:89-92), so it is ignored while reviewing. Start cancels a pending reset (:93).
+- `toggleHandsFree` (widget click): hands-free recording stops; non-hands-free recording becomes hands-free; idle, done and failed start a hands-free recording; busy states and `reviewing` ignore it (:155-161).
 
 ## Timings and limits
 
@@ -26,11 +27,11 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore`. One dictation: reco
 | Sample rate of recordings | 16 000 Hz mono | :109, 141 |
 | Minimum recording | 0.4 s. Shorter: discard silently, back to idle, no error. Compared as `seconds >= 0.4`. | :49, 110-116 |
 | Minimum speech | 0.3 s of speech in the recording. Less: fail with "Nothing recognized", recognition is skipped. Compared as `>= 0.3`. | :155-160 |
-| Done resets to idle | 2.5 s | :221 |
-| Failed resets to idle | 4 s | :234 |
-| Done preview length | first 60 characters of the result, newlines turned into spaces | :218 |
+| Done resets to idle | 2.5 s | :319 |
+| Failed resets to idle | 4 s | :327 |
+| Done preview length | first 60 characters of the result, newlines turned into spaces | :316 |
 
-The reset only fires if the state is still done or failed (:242-245).
+The reset only fires if the state is still done or failed (:335-338).
 
 Windows only: a recording that is digital silence (every sample zero, which is what a blocked microphone gives) fails with
 "Microphone: no sound, check Windows microphone privacy settings" before the speech check runs. Quiet but non-zero audio still
@@ -48,7 +49,7 @@ Fixture: none (float input). The Rust port is `speech_seconds` in `windows/core/
 
 ## Pipeline order
 
-Source: DictationSession.swift:140-227.
+Source: DictationSession.swift:166-256, and 258-317 for the review.
 
 1. Save the audio to the recordings store before anything can fail (:142-151). Save failures are logged and ignored.
 
@@ -59,16 +60,24 @@ Source: DictationSession.swift:140-227.
 5. Drop the result if the transcript is empty or `HallucinationFilter.isJunk` (below). Fail "Nothing recognized" (:182-185).
 6. Resolve profile and mode (profiles-modes.md) and format (local-cleanup.md, polishing.md).
 7. Learn new dictionary terms from the formatter's report (dictionary.md) (:202-206).
-8. Insert the result at the cursor of the app that was focused when recording started (:208-209). Insertion is refused when secure input is active, either recorded in the captured context or reported now by `IsSecureEventInputEnabled()` (Insertion/PasteInserter.swift:84); the dictation then fails. The paste path puts the text on the clipboard, also declaring the types `org.nspasteboard.TransientType` and `org.nspasteboard.ConcealedType` (empty data) so clipboard managers do not store it; the restore of the previous contents is not marked. It then sends the paste shortcut, waits 350 ms, and restores the previous clipboard contents unless something else changed the clipboard meanwhile. When the dictation is cancelled during the wait, the restore still happens, after the same 350 ms: the paste shortcut is already sent, and an earlier restore could paste the previous contents into the target (PasteInserter.swift, `insert` and `writeDictation`). Platform-specific: clipboard paste and the Accessibility fallback. When the insert method is "clipboard only" the status is `clipboard` and the done preview is prefixed with a hint to grant Accessibility (:215, 220).
+8. Insert the result at the cursor of the app that was focused when recording started (:247-248). Insertion is refused when secure input is active, either recorded in the captured context or reported now by `IsSecureEventInputEnabled()` (Insertion/PasteInserter.swift:84); the dictation then fails. The paste path puts the text on the clipboard, also declaring the types `org.nspasteboard.TransientType` and `org.nspasteboard.ConcealedType` (empty data) so clipboard managers do not store it; the restore of the previous contents is not marked. It then sends the paste shortcut, waits 350 ms, and restores the previous clipboard contents unless something else changed the clipboard meanwhile. When the dictation is cancelled during the wait, the restore still happens, after the same 350 ms: the paste shortcut is already sent, and an earlier restore could paste the previous contents into the target (PasteInserter.swift, `insert` and `writeDictation`). Platform-specific: clipboard paste and the Accessibility fallback. When the insert method is "clipboard only" the status is `clipboard` and the done preview is prefixed with a hint to grant Accessibility (:318; Pipeline/DictationOutcome.swift:25).
 
    Windows (windows/app/src-tauri/src/insert.rs, insert_win.rs; decisions in windows/core/src/insert.rs): the state is `inserting` from accepted recognition until the restore finishes; it counts as busy, so a press is ignored and Esc returns to idle. The worker saves every restorable clipboard format in enumeration order, skipping GDI handles and private ranges (formats 2, 3, 9, 14, 0x80, 0x82, 0x83, 0x8E, 0x200-0x3FF; `is_restorable_format`, insert.rs:62). It puts the text as `CF_UNICODETEXT` under a message-only owner window, reads `GetClipboardSequenceNumber`, and sends Ctrl+V in one `SendInput` call (Ctrl down, V down, V up, Ctrl up; no extended flag, which would be Right Ctrl, the hotkey; `paste_keys`, insert.rs:94). After 350 ms (`RESTORE_DELAY_MS`, insert.rs:5) it restores the saved formats only if the sequence number is unchanged, the same rule as the macOS change count. Password rule: refuse with "A password field is active; nothing was inserted" when the field was a password at recording start (captured) or is one at insert time (now); an unreadable flag (UIA error, elevated target) pastes anyway (`decide`, insert.rs:48). If `OpenClipboard` still fails after 5 tries 20 ms apart: "The clipboard is in use by another app; nothing was inserted". If `SendInput` accepts fewer than 4 events the worker sends the key-ups, leaves the text on the clipboard and shows done "Copied (press Ctrl+V to paste): <preview>" with status `clipboard`. Ctrl+V is used for consoles too; Shift+Insert is the fallback if a device check fails. Esc while inserting returns to idle but the worker still finishes the restore (macOS does the same since 2026-10-27).
-9. Save a history record, set `done`, reset after 2.5 s (:210-221).
+9. Save a history record, set `done`, reset after 2.5 s (:249-250, 306-320).
+
+   Review before pasting (macOS only; Windows lags, with no panel): steps 8 and 9 are replaced when the `reviewBeforePaste` setting is on or Shift was held on the event that stopped the recording (`ReviewPolicy.shouldReview`, Pipeline/DictationOutcome.swift:41; the Shift flag is stored by `stopRecording(review:)`, DictationSession.swift:129-131 and read at :243). Nothing is inserted and no row is written yet: the session goes to `reviewing(text)` with the formatted text and keeps the target context and a record template (`beginReview`, :261-265). The text, the secure-input check and the history row are decided when the review ends. The review ends once, whichever comes first (:63, 269, 282):
+   - Enter or the Paste button: `confirmReview(text)` (:268-278). Text that is empty after trimming whitespace and newlines counts as Esc. Otherwise the state is `inserting` and the possibly edited text goes through the normal insert (step 8, including the secure-input refusal) into the frontmost app (see target drift below). Pasted: row `inserted` or `clipboard`, then `done` as in step 9. Refused because of a password field (secure input): no row at all, the text is never persisted, same as without a review, then `failed(message)`. Any other insert error: row `failed` with the edited text, then `failed(message)` (:288-304).
+   - Esc in the panel, Esc from the global or local key monitor, or the app quitting: `discardReview()` writes one `discarded` row and returns to `idle` (:281-286; `cancel()` does the same first, :146; quit, App/AppDelegate.swift:97-103). Esc pressed on both paths still writes one row.
+   - Cancel while `inserting` after Enter: the paste shortcut is already sent (the only cancellable wait in the insert is the restore wait, step 8), so the row is `inserted` and the state returns to `idle` (:293-296).
+   - Hotkey presses and the widget click do nothing while reviewing (:89-92, 155-161). There is no timeout.
+   - The panel is taken off screen and the session waits 80 ms before it confirms, so the previous app is key again when the paste shortcut goes out (`focusReturnDelay`, macOS/Shepit/Review/ReviewPanel.swift:187, 269-278). The 80 ms is a guess: needs device check.
+   - Target drift is accepted: the paste goes to whichever app is frontmost after the panel closes, not to the app captured at record start, as with any other paste. The target name on the panel starts as the one captured at record start and then follows the frontmost app (see widget.md, Review panel), so the user sees where the paste would land.
 
    Windows: the row is written by a history thread once the insert has returned Pasted or ClipboardOnly, with the sttMs measured around `transcribe` and the profile, mode, source, language and latency of the format result (history.md). A fallback when the polish thread is gone sends plain `Msg::Formatted`, which keeps the audio but writes no row.
 
-- Cancellation at any await returns to idle without a message (:222-223). Any other error fails with the error text (:224-225).
-- The target app, window title, URL, caret text and selection are captured when recording starts, not when it ends (:72).
-- Failing also clears the live preview and cancels the progressive transcriber (:229-234).
+- Cancellation at any await returns to idle without a message (:251-252). Any other error fails with the error text (:253-254).
+- The target app, window title, URL, caret text and selection are captured when recording starts, not when it ends (:95).
+- Failing also clears the live preview and cancels the progressive transcriber (:322-328).
 - Windows: live preview passes run on the same recognizer thread as the final pass, one at a time, so the final waits for at most the pass already running (widget.md, Live preview).
 
 ## Hallucination filter
