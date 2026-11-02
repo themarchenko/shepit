@@ -45,7 +45,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         switch state {
         case .idle, .done:
             if doctorNeedsAttention(),
-               let warn = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Shepit needs attention") {
+               let warn = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: String(localized: "Shepit needs attention")) {
                 item.button?.image = warn.withSymbolConfiguration(.init(paletteColors: [.systemOrange]))
                 item.button?.image?.isTemplate = false
                 return
@@ -78,7 +78,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(status)
         menu.addItem(.separator())
 
-        let handsFree = NSMenuItem(title: session.state.isRecording ? "Stop dictation" : "Start hands-free dictation",
+        let handsFree = NSMenuItem(title: session.state.isRecording ? String(localized: "Stop dictation") : String(localized: "Start hands-free dictation"),
                                    action: #selector(toggleHandsFree), keyEquivalent: "")
         handsFree.target = self
         menu.addItem(handsFree)
@@ -91,7 +91,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             mi.state = settings.defaultMode == mode ? .on : .off
             modeMenu.addItem(mi)
         }
-        let modeItem = NSMenuItem(title: "Default mode", action: nil, keyEquivalent: "")
+        let modeItem = NSMenuItem(title: String(localized: "Default mode"), action: nil, keyEquivalent: "")
         modeItem.submenu = modeMenu
         menu.addItem(modeItem)
 
@@ -103,47 +103,47 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             mi.state = settings.engine == engine ? .on : .off
             engineMenu.addItem(mi)
         }
-        let engineItem = NSMenuItem(title: "Recognizer", action: nil, keyEquivalent: "")
+        let engineItem = NSMenuItem(title: String(localized: "Recognizer"), action: nil, keyEquivalent: "")
         engineItem.submenu = engineMenu
         menu.addItem(engineItem)
 
-        let widgetItem = NSMenuItem(title: "Show widget", action: #selector(toggleWidget), keyEquivalent: "")
+        let widgetItem = NSMenuItem(title: String(localized: "Show widget"), action: #selector(toggleWidget), keyEquivalent: "")
         widgetItem.target = self
         widgetItem.state = settings.widgetVisible ? .on : .off
         menu.addItem(widgetItem)
         menu.addItem(.separator())
 
-        let historyItem = NSMenuItem(title: "History…", action: #selector(openHistory), keyEquivalent: "")
+        let historyItem = NSMenuItem(title: String(localized: "History…"), action: #selector(openHistory), keyEquivalent: "")
         historyItem.target = self
         menu.addItem(historyItem)
-        let doctorItem = NSMenuItem(title: "Doctor…", action: #selector(openDoctor), keyEquivalent: "")
+        let doctorItem = NSMenuItem(title: String(localized: "Doctor…"), action: #selector(openDoctor), keyEquivalent: "")
         doctorItem.target = self
         menu.addItem(doctorItem)
-        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: String(localized: "Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
-        var updateTitle = "Check for Updates…"
-        if case .available(let release) = updates?.state { updateTitle = "Update to \(release.version)…" }
+        var updateTitle = String(localized: "Check for Updates…")
+        if case .available(let release) = updates?.state { updateTitle = String(localized: "Update to \(release.version)…") }
         let updateItem = NSMenuItem(title: updateTitle, action: #selector(checkForUpdates), keyEquivalent: "")
         updateItem.target = self
         menu.addItem(updateItem)
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit Shepit", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: String(localized: "Quit Shepit"), action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
     }
 
     private var statusText: String {
         switch session.state {
-        case .idle: return "Idle · hold \(settings.hotkey.displayName.components(separatedBy: " (").first ?? "key") to dictate"
-        case .recording(let handsFree): return handsFree ? "Listening (hands-free)" : "Listening"
-        case .reviewing: return "Review: Enter pastes, Esc cancels"
-        case .loadingModel: return "Loading recognizer…"
-        case .transcribing: return "Transcribing…"
-        case .formatting: return "Formatting…"
-        case .inserting: return "Inserting…"
-        case .done: return "Inserted"
-        case .failed(let message): return "Failed: \(message)"
+        case .idle: return String(localized: "Idle · hold \(settings.hotkey.shortName) to dictate")
+        case .recording(let handsFree): return handsFree ? String(localized: "Listening (hands-free)") : String(localized: "Listening")
+        case .reviewing: return String(localized: "Review: Enter pastes, Esc cancels")
+        case .loadingModel: return String(localized: "Loading recognizer…")
+        case .transcribing: return String(localized: "Transcribing…")
+        case .formatting: return String(localized: "Formatting…")
+        case .inserting: return String(localized: "Inserting…")
+        case .done: return String(localized: "Inserted")
+        case .failed(let message): return String(localized: "Failed: \(message)")
         }
     }
 

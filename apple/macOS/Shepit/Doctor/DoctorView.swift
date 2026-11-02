@@ -193,7 +193,7 @@ struct DoctorView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(Array(c.steps.enumerated()), id: \.offset) { index, step in
                             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text("\(index + 1).").monospacedDigit()
+                                Text(verbatim: "\(index + 1).").monospacedDigit()
                                 Text(step).fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -233,7 +233,7 @@ final class DoctorWindowController: NSWindowController, NSWindowDelegate {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
-        window.title = "Shepit Doctor"
+        window.title = String(localized: "Shepit Doctor")
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false

@@ -32,8 +32,8 @@ struct HistoryView: View {
                     HStack(spacing: 8) {
                         Text(r.createdAt, style: .time).font(.caption).foregroundStyle(.secondary)
                         Text(r.appName ?? r.bundleID ?? "?").font(.caption).bold()
-                        Text("\(r.profile) · \(r.mode) · \(r.formatterSource)").font(.caption).foregroundStyle(.secondary)
-                        Text("stt \(r.sttMs) ms · llm \(r.llmMs) ms").font(.caption).foregroundStyle(.secondary)
+                        Text(verbatim: "\(r.profile) · \(r.mode) · \(r.formatterSource)").font(.caption).foregroundStyle(.secondary)
+                        Text(verbatim: "stt \(r.sttMs) ms · llm \(r.llmMs) ms").font(.caption).foregroundStyle(.secondary)
                         if r.status == "discarded" || r.status == "failed" {
                             Text("not pasted").font(.caption).foregroundStyle(WidgetPalette.amber)
                         }
@@ -84,7 +84,7 @@ struct HistoryView: View {
                 return firstError?.localizedDescription
             }.value
             reload()
-            if let firstError { error = "Could not clear history: \(firstError)" }
+            if let firstError { error = String(localized: "Could not clear history: \(firstError)") }
             clearing = false
             onCleared()
         }
@@ -92,7 +92,7 @@ struct HistoryView: View {
 
     private func reload() {
         guard let history else {
-            error = "History store is unavailable"
+            error = String(localized: "History store is unavailable")
             return
         }
         do {
@@ -110,7 +110,7 @@ final class HistoryWindowController: NSWindowController {
     init(history: HistoryStore?, onCleared: @escaping () -> Void = {}) {
         let hosting = NSHostingController(rootView: HistoryView(history: history, onCleared: onCleared))
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Shepit History"
+        window.title = String(localized: "Shepit History")
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: 760, height: 520))
