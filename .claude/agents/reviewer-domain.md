@@ -45,7 +45,7 @@ First load the `project-discipline` skill. Read the diff with `git diff main...H
 - **Privacy**: audio never leaves the device; only text goes to an agent; no dictated text logged at
   public privacy level.
 - **Settings**: a new key has a default and, if it replaces an old key, a migration.
-- **Text rules**: English only, no em dashes, comments say why. A user-visible feature has a
+- **Text rules**: English only (translations only in the String Catalog), no em dashes, comments say why. A user-visible feature has a
   `WhatsNew.releases` item for its version; a bug fix does not.
 - **Cross-platform drift**: a behaviour change on one platform must update `docs/spec/` and the
   fixtures in `shared/`, or be listed in the run report as a known gap naming the lagging
