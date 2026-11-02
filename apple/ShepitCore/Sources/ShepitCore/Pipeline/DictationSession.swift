@@ -318,7 +318,7 @@ public final class DictationSession: ObservableObject {
         lastInsert = InsertSummary(reviewed: reviewed, method: method)
         let preview = String(text.prefix(60)).replacingOccurrences(of: "\n", with: " ")
         live.clear()
-        state = .done(preview: method == .clipboardOnly ? "Copied (grant Accessibility to paste): \(preview)" : preview)
+        state = .done(preview: method == .clipboardOnly ? "Copied, not pasted (open Doctor): \(preview)" : preview)
         scheduleReset(after: 2.5)
     }
 

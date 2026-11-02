@@ -1,5 +1,11 @@
 import Foundation
 
+public enum AgentTestResult: Equatable, Sendable {
+    case passed
+    case noAgent
+    case failed(kind: String)
+}
+
 /// Picks the path for one dictation: raw, fast path, Claude, or passthrough when Claude fails.
 public actor FormattingService {
     private var claude: Formatter?
@@ -71,6 +77,21 @@ public actor FormattingService {
     /// Text for the paths without Claude: whitespace cleanup plus dictionary terms restored.
     private static func local(_ request: FormatRequest) -> String {
         PassthroughFormatter.clean(DictionaryCorrector.correct(request.transcript, dictionary: request.dictionary))
+    }
+
+    public static let doctorSample = "This is a short test from Shepit Doctor."
+
+    /// Sends the fixed sample straight to the agent, skipping the fast path, with no user context.
+    public func testAgent() async -> AgentTestResult {
+        guard let claude else { return .noAgent }
+        let request = FormatRequest(transcript: Self.doctorSample, languageHint: "en", mode: .clean,
+                                    profile: BuiltInProfiles.generic, context: TargetContext())
+        do {
+            _ = try await claude.format(request)
+            return .passed
+        } catch {
+            return .failed(kind: Self.logKind(error))
+        }
     }
 
     public func warmUp() async {
