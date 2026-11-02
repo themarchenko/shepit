@@ -61,6 +61,36 @@ final class CodexProtocolTests: XCTestCase {
         XCTAssertNil(CodexProtocol.turnStartParams(threadID: "thr_123", text: "x", effort: nil)["effort"])
     }
 
+    func testTurnStartDefaultSchemaUnchanged() throws {
+        let explicit = CodexProtocol.turnStartParams(threadID: "t", text: "x", effort: nil, schema: CodexProtocol.replySchema)
+        let implicit = CodexProtocol.turnStartParams(threadID: "t", text: "x", effort: nil)
+        let a = try XCTUnwrap(explicit["outputSchema"] as? [String: Any])
+        let b = try XCTUnwrap(implicit["outputSchema"] as? [String: Any])
+        XCTAssertEqual(NSDictionary(dictionary: a), NSDictionary(dictionary: b))
+        XCTAssertEqual(b["required"] as? [String], ["text", "language", "new_terms"])
+    }
+
+    func testTurnStartCustomSchema() throws {
+        let custom: [String: Any] = ["type": "object", "properties": ["sentences": ["type": "array", "items": ["type": "string"]]],
+                                     "required": ["sentences"], "additionalProperties": false]
+        let params = CodexProtocol.turnStartParams(threadID: "t", text: "x", effort: "medium", schema: custom)
+        let schema = try XCTUnwrap(params["outputSchema"] as? [String: Any])
+        XCTAssertEqual(schema["required"] as? [String], ["sentences"])
+        XCTAssertEqual(params["effort"] as? String, "medium")
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(params))
+    }
+
+    func testThreadStartParamsForCalibrationConfig() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("calibration-\(UUID().uuidString)")
+        let config = CodexConfig(executable: "/opt/homebrew/bin/codex", model: "", reasoningEffort: "medium",
+                                 systemPrompt: CalibrationMessages.systemPrompt, workDirectory: dir)
+        let params = CodexProtocol.threadStartParams(config)
+        XCTAssertEqual(params["baseInstructions"] as? String, CalibrationMessages.systemPrompt)
+        XCTAssertEqual(params["cwd"] as? String, dir.path)
+        XCTAssertEqual(params["ephemeral"] as? Bool, true)
+        XCTAssertNil(params["model"])
+    }
+
     func testEncodedMessageIsOneLine() throws {
         let params = CodexProtocol.turnStartParams(threadID: "thr_123", text: "line one\nline two", effort: nil)
         let data = try CodexProtocol.encodeLine(["method": "turn/start", "id": 3, "params": params])
