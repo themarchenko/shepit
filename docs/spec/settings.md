@@ -18,7 +18,8 @@ Source: `apple/ShepitCore/Sources/ShepitCore/Settings/AppSettings.swift`. Keys a
 | `reviewBeforePaste` | bool | false | macOS only; Windows lags (dictation.md, step 9). On: every dictation waits for Enter. Off: only a dictation stopped with Shift held does | :117, 146, 178 |
 | `reviewTipShown` | bool | false | macOS only; Windows lags. Set when the one-time review tip is shown or a review starts (widget.md, Review tip). A missing key reads as false | AppSettings.swift |
 | `dictionary` | [string] | empty | at most 300 learned entries | :175; Learning/DictionaryCorrector.swift:227 |
-| `speakerNotes` | string | one sentence, `SpeakerNotes.defaultText` | free text | :176, 247-251 |
+| `speakerNotes` | string | macOS: empty (`SpeakerNotes.defaultText`). Windows: one sentence, `DEFAULT_SPEAKER_NOTES` (windows/core/src/polish/prompt.rs:7) | free text. On macOS the old sentence (`SpeakerNotes.legacyDefault`) counts as unset for the calibration offer only; a stored copy is not rewritten | :176; Settings/AppSettings.swift:258-270 |
+| `calibrationOffered` | bool | false | macOS only; Windows lags. Set when the voice calibration wizard opens by itself, so it does it once (calibration.md, Auto-open). A missing key reads as false | Settings/AppSettings.swift:107, 175 |
 | `widgetStyle` | id | `flowPill` | `flowPill`, `captionBar`, `island` | :162 |
 | `glassOpacity` | double | 0.7 | 0.5 to 0.9 | :101, 163 |
 | `fadeWhenIdle` | bool | true | | :164 |

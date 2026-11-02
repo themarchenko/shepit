@@ -21,10 +21,10 @@ Source: Settings/AppSettings.swift:34-64, 158-160.
 
 ## System prompt
 
-Golden: `shared/prompts/system-prompt.md`, the exact output of `systemPrompt(speakerNotes: defaultText)` plus a final newline. Source: Formatting/PromptBuilder.swift:5-52.
+Golden: `shared/prompts/system-prompt.md`, the exact output of `systemPrompt(speakerNotes: SpeakerNotes.legacyDefault)` plus a final newline. Source: Formatting/PromptBuilder.swift:5-52.
 
 - Order: fixed instructions, then one section per built-in profile in `all` order with its Markdown line and style rules (:37-41), then the speaker section only if the notes are non-empty after trimming (:42-44), then the output section (:45-50).
-- Default speaker notes: Settings/AppSettings.swift:247-251.
+- Default speaker notes: macOS is empty (`SpeakerNotes.defaultText`, so no speaker section) and the voice calibration writes them (calibration.md). The old one-sentence default is `SpeakerNotes.legacyDefault`: the golden is built with it, and Windows still uses it as its default (windows/core/src/polish/prompt.rs:7). Settings/AppSettings.swift:258-270.
 - The prompt names the platform once, in the first sentence (PromptBuilder.swift:7). The golden holds "macOS". The Rust builder takes the platform word as a parameter (`system_prompt`, windows/core/src/polish/prompt.rs:74); with "macOS" it equals the golden byte for byte, and the Windows app passes "Windows". Nothing else in the prompt differs.
 - The agent must return only a JSON object with `text`, `language` (`uk`, `en` or `mixed`) and `new_terms` (PromptBuilder.swift:49).
 - The fixed instructions say the speaker never speaks Russian or Polish and that such words in the transcript are recognition errors, to be written as the Ukrainian or English words the speaker meant (PromptBuilder.swift:15). The line is in the golden, and the Windows builder carries it (windows/core/src/polish/prompt.rs). Why: the recognizers sometimes write Russian or Polish words for accented Ukrainian; see language.md.
@@ -86,7 +86,7 @@ Limits are in graphemes: the last 500 before the caret; the field value is read 
 ## Privacy rules
 
 - Audio never leaves the device. Recognition is local; only text goes to an agent.
-- An agent receives the transcript, the dictionary part, the optional examples and the context keys listed above, and nothing else.
+- An agent receives the transcript, the dictionary part, the optional examples and the context keys listed above, and nothing else. Exception: the voice calibration (macOS) sends an agent only the reference phrases, what the recognizer heard, and the language codes; no history, dictionary, context, speaker notes or audio (calibration.md, Privacy).
 - Dictated text is never logged at public privacy level. The one log of transcript text is marked private and cut to 80 characters (Pipeline/DictationSession.swift:186). A port must keep transcripts, results and context text out of public logs.
 - A secure captured field (password field or secure event input) skips the agent: the result is the local text with source `passthrough`, and the transcript is not sent anywhere (macOS: Formatting/FormattingService.swift:33; Windows: the captured password flag is true, `build_request` windows/core/src/polish/pipeline.rs:54-87 and `route` windows/core/src/polish/route.rs:56). An unreadable Windows flag is not secure. Raw mode and the fast path already stay local. The insert still refuses a password field (dictation.md). Error logs from the agents carry the error kind and the reply byte length only, never reply or server text.
 

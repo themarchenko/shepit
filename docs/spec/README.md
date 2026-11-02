@@ -18,6 +18,7 @@ Platform mechanisms (key monitors, panels, installers) appear only where a rule 
 | [polishing.md](polishing.md) | Providers, system prompt, per-dictation message, agent limits, Windows agent runtime |
 | [widget.md](widget.md) | Phases, styles, sizes, live preview |
 | [settings.md](settings.md) | Every setting: key, default, values |
+| [calibration.md](calibration.md) | Voice calibration wizard (macOS only): reading lists, agent rounds, reply filters, auto-open, privacy, capture path |
 | [doctor.md](doctor.md) | Doctor window (macOS only): checks, required rules, Accessibility reset, entry points |
 | [updates-install.md](updates-install.md) | Version order, update schedule, installer |
 
@@ -77,6 +78,7 @@ Paths below are relative to `apple/` where they point at code.
 | Item | State |
 |---|---|
 | The system prompt says "on macOS" (ShepitCore/Sources/ShepitCore/Formatting/PromptBuilder.swift:7) | Resolved for Windows: the builder takes the platform word and the app passes "Windows"; with "macOS" it equals the golden (polishing.md, System prompt). |
+| Voice calibration and the empty speaker-notes default are macOS only (calibration.md, settings.md) | Windows lags: it has no wizard and keeps the one-sentence default `DEFAULT_SPEAKER_NOTES` (windows/core/src/polish/prompt.rs:7; the comment at :6 still calls it the shared default). The golden is built with `SpeakerNotes.legacyDefault`, so the prompt contract is unchanged. |
 | Profiles are keyed by macOS bundle ids (Formatting/Profile.swift:98-112) | Resolved for Windows by exe file name (profiles-modes.md, Windows app identifiers). The shared fixture holds the macOS ids. |
 | Default dictation key | macOS: Right Option. Windows: Right Ctrl, per `docs/PLAN-windows.md`. Key ids and codes are per platform (hotkey.md). |
 | Update and install | macOS: GitHub release, `Shepit.dmg`, code signature check, `install.sh`. Windows: `Shepit-setup.exe` and `latest.json` on the same release, Tauri updater with a minisign key pinned in the app, `install.ps1` (updates-install.md). Only the version order and the check schedule are shared. |
