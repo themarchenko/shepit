@@ -111,7 +111,7 @@ public final class AppSettings: ObservableObject {
     @Published public var widgetVisible: Bool { didSet { defaults.set(widgetVisible, forKey: Keys.widgetVisible) } }
     @Published public var fastPathMaxWords: Int { didSet { defaults.set(fastPathMaxWords, forKey: Keys.fastPathMaxWords) } }
     @Published public var promptModeMinWords: Int { didSet { defaults.set(promptModeMinWords, forKey: Keys.promptModeMinWords) } }
-    @Published public var languageLock: String { didSet { defaults.set(languageLock, forKey: Keys.languageLock) } }
+    @Published public var language: LanguagePolicy { didSet { defaults.set(language.rawValue, forKey: Keys.languageLock) } }
     /// Show the words while speaking (Parakeet runs alongside the selected recognizer).
     @Published public var livePreview: Bool { didSet { defaults.set(livePreview, forKey: Keys.livePreview) } }
     /// Show the formatted text in an editable panel before it is pasted.
@@ -176,7 +176,7 @@ public final class AppSettings: ObservableObject {
         widgetVisible = defaults.object(forKey: Keys.widgetVisible) as? Bool ?? true
         fastPathMaxWords = defaults.object(forKey: Keys.fastPathMaxWords) as? Int ?? 8
         promptModeMinWords = defaults.object(forKey: Keys.promptModeMinWords) as? Int ?? 40
-        languageLock = defaults.string(forKey: Keys.languageLock) ?? "auto"
+        language = LanguagePolicy(stored: defaults.string(forKey: Keys.languageLock))
         livePreview = defaults.object(forKey: Keys.livePreview) as? Bool ?? true
         reviewBeforePaste = defaults.object(forKey: Keys.reviewBeforePaste) as? Bool ?? false
         dictionary = defaults.stringArray(forKey: Keys.dictionary) ?? []

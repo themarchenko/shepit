@@ -2,6 +2,17 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-02: allowed languages (macOS)
+
+- The Language setting is now an allowed set, `LanguagePolicy`: Ukrainian + English (default), Ukrainian, English. The speaker never uses Russian or Polish, so those are never allowed. The stored key stays `languageLock`; `auto`, empty and unknown values read as Ukrainian + English and are not written back. Windows lags (`docs/spec/language.md`).
+- Whisper: detection still runs, but a result outside the set is re-decoded as Ukrainian or English. A Cyrillic first pass retries as Ukrainian. A Latin one (Polish and the like) is decided by the real Ukrainian and English probabilities, with the script rule as the fallback. Measured on the user's recordings: the probabilities picked English for a Ukrainian clip heard as Russian (the retry translated it), and Ukrainian for a clip heard as Polish (fixed), hence Cyrillic first. Finding: WhisperKit's `langProbs` holds only the winner's probability (TextDecoder.swift:518-522, 836-837), so the probabilities come from a second detection step with a sampler that reads the `<|uk|>` and `<|en|>` logits. It costs one extra encoder pass and runs only when detection left the set with a Latin first pass.
+- Parakeet: when the first pass has Polish-only letters and both languages are allowed, it decodes again as Ukrainian and as English and keeps the most confident of the three texts, the first pass included (a tie keeps the first pass, then Ukrainian). The first pass stays if both fail. Under a single-language policy there is no re-decode.
+- The Russian-only letter map (ы, э, ъ, ё; ъ maps to U+02BC, the Ukrainian apostrophe letter, as the preview already did) now applies to the final text of every engine, in the session, and to the live preview always. The old gate "only when the pass language is uk" is gone, since Russian is never allowed. History `rawText` stores the mapped text.
+- Progressive Whisper pieces adopt a language only if the policy allows it.
+- The system prompt tells the agent that Russian or Polish words are recognition errors. It sits in the shared golden, so the Windows prompt builder got the same line.
+- Kept out: Whisper Polish letters when the detected language is Ukrainian, Parakeet Polish letters under English only, speaker notes, localised labels.
+- Needs device check: real Ukrainian dictation on both engines, the uk/en probe on a Latin-detected clip in the app (never run on a real model with a Latin first pass), a clip that used to come out Russian, Polish letters on Parakeet, the widget Language menu, an upgrade from a stored `auto`, polishing a Russian word.
+
 ## 2026-11-02: Doctor (macOS)
 
 - macOS only; Windows lags (`docs/spec/doctor.md`). Evaluation is pure in ShepitCore (`Doctor.evaluate`), probes are thin adapters, the window polls once a second so a row turns green by itself.

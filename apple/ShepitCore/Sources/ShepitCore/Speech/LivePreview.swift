@@ -31,7 +31,7 @@ public struct PreviewHead: Equatable, Sendable {
 ///
 /// When Whisper has already transcribed the start (`head`), its text replaces everything Parakeet had
 /// frozen and Parakeet decodes only after it, so early Parakeet mistakes do not stay on screen. Shown text
-/// is also cleaned up: Russian-only letters Parakeet writes for Ukrainian speech are mapped, and the
+/// is also cleaned up: Russian-only letters Parakeet writes are mapped, and the
 /// dictionary is applied. None of this touches the inserted text.
 @MainActor
 public final class LivePreview: ObservableObject {
@@ -91,14 +91,14 @@ public final class LivePreview: ObservableObject {
                 let t0 = Date()
                 var correction = 0.0
                 // Off the main actor: with a full 300-term dictionary one call took up to 0.13 s.
-                func prepare(_ text: String, _ lang: String?) async -> String {
+                func prepare(_ text: String) async -> String {
                     let c0 = Date()
-                    let out = await Task.detached { Self.prepare(text, language: lang, dictionary: dictionary) }.value
+                    let out = await Task.detached { Self.prepare(text, dictionary: dictionary) }.value
                     correction += Date().timeIntervalSince(c0)
                     return out
                 }
                 if let h = head(), h.samples > headSamples {
-                    headText = await prepare(h.text, h.language)
+                    headText = await prepare(h.text)
                     headSamples = h.samples
                     frozen = ""
                     frozenSamples = h.samples
@@ -113,13 +113,12 @@ public final class LivePreview: ObservableObject {
                     if tail.count > 12 * Self.sampleRate {
                         let cut = Self.quietestCut(in: tail, from: 8 * Self.sampleRate, to: 11 * Self.sampleRate)
                         if let frozenPass = try? await engine.transcribe(Array(tail[..<cut]), hints: Self.hints(hints, language)) {
-                            frozen = Self.join(frozen, await prepare(frozenPass.text, language))
+                            frozen = Self.join(frozen, await prepare(frozenPass.text))
                         }
                         frozenSamples += cut
                         tail = Array(tail[cut...])
                     }
                     var pass: Transcript?
-                    var passLanguage = language
                     if let language {
                         pass = try? await engine.transcribe(tail, hints: Self.hints(hints, language))
                     } else {
@@ -130,14 +129,12 @@ public final class LivePreview: ObservableObject {
                         if frozenSamples + tail.count >= Int(Self.decideAfter * Double(Self.sampleRate)) {
                             language = ukWins ? "uk" : "en"
                             pass = ukWins ? uk : en
-                            passLanguage = language
                         } else if max(ukScore, enScore) >= 0.6, abs(ukScore - enScore) >= 0.2 {
                             pass = ukWins ? uk : en
-                            passLanguage = ukWins ? "uk" : "en"
                         }
                     }
                     var current: String?
-                    if let pass { current = await prepare(pass.text, passLanguage) }
+                    if let pass { current = await prepare(pass.text) }
                     guard !Task.isCancelled, let self else { return }
                     if let current {
                         self.publish(frozen: Self.join(headText, frozen), current: current)
@@ -151,18 +148,10 @@ public final class LivePreview: ObservableObject {
         }
     }
 
-    /// Letters first, so a dictionary term written with one of them is not undone. The mapping only runs for
-    /// Ukrainian: in English text there is nothing to map and in Russian it would be wrong.
-    nonisolated private static func prepare(_ text: String, language: String?, dictionary: [String]) -> String {
-        DictionaryCorrector.correct(language == "uk" ? ukrainianLetters(text) : text, dictionary: dictionary)
-    }
-
-    /// Parakeet's Cyrillic model also knows Russian, and in a Ukrainian dictation it sometimes writes the
-    /// Russian-only letters. Ukrainian has no ы, э, ъ or ё, so each maps to its nearest Ukrainian spelling.
-    nonisolated static func ukrainianLetters(_ text: String) -> String {
-        let map: [Character: Character] = ["ы": "и", "э": "е", "ъ": "\u{02BC}", "ё": "е",
-                                           "Ы": "И", "Э": "Е", "Ъ": "\u{02BC}", "Ё": "Е"]
-        return String(text.map { map[$0] ?? $0 })
+    /// Letters first, so a dictionary term written with one of them is not undone. The map always runs:
+    /// Russian is never an allowed language and English text has nothing to map.
+    nonisolated private static func prepare(_ text: String, dictionary: [String]) -> String {
+        DictionaryCorrector.correct(ScriptCleanup.ukrainianLetters(text), dictionary: dictionary)
     }
 
     private static func hints(_ base: TranscriptionHints, _ language: String?) -> TranscriptionHints {

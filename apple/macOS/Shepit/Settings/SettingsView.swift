@@ -27,10 +27,8 @@ struct GeneralPane: View {
                     ForEach(HotkeyChoice.allCases, id: \.self) { Text($0.displayName).tag($0) }
                 }
                 Text("Hold to talk, double tap for hands-free.").font(.caption).foregroundStyle(.secondary)
-                Picker("Language", selection: $settings.languageLock) {
-                    Text("Auto").tag("auto")
-                    Text("Українська").tag("uk")
-                    Text("English").tag("en")
+                Picker("Language", selection: $settings.language) {
+                    ForEach(LanguagePolicy.allCases, id: \.self) { Text($0.displayName).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 Picker("Default mode", selection: $settings.defaultMode) {

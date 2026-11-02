@@ -79,6 +79,42 @@ final class ProgressiveHeadTests: XCTestCase {
         let result = await pieces.complete(samples)
         XCTAssertEqual(result?.transcript.text, "мы клод код")
     }
+
+    /// Language the second piece was decoded with, given what the first piece reported.
+    private func secondPieceLanguage(firstReports: String) async -> String? {
+        let seen = HintLog()
+        let engine = whisper { _, hints in
+            seen.add(hints.language)
+            return fakeTranscript("w", language: firstReports)
+        }
+        let source = FakeLiveSource(count: 15 * second, generator: FakeLiveSource.speech)
+        let pieces = ProgressiveTranscriber()
+        pieces.start(source: source, engine: { engine }, hints: TranscriptionHints())
+        defer { pieces.cancel() }
+        _ = await waitUntil { pieces.head != nil }
+        source.count = 40 * second
+        _ = await waitUntil { engine.callCount >= 2 }
+        return seen.second
+    }
+
+    func testOutsideLanguageNotAdopted() async {
+        for outside in ["ru", "pl"] {
+            let lang = await secondPieceLanguage(firstReports: outside)
+            XCTAssertNil(lang, "\(outside) must not become the language of later pieces")
+        }
+    }
+
+    func testAllowedLanguageAdopted() async {
+        let lang = await secondPieceLanguage(firstReports: "en")
+        XCTAssertEqual(lang, "en")
+    }
+}
+
+final class HintLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var languages: [String?] = []
+    func add(_ l: String?) { lock.withLock { languages.append(l) } }
+    var second: String? { lock.withLock { languages.count >= 2 ? languages[1] : nil } }
 }
 
 final class OrderedCallCounter: @unchecked Sendable {

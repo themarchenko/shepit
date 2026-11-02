@@ -34,6 +34,10 @@ final class PromptBuilderTests: XCTestCase {
         XCTAssertTrue(prompt.contains("\"new_terms\""))
     }
 
+    func testPromptSaysRussianAndPolishAreRecognitionErrors() {
+        XCTAssertTrue(PromptBuilder.systemPrompt().contains("never speaks Russian or Polish"))
+    }
+
     func testUserMessageCarriesContextAndTranscript() {
         let ctx = TargetContext(bundleID: "com.apple.Terminal", appName: "Terminal", windowTitle: "Claude Code")
         let req = FormatRequest(transcript: "зроби рефакторинг", languageHint: "uk", mode: .prompt,

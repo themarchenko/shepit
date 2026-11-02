@@ -103,7 +103,7 @@ public final class ProgressiveTranscriber {
         if !text.isEmpty { h.stylePrompt = String(text.suffix(400)) }
         do {
             let t = try await engine.transcribe(piece, hints: h)
-            if language == nil, let l = t.language, ["uk", "en"].contains(l) { language = l }
+            if language == nil, let l = t.language, hints.policy.isAllowed(l) { language = l }
             if !HallucinationFilter.isJunk(t.text) { text = LivePreview.join(text, t.text) }
             return true
         } catch {

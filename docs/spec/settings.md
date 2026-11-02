@@ -13,7 +13,7 @@ Source: `apple/ShepitCore/Sources/ShepitCore/Settings/AppSettings.swift`. Keys a
 | `defaultMode` | id | `clean` | `clean`, `prompt`, `raw` | :169 |
 | `fastPathMaxWords` | int | 8 | 0 and up | :171 |
 | `promptModeMinWords` | int | 40 | | :172 |
-| `languageLock` | string | `auto` | `auto` or a language code | :173 |
+| `languageLock` | string | `uk+en` | `uk+en` (Ukrainian and English), `uk`, `en`. Any other stored value, including the old `auto` and codes, reads as `uk+en` and is not rewritten. macOS only; Windows lags (language.md) | Speech/LanguagePolicy.swift:6-9; Settings/AppSettings.swift:114, 179 |
 | `livePreview` | bool | true | | :174 |
 | `reviewBeforePaste` | bool | false | macOS only; Windows lags (dictation.md, step 9). On: every dictation waits for Enter. Off: only a dictation stopped with Shift held does | :117, 146, 178 |
 | `reviewTipShown` | bool | false | macOS only; Windows lags. Set when the one-time review tip is shown or a review starts (widget.md, Review tip). A missing key reads as false | AppSettings.swift |

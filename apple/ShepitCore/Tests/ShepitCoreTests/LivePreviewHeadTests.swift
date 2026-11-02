@@ -61,12 +61,6 @@ final class LivePreviewHeadTests: XCTestCase {
         XCTAssertTrue(shown, "\(preview.text)")
     }
 
-    func testUkrainianLetterMap() {
-        XCTAssertEqual(LivePreview.ukrainianLetters("ы э ъ ё"), "и е \u{02BC} е")
-        XCTAssertEqual(LivePreview.ukrainianLetters("Ы Э Ъ Ё"), "И Е \u{02BC} Е")
-        XCTAssertEqual(LivePreview.ukrainianLetters("Привіт, світе і hello 123"), "Привіт, світе і hello 123")
-    }
-
     private func autoEngine(ukText: String, enText: String, ukScore: Float, enScore: Float) -> FakeEngine {
         FakeEngine(id: .parakeetV3) { _, hints in
             hints.language == "uk" ? fakeTranscript(ukText, confidence: ukScore)
@@ -82,21 +76,21 @@ final class LivePreviewHeadTests: XCTestCase {
         return preview.text.full
     }
 
-    func testLettersMappedOnlyWhenPassLanguageIsUk() async {
+    func testLettersMappedWhateverThePassLanguage() async {
         let same = FakeEngine(id: .parakeetV3) { _, _ in fakeTranscript("мы") }
         let locked = await shown(language: "uk", engine: same, seconds: 2)
         XCTAssertEqual(locked, "ми")
         let lockedEn = await shown(language: "en", engine: same, seconds: 2)
-        XCTAssertEqual(lockedEn, "мы")
+        XCTAssertEqual(lockedEn, "ми")
 
         let ukWins = await shown(language: nil, engine: autoEngine(ukText: "мы", enText: "мы", ukScore: 0.9, enScore: 0.1))
         XCTAssertEqual(ukWins, "ми")
         let enWins = await shown(language: nil, engine: autoEngine(ukText: "мы", enText: "мы", ukScore: 0.1, enScore: 0.9))
-        XCTAssertEqual(enWins, "мы")
+        XCTAssertEqual(enWins, "ми")
     }
 
-    func testHeadLettersFollowHeadLanguage() async {
-        for (language, expected) in [("uk", "ми"), ("en", "мы"), (nil, "мы")] as [(String?, String)] {
+    func testHeadLettersMappedWhateverTheHeadLanguage() async {
+        for (language, expected) in [("uk", "ми"), ("en", "ми"), (nil, "ми")] as [(String?, String)] {
             let count = 5 * second
             let preview = LivePreview()
             run(preview, source: FakeLiveSource(count: count), engine: positionEngine(),

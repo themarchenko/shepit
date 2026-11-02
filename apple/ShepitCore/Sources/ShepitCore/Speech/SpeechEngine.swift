@@ -40,7 +40,8 @@ public struct Transcript: Sendable {
 
 /// What the pipeline knows before recognition starts. Engines use the parts they support.
 public struct TranscriptionHints: Sendable {
-    /// "uk" or "en" locks the language; nil lets the engine detect it per utterance.
+    /// "uk" or "en" locks the language; nil means both are allowed and the engine detects per utterance
+    /// (see `LanguagePolicy`; Russian and Polish are never allowed).
     public var language: String?
     /// Terms the speaker is likely to say (names, identifiers, products). Engines with a text prompt bias toward them.
     public var vocabulary: [String]

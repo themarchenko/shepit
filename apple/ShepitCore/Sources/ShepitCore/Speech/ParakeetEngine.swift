@@ -30,16 +30,26 @@ public actor ParakeetEngine: SpeechEngine {
         guard let manager else { throw SpeechError.notLoaded }
         let t0 = Date()
         do {
-            var state = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
             // The hint filters decoder candidates by script, so only a hard language lock may set it:
             // with mixed Ukrainian and English speech it would force identifiers into Cyrillic.
-            let result = try await manager.transcribe(samples, decoderState: &state, language: Self.language(for: hints.language))
-            return Transcript(text: result.text, language: nil,
+            let first = try await decode(samples, language: Self.language(for: hints.language), manager: manager)
+            let resolved = await ScriptCleanup.resolvePolishLeak(first: first, policy: hints.policy) { code in
+                try await self.decode(samples, language: Self.language(for: code), manager: manager)
+            }
+            return Transcript(text: resolved.text, language: nil,
                               audioSeconds: Double(samples.count) / 16_000,
-                              processingSeconds: Date().timeIntervalSince(t0), confidence: result.confidence)
+                              processingSeconds: Date().timeIntervalSince(t0), confidence: resolved.confidence)
         } catch {
             throw SpeechError.transcriptionFailed(String(describing: error))
         }
+    }
+
+    /// Each decode starts from a fresh decoder state, so a re-decode does not continue from the first pass.
+    private func decode(_ samples: [Float], language: Language?, manager: AsrManager) async throws -> Transcript {
+        var state = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
+        let result = try await manager.transcribe(samples, decoderState: &state, language: language)
+        return Transcript(text: result.text, language: nil, audioSeconds: Double(samples.count) / 16_000,
+                          processingSeconds: 0, confidence: result.confidence)
     }
 
     public func unload() async {
