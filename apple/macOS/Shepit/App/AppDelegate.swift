@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let reviewTip = WhatsNewController()
     /// Set when a dictation was pasted without review; the tip waits for the widget to go idle.
     private var reviewTipPending = false
+    /// Set when the calibration offer is waiting for the What's new card to close.
+    private var offerCalibrationAfterWhatsNew = false
     private lazy var updates = UpdateChecker(settings: settings)
     private let updatePanel = UpdatePanelController()
     private var review: ReviewPanelController!
@@ -87,9 +89,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             Task {
                 try? await Task.sleep(for: .seconds(2))
-                self.showWhatsNewIfUnseen()
-                try? await Task.sleep(for: .seconds(1.5))
-                self.offerCalibrationIfDue()
+                if self.showWhatsNewIfUnseen() {
+                    self.offerCalibrationAfterWhatsNew = true // offered when the card closes
+                } else {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    self.offerCalibrationIfDue()
+                }
             }
         }
         session.$state.receive(on: RunLoop.main).sink { [weak self] state in
@@ -106,6 +111,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         whatsNew.onClose = { [weak self] in
             guard let self else { return }
             self.settings.whatsNewSeen = WhatsNew.current
+            if self.offerCalibrationAfterWhatsNew {
+                self.offerCalibrationAfterWhatsNew = false
+                Task {
+                    try? await Task.sleep(for: .seconds(0.8))
+                    self.offerCalibrationIfDue()
+                }
+            }
         }
         Task {
             // Parakeet loads in under a second and serves dictations until a slower engine is ready; it stays
@@ -307,8 +319,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // A new user needs no release notes; someone who dictated before the tour existed gets them.
                 if firstRun, ((try? self.history?.recent(limit: 1)) ?? []).isEmpty {
                     self.settings.whatsNewSeen = WhatsNew.current
-                } else {
-                    self.showWhatsNewIfUnseen()
+                } else if self.showWhatsNewIfUnseen() {
+                    self.offerCalibrationAfterWhatsNew = true
+                    return
                 }
                 Task {
                     try? await Task.sleep(for: .seconds(0.8))
@@ -361,9 +374,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         calibrationWindow?.show()
     }
 
-    private func showWhatsNewIfUnseen() {
-        guard WhatsNew.unseen(after: settings.whatsNewSeen) != nil else { return }
+    /// True when the card was shown, so the caller can wait for it to close before offering anything else.
+    @discardableResult
+    private func showWhatsNewIfUnseen() -> Bool {
+        guard WhatsNew.unseen(after: settings.whatsNewSeen) != nil else { return false }
         showWhatsNew(force: false)
+        return whatsNew.isShown
     }
 
     private func updateReviewTip(for state: DictationSession.State) {
@@ -380,7 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if case .idle = state, reviewTipPending {
             reviewTipPending = false
             // A replayed tour has its own Shift line; keep the flag for the next plain dictation.
-            if !whatsNew.isShown && !settings.reviewTipShown && tourWindow == nil { showReviewTip() }
+            if !whatsNew.isShown && !settings.reviewTipShown && tourWindow == nil && calibrationWindow == nil { showReviewTip() }
         }
     }
 

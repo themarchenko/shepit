@@ -20,6 +20,17 @@ final class CalibrationFlowTests: XCTestCase {
         flow.next()
     }
 
+    func testTakeForOtherPromptIgnored() {
+        var flow = started()
+        let first = flow.currentPrompt!.id
+        flow.next()
+        flow.record(take("late"), for: first)
+        XCTAssertNil(flow.currentTake)
+        XCTAssertTrue(flow.pairs(includeTargeted: false).isEmpty)
+        flow.record(take("on time"), for: flow.currentPrompt!.id)
+        XCTAssertEqual(flow.currentTake?.cleaned, "on time")
+    }
+
     private func targeted() -> [CalibrationPrompt] {
         [CalibrationPrompt(id: "t1", text: "Перше речення для перевірки.", language: "uk"),
          CalibrationPrompt(id: "t2", text: "Second sentence for the check.", language: "en")]

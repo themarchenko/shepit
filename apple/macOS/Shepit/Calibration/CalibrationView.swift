@@ -33,8 +33,12 @@ final class CalibrationModel: ObservableObject {
     private let makeCoach: (LanguagePolicy) -> CalibrationCoach
     private var task: Task<Void, Never>?
     private var closed = false
+    /// The prompt on screen when the key went down; a take that finishes later is stored under this one.
+    private var pressedPromptID: String?
     private var tooFew = false
     var onClose: () -> Void = {}
+    /// Called whenever a reading step comes up, so the window can take focus back from another app.
+    var onReading: () -> Void = {}
 
     init(settings: AppSettings,
          setSink: @escaping (((CalibrationTake) -> Void)?) -> Void,
@@ -53,6 +57,8 @@ final class CalibrationModel: ObservableObject {
     var stage: CalibrationFlow.Stage { flow.stage }
     var agentName: String { settings.polishing.displayName }
     var currentTake: CalibrationTake? { flow.currentTake }
+    /// Back, Again and Next change which prompt a take belongs to, so they wait for the take to finish.
+    var canStep: Bool { phase == .idle }
 
     /// 0 intro, 1 words, 2 phrases, 3 the picked sentences, 4 notes.
     var progress: Int {
@@ -95,6 +101,7 @@ final class CalibrationModel: ObservableObject {
     /// The sink is set only while a prompt is on screen: a dictation made on any other step goes the normal way.
     private func syncSink() {
         if case .reading = flow.stage, !closed {
+            onReading()
             setSink { [weak self] take in
                 MainActor.assumeIsolated { self?.received(take) }
             }
@@ -110,13 +117,15 @@ final class CalibrationModel: ObservableObject {
     }
 
     private func received(_ take: CalibrationTake) {
-        guard case .reading = flow.stage else { return }
-        flow.record(take)
+        guard case .reading = flow.stage, let id = pressedPromptID else { return }
+        pressedPromptID = nil
+        flow.record(take, for: id)
         phase = .idle
     }
 
     func pressBegan() {
         guard phase == .idle, case .reading = flow.stage else { return }
+        pressedPromptID = flow.currentPrompt?.id
         startRecording()
     }
 
@@ -462,12 +471,14 @@ struct CalibrationView: View {
                 Button("Start") { model.start() }
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
             case .reading:
-                if model.canGoBack { Button("Back") { model.back() }.buttonStyle(QuietButtonStyle()) }
+                if model.canGoBack {
+                    Button("Back") { model.back() }.buttonStyle(QuietButtonStyle()).disabled(!model.canStep).opacity(model.canStep ? 1 : 0.4)
+                }
                 if model.currentTake != nil {
-                    Button("Again") { model.again() }.buttonStyle(QuietButtonStyle())
+                    Button("Again") { model.again() }.buttonStyle(QuietButtonStyle()).disabled(!model.canStep).opacity(model.canStep ? 1 : 0.4)
                 }
                 Button(model.currentTake == nil ? "Skip" : "Next") { model.next() }
-                    .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
+                    .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction).disabled(!model.canStep).opacity(model.canStep ? 1 : 0.4)
             case .pickingSentences, .writingNotes:
                 EmptyView()
             case .review:
@@ -508,9 +519,17 @@ final class CalibrationWindowController: NSWindowController {
         window.contentView = hosting
         window.setContentSize(hosting.fittingSize)
         model.onClose = { [weak self] in self?.finish() }
+        model.onReading = { [weak self] in self?.bringToFront() }
     }
 
     required init?(coder: NSCoder) { fatalError("not supported") }
+
+    /// Brings the window forward whenever a reading step starts: while one is open every dictation becomes a take,
+    /// so the user should not be typing into another app.
+    func bringToFront() {
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
 
     func show() {
         if let window {

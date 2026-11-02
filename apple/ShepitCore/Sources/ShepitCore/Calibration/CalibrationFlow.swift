@@ -51,6 +51,13 @@ public struct CalibrationFlow: Equatable {
         takes[prompt.id] = take
     }
 
+    /// A take belongs to the prompt that was on screen when the key went down. One that finishes after the user
+    /// moved on is dropped instead of landing on the next prompt.
+    public mutating func record(_ take: CalibrationTake, for promptID: String) {
+        guard currentPrompt?.id == promptID else { return }
+        record(take)
+    }
+
     public mutating func again() {
         guard let prompt = currentPrompt else { return }
         takes[prompt.id] = nil

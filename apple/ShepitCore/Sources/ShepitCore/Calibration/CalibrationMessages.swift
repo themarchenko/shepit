@@ -71,11 +71,14 @@ public enum CalibrationMessages {
         return out.isEmpty ? nil : out
     }
 
+    public static let maxNotesLength = 2000
+
     /// Notes are required; terms are filtered the way a dictionary entry must look.
     public static func parseProfile(_ reply: String, existingDictionary: [String]) -> CalibrationProfile? {
         guard let object = JSONExtraction.firstObject(in: reply), let rawNotes = object["notes"] as? String else { return nil }
         let notes = rawNotes.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !notes.isEmpty else { return nil }
+        // The notes go into every polishing prompt and the settings file, so a runaway reply is refused.
+        guard !notes.isEmpty, notes.count <= maxNotesLength else { return nil }
         var known = Set(existingDictionary.map { $0.lowercased() })
         var terms: [String] = []
         for item in (object["terms"] as? [Any] ?? []) {

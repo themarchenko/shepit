@@ -94,6 +94,11 @@ final class CalibrationMessagesTests: XCTestCase {
         XCTAssertEqual(profile.terms, ["Kubernetes"])
     }
 
+    func testProfileNotesTooLongIsNil() {
+        XCTAssertNil(CalibrationMessages.parseProfile(reply(notes: String(repeating: "a", count: 2001), terms: []), existingDictionary: []))
+        XCTAssertNotNil(CalibrationMessages.parseProfile(reply(notes: String(repeating: "a", count: 2000), terms: []), existingDictionary: []))
+    }
+
     func testProfileWithoutNotesIsNil() {
         XCTAssertNil(CalibrationMessages.parseProfile(#"{"terms": ["x"]}"#, existingDictionary: []))
         XCTAssertNil(CalibrationMessages.parseProfile(reply(notes: "  \n ", terms: ["Shepit"]), existingDictionary: []))

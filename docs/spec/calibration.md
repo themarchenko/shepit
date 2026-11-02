@@ -12,7 +12,9 @@ Stages, in order: intro, words, phrases, picking sentences (agent round 1), a fe
 - Writing notes: round 2 sends every recorded take, extra sentences included. Fewer than 3 takes: no agent call, the failed stage says to read at least three items.
 - Review: the notes are an editable text; the suggested terms are checkboxes, checked by default. Save writes the trimmed notes to `speakerNotes` and merges the checked terms into `dictionary`. Cancel or Close changes nothing.
 
-Takes are kept per prompt, so going back and forth keeps what was read. Nothing is written to history, the recordings folder or the dictionary until Save.
+Takes are kept per prompt, so going back and forth keeps what was read. A take belongs to the prompt that was on screen when the key went down; one that finishes after the user moved on is dropped. Back, Again and Next/Skip are disabled while a take is being recorded or checked. Nothing is written to history, the recordings folder or the dictionary until Save.
+
+While a reading step is open every dictation is captured as a take, wherever the focus was. The window therefore comes to the front each time a reading step starts. The review tip does not show while the window is open.
 
 ## Reading lists
 
@@ -46,7 +48,7 @@ Reply, round `targets`: `{"sentences": [string]}`. Round `profile`: `{"notes": s
 
 Sentences: each is trimmed; dropped when empty, longer than 200 characters, containing a Russian-only letter (ы э ъ ё) or a Polish letter, or containing Cyrillic under an English-only policy. At most 3 are kept. A reply that is not an object, whose `sentences` is not an array, or has a non-string item, is bad. No sentence left: bad. A bad reply means the fixed fallback.
 
-Notes: required, trimmed, not empty; else the reply is bad (the failed stage, Try again).
+Notes: required, trimmed, not empty and at most 2000 characters; else the reply is bad (the failed stage, Try again).
 
 Terms: optional; non-strings skipped. A term is kept when its trimmed length is 2 to 40, it holds a letter, has no control character (a newline would reach the polishing prompt), has at most 3 words, has no Russian-only or Polish letters, and is not a case-insensitive duplicate of an earlier term or of an entry already in the dictionary. At most 12 are kept.
 
@@ -64,7 +66,7 @@ The wizard opens by itself once, then never again on its own (`calibrationOffere
 - the speaker notes are unset: empty or whitespace only, or equal (trimmed) to `SpeakerNotes.legacyDefault`;
 - an agent is available (polishing is not off and the chosen executable was found).
 
-Call sites: the returning-user launch path after What's new, and the end of the tour. Settings, Polishing, "Build from my voice" opens it at any time; that button is disabled while polishing is off. Existing notes are not changed by the offer; Save replaces them with the reviewed text.
+Call sites: the returning-user launch path and the end of the tour. When What's new is shown there, the offer waits until its card closes, so the two never stack. Settings, Polishing, "Build from my voice" opens it at any time; that button is disabled while polishing is off. Existing notes are not changed by the offer; Save replaces them with the reviewed text.
 
 ## Privacy
 

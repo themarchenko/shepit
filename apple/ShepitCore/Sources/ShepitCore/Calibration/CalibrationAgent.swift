@@ -86,8 +86,11 @@ struct CodexCalibrationAgent: CalibrationAgent {
         }
         do {
             return try await codexDeadline(timeout) {
+                try Task.checkCancellation()
                 let server = try CodexAppServerProcess(config: config)
+                // Stored before the next check so the outer defer can terminate it when the task was cancelled.
                 holder.server = server
+                try Task.checkCancellation()
                 try await server.handshake()
                 let thread = try await server.startThread(config)
                 return try await server.runTurn(threadID: thread, text: message, effort: "medium", schema: schema.object)
