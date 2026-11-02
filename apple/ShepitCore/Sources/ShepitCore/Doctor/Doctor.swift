@@ -10,7 +10,7 @@ public enum DoctorCheckID: Equatable, Sendable {
 }
 
 public enum DoctorFix: Equatable, Sendable {
-    case resetAccessibility, resetMicrophone, requestMicrophone, openMicrophoneSettings, openKeyboardSettings
+    case resetAccessibility, resetMicrophone, requestMicrophone, openKeyboardSettings
     case downloadModel, openPolishingSettings, testAgent, openInputMonitoring
 }
 
@@ -159,7 +159,13 @@ public enum Doctor {
             c.fix = .resetMicrophone
             c.fixTitle = L("Reset and ask again")
             c.steps = [L("Click Reset and ask again, then allow the microphone.")]
-            if i.microphoneReset == .running { c.status = .checking }
+            switch i.microphoneReset {
+            case .running: c.status = .checking
+            case .failed:
+                c.steps = [L("In the list, select Shepit and remove it with the minus button."),
+                           L("Click Reset and ask again, then allow the microphone.")]
+            case .idle, .done: break
+            }
         case .notDetermined:
             c.status = .problem
             c.detail = L("Shepit has not asked for the microphone yet.")

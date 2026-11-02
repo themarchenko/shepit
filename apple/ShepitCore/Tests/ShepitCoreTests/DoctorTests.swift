@@ -92,6 +92,13 @@ final class DoctorTests: XCTestCase {
         XCTAssertTrue(c.required)
     }
 
+    func testMicrophoneResetFailureShowsManualSteps() {
+        let c = row(.microphone, inputs(microphone: .denied, microphoneReset: .failed))
+        XCTAssertEqual(c.status, .problem)
+        XCTAssertEqual(c.steps, ["In the list, select Shepit and remove it with the minus button.",
+                                 "Click Reset and ask again, then allow the microphone."])
+    }
+
     func testMicrophoneResetRunningIsChecking() {
         let c = row(.microphone, inputs(microphone: .denied, microphoneReset: .running))
         XCTAssertEqual(c.status, .checking)
@@ -261,6 +268,8 @@ final class DoctorTests: XCTestCase {
     func testSummaryCountsNonOkRows() {
         XCTAssertEqual(Doctor.summary(Doctor.evaluate(inputs())), "Everything Shepit needs is working.")
         let two = Doctor.evaluate(inputs(accessibilityTrusted: false, listenEventAccess: false))
+        // Fallback format: plain `swift test` has no compiled catalog, so the plural variants do not apply.
+        // The app shows "1 thing needs attention."; CoreLocalizationTests pins that through the catalog.
         XCTAssertEqual(Doctor.summary(two), "1 things need attention.")
     }
 

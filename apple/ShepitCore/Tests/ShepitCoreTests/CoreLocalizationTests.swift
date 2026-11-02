@@ -44,6 +44,7 @@ final class CoreLocalizationTests: XCTestCase {
             ("accessibility.done", inputs(accessibilityTrusted: false, accessibilityReset: .done)),
             ("accessibility.failed", inputs(accessibilityTrusted: false, accessibilityReset: .failed)),
             ("microphone.denied", inputs(microphone: .denied)),
+            ("microphone.resetFailed", inputs(microphone: .denied, microphoneReset: .failed)),
             ("microphone.resetting", inputs(microphone: .denied, microphoneReset: .running)),
             ("microphone.notDetermined", inputs(microphone: .notDetermined)),
             ("hotkey.fnOk", inputs(hotkey: .fn, fnUsageType: 0)),
@@ -195,6 +196,7 @@ final class CoreLocalizationTests: XCTestCase {
         CoreLocalization.override = "uk"
         let one = Doctor.summary(problems(1)), few = Doctor.summary(problems(2)), many = Doctor.summary(problems(5))
         XCTAssertEqual(Set([one, few, many]).count, 3)
+        XCTAssertEqual(one, "1 пункт потребує уваги.")
         XCTAssertTrue(one.contains("1"))
         XCTAssertTrue(few.contains("2"))
         XCTAssertTrue(many.contains("5"))

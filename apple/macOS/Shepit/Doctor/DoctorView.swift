@@ -138,8 +138,6 @@ final class DoctorModel: ObservableObject {
                 _ = await live.requestMicrophone()
                 self.refresh()
             }
-        case .openMicrophoneSettings:
-            openPrivacy("Privacy_Microphone")
         case .openKeyboardSettings:
             if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
                 NSWorkspace.shared.open(url)
@@ -313,6 +311,10 @@ final class DoctorWindowController: NSWindowController, NSWindowDelegate {
         var frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 600, height: height))
         frame.origin.x = window.frame.minX
         frame.origin.y = window.frame.maxY - frame.height
+        // Top-left stays fixed only while the window still fits; otherwise slide it up so no row ends off screen.
+        if let area = (window.screen ?? NSScreen.main)?.visibleFrame, frame.minY < area.minY {
+            frame.origin.y = min(area.minY, area.maxY - frame.height)
+        }
         frame.size.width = window.frame.width
         window.setFrame(frame, display: true)
     }
