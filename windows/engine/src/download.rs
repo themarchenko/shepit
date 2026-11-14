@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::{mpsc, Mutex};
 use std::time::Duration;
 
 pub struct Response {
@@ -150,6 +150,11 @@ pub fn ensure(
     ensure_with(dir, spec, fetch, STALL_LIMIT, progress)
 }
 
+/// One `ensure` at a time in this process. Two callers on the same folder (parallel tests, or a retry
+/// while a load is downloading) would write the same `.part` file, and the first rename would pull it
+/// away from the other. The second caller waits, then finds the files installed.
+static ENSURE_LOCK: Mutex<()> = Mutex::new(());
+
 fn ensure_with(
     dir: &Path,
     spec: &ModelSpec,
@@ -157,6 +162,8 @@ fn ensure_with(
     stall: Duration,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<(), String> {
+    // A caller that panicked mid-download leaves at most a `.part` file, which the next one resumes.
+    let _one_at_a_time = ENSURE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     let total: u64 = spec.files.iter().map(|f| f.size).sum();
     let mut done = 0u64;
@@ -512,6 +519,83 @@ mod tests {
         std::fs::write(tmp.path().join("a.bin"), &body).unwrap();
         verify_installed(tmp.path(), &spec).unwrap();
         assert!(is_installed(tmp.path(), &spec));
+    }
+
+    /// Serves the body in small slow pieces, so two downloads overlap.
+    struct Trickle {
+        body: Cursor<Vec<u8>>,
+    }
+
+    impl Read for Trickle {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            std::thread::sleep(Duration::from_millis(5));
+            let n = buf.len().min(500);
+            self.body.read(&mut buf[..n])
+        }
+    }
+
+    struct TrickleFetch {
+        body: Vec<u8>,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl Fetch for TrickleFetch {
+        fn get(&self, _url: &str, offset: u64) -> Result<Response, String> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let start = offset as usize;
+            Ok(Response {
+                status: if start > 0 { 206 } else { 200 },
+                body: Box::new(Trickle {
+                    body: Cursor::new(self.body[start..].to_vec()),
+                }),
+            })
+        }
+    }
+
+    #[test]
+    fn two_callers_on_one_folder_both_succeed() {
+        let body = payload();
+        let sha = sha_hex(&body);
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+        let fetches: Vec<_> = (0..2)
+            .map(|_| {
+                std::sync::Arc::new(TrickleFetch {
+                    body: body.clone(),
+                    calls: Default::default(),
+                })
+            })
+            .collect();
+        let threads: Vec<_> = fetches
+            .iter()
+            .cloned()
+            .map(|fetch| {
+                let (dir, sha) = (dir.clone(), sha.clone());
+                let size = body.len() as u64;
+                std::thread::spawn(move || {
+                    let f = [ModelFile {
+                        name: "a.bin",
+                        url: URL,
+                        size,
+                        sha256: &sha,
+                    }];
+                    let spec = ModelSpec {
+                        dir_name: "m",
+                        files: &f,
+                    };
+                    ensure(&dir, &spec, fetch.as_ref(), &mut |_, _| {})
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap().unwrap();
+        }
+        assert_eq!(std::fs::read(dir.join("a.bin")).unwrap(), body);
+        let calls: usize = fetches
+            .iter()
+            .map(|f| f.calls.load(std::sync::atomic::Ordering::SeqCst))
+            .sum();
+        assert_eq!(calls, 1, "the second caller finds the file installed");
     }
 
     /// Yields `first`, then blocks far longer than the test's stall limit.
