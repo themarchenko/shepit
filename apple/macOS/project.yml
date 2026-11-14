@@ -39,8 +39,8 @@ targets:
         CFBundleIdentifier: com.themarchenko.shepit
         # Keep in step with InterfaceLanguage.available in ShepitCore.
         CFBundleLocalizations: [en, uk]
-        CFBundleShortVersionString: "0.6.0"
-        CFBundleVersion: "9"
+        CFBundleShortVersionString: "0.6.1"
+        CFBundleVersion: "10"
         LSUIElement: true
         LSMinimumSystemVersion: "26.0"
         NSMicrophoneUsageDescription: "Shepit records your voice while the dictation key is held."
