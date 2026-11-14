@@ -12,6 +12,12 @@ enum WhatsNew {
 
     /// Newest first.
     static let releases: [(version: String, items: [Item])] = [
+        ("0.6.1", [
+            Item(symbol: "arrow.down.circle.dotted", title: String(localized: "Model download progress"),
+                 detail: String(localized: "Doctor shows how much of the speech model is downloaded, how fast, and how much time is left.")),
+            Item(symbol: "command", title: String(localized: "Command-W closes windows"),
+                 detail: String(localized: "Settings, History and Doctor close with Command-W, like other Mac windows.")),
+        ]),
         ("0.6.0", [
             Item(symbol: "character.bubble", title: String(localized: "Ukrainian interface"),
                  detail: String(localized: "Shepit follows the macOS language. Settings → General → App language picks English or Ukrainian.")),

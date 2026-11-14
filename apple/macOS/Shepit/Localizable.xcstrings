@@ -393,6 +393,16 @@
         }
       }
     },
+    "Command-W closes windows" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command-W закриває вікна"
+          }
+        }
+      }
+    },
     "Continue" : {
       "localizations" : {
         "uk" : {
@@ -581,6 +591,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Діагностика"
+          }
+        }
+      }
+    },
+    "Doctor shows how much of the speech model is downloaded, how fast, and how much time is left." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«Діагностика» показує, скільки моделі мовлення вже завантажено, з якою швидкістю і скільки часу лишилося."
           }
         }
       }
@@ -1225,6 +1245,16 @@
         }
       }
     },
+    "Model download progress" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прогрес завантаження моделі"
+          }
+        }
+      }
+    },
     "Needs Claude Code or Codex." : {
       "localizations" : {
         "uk" : {
@@ -1783,6 +1813,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Параметри"
+          }
+        }
+      }
+    },
+    "Settings, History and Doctor close with Command-W, like other Mac windows." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вікна «Параметри», «Історія» і «Діагностика» закриваються клавішами Command-W, як інші вікна на Mac."
           }
         }
       }
