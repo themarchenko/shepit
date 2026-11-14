@@ -1,7 +1,8 @@
 import AppKit
 
 /// A main menu that is never drawn: Shepit is an accessory app. It exists so the standard Edit key equivalents
-/// reach text fields in Settings and the tour. No Quit or Close items on purpose.
+/// reach text fields in Settings and the tour, and Cmd-W closes the key window. No Quit item on purpose: the app
+/// lives in the menu bar and quits from there.
 enum MainMenu {
     @MainActor
     static func make() -> NSMenu {
@@ -21,6 +22,12 @@ enum MainMenu {
         let editItem = NSMenuItem()
         editItem.submenu = edit
         main.addItem(editItem)
+
+        let window = NSMenu(title: String(localized: "Window"))
+        window.addItem(item(String(localized: "Close"), #selector(NSWindow.performClose(_:)), "w"))
+        let windowItem = NSMenuItem()
+        windowItem.submenu = window
+        main.addItem(windowItem)
         return main
     }
 

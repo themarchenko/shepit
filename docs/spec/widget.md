@@ -87,8 +87,9 @@ Shape sizes in points, from macOS/Shepit/Widget/WidgetModel.swift:78-129 (width 
 | Platform | Phase | Caption | Source |
 |---|---|---|---|
 | Windows only | processing, model files downloading | `Downloading model N%` (N is a whole percent) | windows/app/src/Widget.tsx:7 |
+| macOS only | failed, after a press refused because the model is not ready | `Model downloading: N%`, `Model is still loading` or `Model did not load` | ShepitCore/Sources/ShepitCore/Speech/ModelStatus.swift |
 
-macOS does not show this caption. Both platforms word the other stages the same way (`Loading model`, `Transcribing`; WidgetModel.swift:21-22).
+macOS does not show the Windows caption. Both platforms word the other stages the same way (`Loading model`, `Transcribing`; WidgetModel.swift:21-22).
 
 ## Windows notes
 

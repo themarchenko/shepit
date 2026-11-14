@@ -11,12 +11,12 @@ Rows appear in this order. Status is ok, info, warning, problem or checking. Inf
 | Accessibility (required) | Not trusted. Problem. The text says macOS may be holding the permission of an older build. After a reset it lists steps, and while the reset runs the row is "checking". | "Reset and ask again" |
 | Microphone (required) | Denied or restricted: problem. The text says macOS may be holding the permission of an older build, and one step says to reset and allow the microphone. While a reset runs the row is "checking". Not asked yet: problem. | "Reset and ask again", or "Allow" (system prompt) |
 | Dictation key | Only for Fn. Keyboard setting "Press Fn key to" (`AppleFnUsageType`) other than 0: problem, with steps. Unreadable: warning. Any other key: ok, the Fn setting is ignored. | "Open Keyboard settings" |
-| Speech model | Loading: checking. Failed load: problem with the first line of the error (max 120 characters). Not on disk and not loaded: warning. | "Download now" (starts the load again) |
+| Speech model | Loading: checking. While the files download the row has a progress bar and a line with bytes done of the total, speed and time left (`ModelStatus`); after the download it says the first load takes a few minutes. Failed load: problem with the first line of the error (max 120 characters). Not on disk and not loaded: warning. | "Download now" (starts the load again) |
 | Polishing agent | Row hidden when polishing is off. No executable found: problem. Found: ok, with a Test button. A failed test is a problem with a plain-text reason. | "Open Polishing settings", "Test" |
 | Secure input | Secure event input is on: warning, naming the app holding it when macOS says which. | none |
 | Input Monitoring | Not allowed: info ("Shepit usually works without it"), with a step: if Shepit is not in the list, click + and add it from Applications. There is no signal for a dead dictation key, so the row is not escalated. | "Open Input Monitoring" (asks first, then opens the list) |
 
-Summary line: "Everything Shepit needs is working.", or "N things need attention." for every row that is a problem, warning or checking. Info rows are not counted.
+Summary line: "N things need attention." for every row that is a problem or warning. With none, "Nothing is wrong so far. Some checks are still running." while a row is checking (a model load, an agent test, a permission reset), else "Everything Shepit needs is working.". Checking and info rows are not counted.
 
 Required problem: Accessibility not trusted, or Microphone not granted. Only these two count for the menu bar marker and the auto-open rule.
 

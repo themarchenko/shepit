@@ -134,9 +134,15 @@ public actor EngineManager {
     /// Why the last load of an engine failed. A failed load stays in `loading` (dictations rethrow it),
     /// so this is what tells "failed" from "still loading".
     private var loadErrors: [EngineID: String] = [:]
+    /// Called after a load starts, finishes, fails or is dropped, so `ModelStatus` does not wait for its poll.
+    private var onChange: (@Sendable () -> Void)?
 
     public init(factory: @escaping @Sendable (EngineID) -> SpeechEngine = { EngineFactory.make($0) }) {
         self.factory = factory
+    }
+
+    public func setOnChange(_ f: @escaping @Sendable () -> Void) {
+        onChange = f
     }
 
     public func loadState(of id: EngineID) async -> EngineLoadState {
@@ -150,6 +156,7 @@ public actor EngineManager {
     /// Starts over after a failed load. Does nothing special while a load is healthy.
     public func retry(_ id: EngineID) async {
         if loadErrors[id] != nil, loading?.id == id { loading = nil }
+        onChange?()
         await preload(id)
     }
 
@@ -178,6 +185,7 @@ public actor EngineManager {
         active = nil
         currentID = nil
         await dropPreview()
+        onChange?()
     }
 
     /// The fast engine for the live preview when it is loaded. Starts loading it otherwise and returns nil.
@@ -210,6 +218,7 @@ public actor EngineManager {
         guard let e else { return }
         if keepsPreviewEngine, currentID != .parakeetV3, preview == nil {
             preview = e
+            onChange?()
         } else {
             await e.unload()
         }
@@ -245,10 +254,12 @@ public actor EngineManager {
             return e
         }
         loading = (id, task)
+        onChange?()
     }
 
     private func recordLoadError(_ message: String, id: EngineID) {
         loadErrors[id] = message
+        onChange?()
     }
 
     private func adopt(_ e: SpeechEngine, id: EngineID) async {
@@ -260,6 +271,7 @@ public actor EngineManager {
         active = e
         currentID = id
         loading = nil
+        onChange?()
         if id == .parakeetV3 { await dropPreview() }
         if let old, old !== e {
             if keepsPreviewEngine, old.id == .parakeetV3, preview == nil {

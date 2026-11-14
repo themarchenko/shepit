@@ -26,13 +26,15 @@ final class CoreLocalizationTests: XCTestCase {
         hotkey: HotkeyChoice = .rightOption, fnUsageType: Int? = 0, engine: EngineID = .parakeetV3,
         modelOnDisk: Bool = true, modelState: EngineLoadState = .loaded, polishing: PolishingProvider = .off,
         agentExecutable: String? = nil, agentTest: AgentTestState = .notRun,
-        secureInputActive: Bool = false, secureInputHolder: String? = nil
+        secureInputActive: Bool = false, secureInputHolder: String? = nil,
+        modelDownload: DownloadMeter.Reading? = nil
     ) -> DoctorInputs {
         DoctorInputs(accessibilityTrusted: accessibilityTrusted, accessibilityReset: accessibilityReset,
                      microphone: microphone, microphoneReset: microphoneReset, listenEventAccess: listenEventAccess, hotkey: hotkey,
                      fnUsageType: fnUsageType, engine: engine, modelOnDisk: modelOnDisk, modelState: modelState,
                      polishing: polishing, agentExecutable: agentExecutable, agentTest: agentTest,
-                     secureInputActive: secureInputActive, secureInputHolder: secureInputHolder)
+                     secureInputActive: secureInputActive, secureInputHolder: secureInputHolder,
+                     modelDownload: modelDownload)
     }
 
     /// Every branch of `Doctor.evaluate`, one scenario each.
@@ -51,6 +53,10 @@ final class CoreLocalizationTests: XCTestCase {
             ("hotkey.fnProblem", inputs(hotkey: .fn, fnUsageType: 2)),
             ("hotkey.fnUnknown", inputs(hotkey: .fn, fnUsageType: nil)),
             ("model.loading", inputs(modelState: .loading)),
+            ("model.downloading", inputs(modelState: .loading, modelDownload: DownloadMeter.Reading(
+                bytes: 400_000_000, total: 1_600_000_000, bytesPerSecond: 10_000_000, secondsLeft: 120))),
+            ("model.downloadingLastMinute", inputs(modelState: .loading, modelDownload: DownloadMeter.Reading(
+                bytes: 1_500_000_000, total: 1_600_000_000, bytesPerSecond: 10_000_000, secondsLeft: 10))),
             ("model.failed", inputs(modelState: .failed("boom\nsecond line"))),
             ("model.notOnDisk", inputs(modelOnDisk: false, modelState: .idle)),
             ("model.onDisk", inputs(modelOnDisk: true, modelState: .idle)),
@@ -79,6 +85,7 @@ final class CoreLocalizationTests: XCTestCase {
                 let base = "doctor.\(name).\(row.id)"
                 if row.id != .agent { out["\(base).title"] = row.title }
                 out["\(base).detail"] = row.detail
+                if let label = row.progressLabel { out["\(base).progressLabel"] = label }
                 if let fix = row.fixTitle { out["\(base).fixTitle"] = fix }
                 for (n, step) in row.steps.enumerated() { out["\(base).step\(n)"] = step }
             }
@@ -86,6 +93,7 @@ final class CoreLocalizationTests: XCTestCase {
         for kind in agentKinds { out["doctor.failureText.\(kind)"] = Doctor.agentFailureText(kind: kind) }
         let ok = Doctor.evaluate(inputs())
         out["doctor.summary.0"] = Doctor.summary(ok)
+        out["doctor.summary.running"] = Doctor.summary(Doctor.evaluate(inputs(modelState: .loading)))
         for n in [1, 2, 5, 21] { out["doctor.summary.\(n)"] = Doctor.summary(problems(n)) }
 
         for h in HotkeyChoice.allCases {
@@ -100,6 +108,9 @@ final class CoreLocalizationTests: XCTestCase {
         for p in LanguagePolicy.allCases { out["language.\(p)"] = p.displayName }
         for m in Mode.allCases { out["mode.\(m)"] = m.displayName }
 
+        out["model.notReady.downloading"] = ModelStatus.notReadyMessage(.downloading(DownloadMeter.Reading(bytes: 1, total: 4)))
+        out["model.notReady.loading"] = ModelStatus.notReadyMessage(.preparing)
+        out["model.notReady.failed"] = ModelStatus.notReadyMessage(.failed("disk"))
         out["insert.secureInput"] = InsertError.secureInput.errorDescription
         out["insert.empty"] = InsertError.empty.errorDescription
         out["audio.noInput"] = AudioError.noInput.errorDescription

@@ -19,13 +19,15 @@ private func inputs(
     agentExecutable: String? = nil,
     agentTest: AgentTestState = .notRun,
     secureInputActive: Bool = false,
-    secureInputHolder: String? = nil
+    secureInputHolder: String? = nil,
+    modelDownload: DownloadMeter.Reading? = nil
 ) -> DoctorInputs {
     DoctorInputs(accessibilityTrusted: accessibilityTrusted, accessibilityReset: accessibilityReset,
                  microphone: microphone, microphoneReset: microphoneReset, listenEventAccess: listenEventAccess, hotkey: hotkey,
                  fnUsageType: fnUsageType, engine: engine, modelOnDisk: modelOnDisk, modelState: modelState,
                  polishing: polishing, agentExecutable: agentExecutable, agentTest: agentTest,
-                 secureInputActive: secureInputActive, secureInputHolder: secureInputHolder)
+                 secureInputActive: secureInputActive, secureInputHolder: secureInputHolder,
+                 modelDownload: modelDownload)
 }
 
 private func row(_ id: DoctorCheckID, _ i: DoctorInputs, file: StaticString = #filePath, line: UInt = #line) -> DoctorCheck {
@@ -161,7 +163,26 @@ final class DoctorTests: XCTestCase {
     func testModelLoadingIsChecking() {
         let c = row(.model, inputs(engine: .parakeetV3, modelState: .loading))
         XCTAssertEqual(c.status, .checking)
-        XCTAssertEqual(c.detail, "Loading \(EngineID.parakeetV3.displayName). The first time it downloads 0.6-1.6 GB.")
+        XCTAssertEqual(c.detail, "Loading \(EngineID.parakeetV3.displayName). The first time after a download this takes a few minutes. Dictation starts when it is ready.")
+        XCTAssertNil(c.progress)
+    }
+
+    func testModelDownloadingShowsBytesAndProgress() {
+        let reading = DownloadMeter.Reading(bytes: 400_000_000, total: 1_600_000_000, bytesPerSecond: 10_000_000, secondsLeft: 120)
+        let c = row(.model, inputs(engine: .whisperTurbo, modelState: .loading, modelDownload: reading))
+        XCTAssertEqual(c.status, .checking)
+        XCTAssertEqual(c.progress ?? 0, 0.25, accuracy: 0.001)
+        XCTAssertEqual(c.detail, "Downloading \(EngineID.whisperTurbo.displayName). Dictation starts when it is ready.")
+        XCTAssertEqual(c.progressLabel, "400 MB of 1.6 GB, 10 MB/s, about 2 min left")
+    }
+
+    func testRunningChecksAreNotCountedAsProblems() {
+        let loading = Doctor.evaluate(inputs(modelState: .loading))
+        XCTAssertEqual(Doctor.summary(loading), "Nothing is wrong so far. Some checks are still running.")
+        let testing = Doctor.evaluate(inputs(polishing: .claudeCode, agentExecutable: "/x/claude", agentTest: .running))
+        XCTAssertEqual(Doctor.summary(testing), "Nothing is wrong so far. Some checks are still running.")
+        let mixed = Doctor.evaluate(inputs(accessibilityTrusted: false, modelState: .loading))
+        XCTAssertEqual(Doctor.summary(mixed), "1 things need attention.")
     }
 
     func testModelFailedOffersDownload() {

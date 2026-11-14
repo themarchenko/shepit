@@ -50,6 +50,9 @@ public final class DictationSession: ObservableObject {
     public func forgetLastRecord() { lastRecord = nil }
     /// The words so far while recording; kept through processing, cleared once the result is in.
     public let live = LivePreview()
+    /// Whether the chosen recognizer is loaded. A press is refused until it is: a dictation would otherwise wait
+    /// behind a download or a first compile that can take minutes.
+    public let modelStatus: ModelStatus
     private let progressive = ProgressiveTranscriber()
     private var recognitionHints = TranscriptionHints()
 
@@ -87,6 +90,7 @@ public final class DictationSession: ObservableObject {
         self.inserter = inserter
         self.history = history
         self.settings = settings
+        modelStatus = ModelStatus(engines: engines, engineID: { settings.engine })
     }
 
     /// The app that was focused when the current dictation started.
@@ -98,6 +102,10 @@ public final class DictationSession: ObservableObject {
         switch state {
         case .idle, .done, .failed: break
         default: return
+        }
+        if let message = modelStatus.notReadyMessage {
+            refuseNotReady(message)
+            return
         }
         resetTask?.cancel()
         reviewRequested = false
@@ -128,6 +136,19 @@ public final class DictationSession: ObservableObject {
         }
         captureTarget = captureSink
         Log.pipeline.notice("recording started for \(self.context.appName ?? "?", privacy: .public) (hands-free: \(handsFree, privacy: .public))")
+    }
+
+    private func refuseNotReady(_ message: String) {
+        Log.pipeline.notice("press ignored, recognizer not ready: \(String(describing: self.modelStatus.phase), privacy: .public)")
+        // Nothing is loading it (after a failure the user retries from Doctor), so the press starts the load.
+        if modelStatus.phase == .idle {
+            let engines = self.engines
+            let id = settings.engine
+            Task { await engines.preload(id) }
+        }
+        live.clear()
+        state = .failed(message: message)
+        scheduleReset(after: 3)
     }
 
     private func currentHints() -> TranscriptionHints {

@@ -2449,6 +2449,16 @@
         }
       }
     },
+    "Window" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вікно"
+          }
+        }
+      }
+    },
     "Words while you speak" : {
       "localizations" : {
         "uk" : {

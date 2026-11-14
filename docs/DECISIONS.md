@@ -2,6 +2,16 @@
 
 Short log of choices that are not obvious from the code. Newest first.
 
+## 2026-11-14: Model loading gate, download progress, Cmd-W (macOS)
+
+- A press is refused until the selected recognizer is loaded. This drops the old "the previous engine serves dictations while a new one loads" behaviour for presses: the user saw dictation hang while Whisper downloaded and compiled, and asked for a block. The engine manager still falls back internally; the gate just keeps a press from reaching it. Cost: after every launch with Whisper selected the key does nothing until Whisper is in memory, with a caption saying so.
+- Readiness lives in a main-actor `ModelStatus`, so the key press reads it without an actor hop. The engine manager calls back on every load start, finish, failure and unload, and a 1 s poll covers download progress. Ready means ready for the engine chosen now, so a just-changed setting is not ready until the next refresh.
+- Neither library reports bytes (WhisperKit counts files, FluidAudio gives a fraction with uneven weights), so progress is the size of the engine's model folder against a measured full size (`EngineID.downloadBytes`), partial files included. Below 97% of that size a loading model counts as downloading, above it as preparing. Speed and time left average the last 10 s and show after 2 s of samples. If a model revision changes size the bar stops at 99% and switches to "preparing"; update the sizes then.
+- Doctor's summary no longer counts checking rows as needing attention (pressing Test showed "1 thing needs attention" while the test ran).
+- Cmd-W: the hidden main menu gets a Window menu with Close (`performClose:`). This supersedes "No Cmd-Q or Cmd-W in the menu" in the 2026-11-02 entry; Cmd-Q stays out. Borderless windows (tour, calibration) have no close button, so Cmd-W beeps there.
+- Windows lags: no gate and no Doctor.
+- Needs device check: a real first download of each engine (bar, speed, time left), a press during it, a press right after launch with Whisper selected, Cmd-W in Settings, History and Doctor.
+
 ## 2026-11-02: Doctor permission rows (macOS)
 
 - Microphone gets the same stale-grant fix as Accessibility: `tccutil reset Microphone <bundle id>`, then Shepit asks again. Verified on this Mac: `Microphone` and `ListenEvent` exit 0 for a test bundle id and an unknown service exits 70, so a wrong service name fails loudly instead of doing nothing.
