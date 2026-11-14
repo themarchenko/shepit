@@ -91,11 +91,14 @@ final class DoctorModel: ObservableObject {
             secureInputActive: secure.active, secureInputHolder: secure.holder)
         let engines = live.engines
         let engine = settings.engine
+        let download: DownloadMeter.Reading?
+        if case .downloading(let reading) = live.session.modelStatus.phase { download = reading } else { download = nil }
         generation += 1
         let mine = generation
         Task {
             var inputs = base
             inputs.modelState = await engines.loadState(of: engine)
+            inputs.modelDownload = download
             // A slower, older probe must not overwrite a newer one.
             guard mine == self.generation else { return }
             let rows = Doctor.evaluate(inputs)
@@ -226,6 +229,18 @@ struct DoctorView: View {
                     .font(.system(size: 12.5))
                     .foregroundStyle(WidgetPalette.text.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)
+                if let progress = c.progress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .tint(WidgetPalette.text.opacity(0.85))
+                        .padding(.top, 5)
+                    if let label = c.progressLabel {
+                        Text(label)
+                            .font(.system(size: 12))
+                            .monospacedDigit()
+                            .foregroundStyle(WidgetPalette.text.opacity(0.6))
+                    }
+                }
                 if !c.steps.isEmpty {
                     VStack(alignment: .leading, spacing: 3) {
                         ForEach(Array(c.steps.enumerated()), id: \.offset) { index, step in

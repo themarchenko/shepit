@@ -126,6 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        session.modelStatus.start()
         Task {
             // Parakeet loads in under a second and serves dictations until a slower engine is ready; it stays
             // loaded afterwards for the live preview.
@@ -219,6 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 Task { await self.engines.preload(engine) }
+                Task { await self.session.modelStatus.refresh() }
             }
         }.store(in: &cancellables)
 

@@ -32,9 +32,13 @@ public struct DoctorCheck: Equatable, Sendable, Identifiable {
     public var fixTitle: String?
     public var steps: [String]
     public var required: Bool
+    /// Share done, for a row that shows a progress bar (the model download).
+    public var progress: Double?
+    /// Shown under the progress bar: bytes, speed and time left.
+    public var progressLabel: String?
 
     public init(id: DoctorCheckID, title: String, status: DoctorStatus, detail: String, fix: DoctorFix?,
-                fixTitle: String?, steps: [String], required: Bool) {
+                fixTitle: String?, steps: [String], required: Bool, progress: Double? = nil) {
         self.id = id
         self.title = title
         self.status = status
@@ -43,6 +47,7 @@ public struct DoctorCheck: Equatable, Sendable, Identifiable {
         self.fixTitle = fixTitle
         self.steps = steps
         self.required = required
+        self.progress = progress
     }
 }
 
@@ -57,6 +62,8 @@ public struct DoctorInputs: Equatable, Sendable {
     public var engine: EngineID
     public var modelOnDisk: Bool
     public var modelState: EngineLoadState
+    /// Set while the model is still downloading; nil once the files are on disk.
+    public var modelDownload: DownloadMeter.Reading?
     public var polishing: PolishingProvider
     public var agentExecutable: String?
     public var agentTest: AgentTestState
@@ -67,7 +74,7 @@ public struct DoctorInputs: Equatable, Sendable {
                 microphoneReset: AccessibilityResetState = .idle, listenEventAccess: Bool, hotkey: HotkeyChoice, fnUsageType: Int?, engine: EngineID,
                 modelOnDisk: Bool, modelState: EngineLoadState, polishing: PolishingProvider,
                 agentExecutable: String?, agentTest: AgentTestState, secureInputActive: Bool,
-                secureInputHolder: String?) {
+                secureInputHolder: String?, modelDownload: DownloadMeter.Reading? = nil) {
         self.accessibilityTrusted = accessibilityTrusted
         self.accessibilityReset = accessibilityReset
         self.microphone = microphone
@@ -78,6 +85,7 @@ public struct DoctorInputs: Equatable, Sendable {
         self.engine = engine
         self.modelOnDisk = modelOnDisk
         self.modelState = modelState
+        self.modelDownload = modelDownload
         self.polishing = polishing
         self.agentExecutable = agentExecutable
         self.agentTest = agentTest
@@ -109,10 +117,12 @@ public enum Doctor {
             && requiredProblem(accessibilityTrusted: accessibilityTrusted, microphone: microphone)
     }
 
+    /// A row that is still checking or loading is not a fault, so it is not counted.
     public static func summary(_ checks: [DoctorCheck]) -> String {
-        let n = checks.filter { $0.status != .ok && $0.status != .info }.count
-        if n == 0 { return L("Everything Shepit needs is working.") }
-        return L("\(n) things need attention.")
+        let n = checks.filter { $0.status == .warning || $0.status == .problem }.count
+        if n > 0 { return L("\(n) things need attention.") }
+        if checks.contains(where: { $0.status == .checking }) { return L("Nothing is wrong so far. Some checks are still running.") }
+        return L("Everything Shepit needs is working.")
     }
 
     public static func agentFailureText(kind: String) -> String {
@@ -206,7 +216,13 @@ public enum Doctor {
         case .loaded: break
         case .loading:
             c.status = .checking
-            c.detail = L("Loading \(i.engine.displayName). The first time it downloads 0.6-1.6 GB.")
+            if let download = i.modelDownload {
+                c.detail = L("Downloading \(i.engine.displayName). Dictation starts when it is ready.")
+                c.progress = download.fraction
+                c.progressLabel = ModelStatus.progressText(download)
+            } else {
+                c.detail = L("Loading \(i.engine.displayName). The first time after a download this takes a few minutes. Dictation starts when it is ready.")
+            }
         case .failed(let message):
             let first = message.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? message
             c.status = .problem

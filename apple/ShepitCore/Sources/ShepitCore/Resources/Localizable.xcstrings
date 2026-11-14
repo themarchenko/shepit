@@ -41,12 +41,32 @@
         }
       }
     },
+    "%@ of %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ з %@"
+          }
+        }
+      }
+    },
     "%@ was not found on this Mac." : {
       "localizations" : {
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ не знайдено на цьому Mac."
+          }
+        }
+      }
+    },
+    "%@/s" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@/с"
           }
         }
       }
@@ -283,6 +303,16 @@
         }
       }
     },
+    "Downloading %@. Dictation starts when it is ready." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завантаження %@. Диктування запрацює, коли модель буде готова."
+          }
+        }
+      }
+    },
     "English" : {
       "localizations" : {
         "uk" : {
@@ -433,12 +463,12 @@
         }
       }
     },
-    "Loading %@. The first time it downloads 0.6-1.6 GB." : {
+    "Loading %@. The first time after a download this takes a few minutes. Dictation starts when it is ready." : {
       "localizations" : {
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Завантаження %@. Першого разу це 0,6-1,6 ГБ."
+            "value" : "Завантаження %@. Перший раз після завантаження це займає кілька хвилин. Диктування запрацює, коли модель буде готова."
           }
         }
       }
@@ -469,6 +499,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Мікрофон: %@"
+          }
+        }
+      }
+    },
+    "Model did not load" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель не завантажилась"
+          }
+        }
+      }
+    },
+    "Model downloading: %@" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель завантажується: %@"
+          }
+        }
+      }
+    },
+    "Model is still loading" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель ще завантажується"
           }
         }
       }
@@ -509,6 +569,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ще не завантажено."
+          }
+        }
+      }
+    },
+    "Nothing is wrong so far. Some checks are still running." : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поки що все гаразд. Деякі перевірки ще тривають."
           }
         }
       }
@@ -929,6 +999,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Використовується Fn. Система не перехоплює цю клавішу."
+          }
+        }
+      }
+    },
+    "about %lld min left" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "лишилося близько %lld хв"
+          }
+        }
+      }
+    },
+    "less than a minute left" : {
+      "localizations" : {
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "лишилося менше хвилини"
           }
         }
       }

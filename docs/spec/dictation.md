@@ -18,6 +18,7 @@ Paths are relative to `apple/ShepitCore/Sources/ShepitCore`. One dictation: reco
 
 - "Recording" means `recording`. "Busy" means loading_model, transcribing, formatting or inserting (:29-38). `reviewing` is neither: it is not recording and not busy.
 - Start is accepted only from idle, done and failed (:89-92), so it is ignored while reviewing. Start cancels a pending reset (:93).
+- macOS only: start is also refused until the selected recognizer is loaded (`ModelStatus`, Speech/ModelStatus.swift). Nothing is recorded; the state becomes `failed` with a short caption ("Model downloading: N%", "Model is still loading" or "Model did not load") and resets after 3 s. A loaded fallback engine does not count: before this rule a press during a download or a first Whisper compile waited behind it and looked frozen. If nothing is loading the model, the press starts the load. Windows lags.
 - `toggleHandsFree` (widget click): hands-free recording stops; non-hands-free recording becomes hands-free; idle, done and failed start a hands-free recording; busy states and `reviewing` ignore it (:155-161).
 
 ## Timings and limits
